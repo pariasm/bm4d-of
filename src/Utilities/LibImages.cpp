@@ -22,6 +22,7 @@
 #include "Utilities.h"
 #include "mt19937ar.h"
 
+#include <unistd.h> // getpid
 #include <iostream>
 #include <sstream>
 #include <stdlib.h>
