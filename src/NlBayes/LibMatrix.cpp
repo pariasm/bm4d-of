@@ -45,13 +45,10 @@ int inverseMatrix(
 	unsigned p, q, r, s, t, j, k;
 
 	for (j = 0, p = 0; j < p_N ; j++, p += p_N + 1) {
-		for (q = j * p_N; q < p ; q++) {
+		for (q = j * p_N; q < p ; q++)
 			io_mat[p] -= io_mat[q] * io_mat[q];
-		}
 
-		if (io_mat[p] <= 0.f) {
-			return EXIT_FAILURE;
-		}
+		if (io_mat[p] <= 0.f) return EXIT_FAILURE;
 
 		io_mat[p] = sqrtf(io_mat[p]);
 
@@ -81,9 +78,8 @@ int inverseMatrix(
 
 	for (j = 0, p = 0; j < p_N; j++, p += p_N + 1) {
 		for (q = j, t = p - j; q <= p; q += p_N, t++) {
-			for (k = j, r = p, s = q, z = 0.f; k < p_N; k++, r++, s++) {
+			for (k = j, r = p, s = q, z = 0.f; k < p_N; k++, r++, s++)
 				z += io_mat[r] * io_mat[s];
-			}
 
 			io_mat[t] = io_mat[q] = z;
 		}
@@ -135,16 +131,14 @@ void covarianceMatrix(
 ){
 	const float coefNorm = 1.f / (float) (p_nb);
 
-	for (unsigned i = 0; i < p_N; i++) {
-		for (unsigned j = 0; j < i + 1; j++) {
-			float val = 0.f;
+	for (unsigned i = 0; i < p_N; i++)
+	for (unsigned j = 0; j < i + 1; j++) {
+		float val = 0.f;
+		for (unsigned k = 0; k < p_nb; k++)
+			val += i_patches[i * p_nb + k] * i_patches[j * p_nb + k];
 
-			for (unsigned k = 0; k < p_nb; k++) {
-				val += i_patches[i * p_nb + k] * i_patches[j * p_nb + k];
-			}
-			o_covMat[i * p_N + j] = val * coefNorm;
-			o_covMat[i + j * p_N] = val * coefNorm;
-		}
+		o_covMat[i * p_N + j] = val * coefNorm;
+		o_covMat[i + j * p_N] = val * coefNorm;
 	}
 }
 

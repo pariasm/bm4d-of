@@ -48,7 +48,7 @@ int loadImage(
     char* p_name
 ,   std::vector<float> &o_im
 ,   ImageSize &o_imSize
-,   const bool p_verbose
+,   const bool p_verbose = false
 );
 
 /**

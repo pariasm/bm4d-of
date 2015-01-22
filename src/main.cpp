@@ -35,14 +35,14 @@ using namespace std;
 
 int main(int argc, char **argv)
 {
-    //! Check if there is the right call for the algorithm
+	//! Check if there is the right call for the algorithm
 	if (argc < 13) {
 		cout << "usage: NL_Bayes image sigma noisy denoised basic difference \
-		bias basic_bias diff_bias useArea1 useArea2 computeBias" << endl;
+			bias basic_bias diff_bias useArea1 useArea2 computeBias" << endl;
 		return EXIT_FAILURE;
 	}
 
-    //! Variables initialization
+	//! Variables initialization
 	const float sigma   = atof(argv[2]);
 	const bool doBias   = (bool) atof(argv[12]);
 	const bool useArea1 = (bool) atof(argv[10]);
@@ -54,105 +54,75 @@ int main(int argc, char **argv)
 	vector<float> imBias, imBasicBias, imDiffBias;
 	ImageSize imSize;
 
-    //! Load image
-	if(loadImage(argv[1], im, imSize, verbose) != EXIT_SUCCESS) {
-        return EXIT_FAILURE;
-	}
+	//! Load image
+	if(loadImage(argv[1], im, imSize, verbose) != EXIT_SUCCESS)
+		return EXIT_FAILURE;
 
 	//! Add noise
-    addNoise(im, imNoisy, sigma, verbose);
+	addNoise(im, imNoisy, sigma, verbose);
 
-    //! Denoising
-    if (verbose) {
-        cout << endl << "Applying NL-Bayes to the noisy image :" << endl;
-    }
-    if (runNlBayes(imNoisy, imBasic, imFinal, imSize, useArea1, useArea2, sigma, verbose)
-        != EXIT_SUCCESS) {
-        return EXIT_FAILURE;
-    }
-    if (verbose) {
-        cout << endl;
-    }
+	//! Denoising
+	if (verbose) cout << endl << "Applying NL-Bayes to the noisy image :" << endl;
 
-    //! Bias denoising
+	if (runNlBayes(imNoisy, imBasic, imFinal, imSize, useArea1, useArea2, sigma, verbose)
+			!= EXIT_SUCCESS)
+		return EXIT_FAILURE;
+
+	if (verbose) cout << endl;
+
+	//! Bias denoising
 	if (doBias) {
-        if (verbose) {
-            cout << "Applying NL-Bayes to the original image :" << endl;
-        }
-        if (runNlBayes(im, imBasicBias, imBias, imSize, useArea1, useArea2, sigma, verbose)
-             != EXIT_SUCCESS) {
-             return EXIT_FAILURE;
-        }
-        if (verbose) {
-            cout << endl;
-        }
+		if (verbose) cout << "Applying NL-Bayes to the original image :" << endl;
+
+		if (runNlBayes(im, imBasicBias, imBias, imSize, useArea1, useArea2, sigma, verbose)
+				!= EXIT_SUCCESS)
+			return EXIT_FAILURE;
+
+		if (verbose) cout << endl;
 	}
 
 	//! Compute PSNR and RMSE
-    float psnr, rmse, psnrBasic, rmseBasic;
-    computePsnr(im, imBasic, psnrBasic, rmseBasic, "imBasic", verbose);
-    computePsnr(im, imFinal, psnr, rmse, "imFinal", verbose);
+	float psnr, rmse, psnrBasic, rmseBasic;
+	computePsnr(im, imBasic, psnrBasic, rmseBasic, "imBasic", verbose);
+	computePsnr(im, imFinal, psnr     , rmse     , "imFinal", verbose);
 
-    float psnrBias, psnrBiasBasic, rmseBias, rmseBiasBasic;
-    if (doBias) {
-        computePsnr(im, imBasicBias, psnrBiasBasic, rmseBiasBasic, "imBiasBasic", verbose);
-        computePsnr(im, imBias, psnrBias, rmseBias, "imBiasFinal", verbose);
-    }
-
-    //! writing measures
-    writingMeasures("measures.txt", sigma, psnrBasic, rmseBasic, true, "_basic");
-    writingMeasures("measures.txt", sigma, psnr, rmse, false, "      ");
-    if (doBias) {
-        writingMeasures("measures.txt", sigma, psnrBiasBasic, rmseBiasBasic, false, "_bias_basic");
-        writingMeasures("measures.txt", sigma, psnrBias, rmseBias, false, "_bias      ");
-    }
-
-    //! Compute Difference
-	if (computeDiff(im, imFinal, imDiff, sigma, 0.f, 255.f, verbose) != EXIT_SUCCESS) {
-        return EXIT_FAILURE;
-	}
+	float psnrBias, psnrBiasBasic, rmseBias, rmseBiasBasic;
 	if (doBias) {
-        if (computeDiff(im, imBias, imDiffBias, sigma, 0.f, 255.f, verbose) != EXIT_SUCCESS) {
-            return EXIT_FAILURE;
-        }
+		computePsnr(im, imBasicBias, psnrBiasBasic, rmseBiasBasic, "imBiasBasic", verbose);
+		computePsnr(im, imBias     , psnrBias     , rmseBias     , "imBiasFinal", verbose);
 	}
 
-    //! save noisy, denoised and differences images
-	if (verbose) {
-	    cout << "Save images...";
+	//! writing measures
+	writingMeasures("measures.txt", sigma, psnrBasic, rmseBasic, true , "_basic");
+	writingMeasures("measures.txt", sigma, psnr     , rmse     , false, "      ");
+	if (doBias) {
+		writingMeasures("measures.txt", sigma, psnrBiasBasic, rmseBiasBasic, false, "_bias_basic");
+		writingMeasures("measures.txt", sigma, psnrBias     , rmseBias     , false, "_bias      ");
 	}
-	if (saveImage(argv[3], imNoisy, imSize, 0.f, 255.f) != EXIT_SUCCESS) {
+
+	//! Compute Difference
+	if (computeDiff(im, imFinal, imDiff, sigma, 0.f, 255.f, verbose) != EXIT_SUCCESS)
 		return EXIT_FAILURE;
+
+	if (doBias)
+		if (computeDiff(im, imBias, imDiffBias, sigma, 0.f, 255.f, verbose) != EXIT_SUCCESS)
+			return EXIT_FAILURE;
+
+	//! save noisy, denoised and differences images
+	if (verbose) cout << "Save images...";
+
+	if (saveImage(argv[3], imNoisy, imSize, 0.f, 255.f) != EXIT_SUCCESS) return EXIT_FAILURE;
+	if (saveImage(argv[4], imFinal, imSize, 0.f, 255.f) != EXIT_SUCCESS) return EXIT_FAILURE;
+	if (saveImage(argv[5], imBasic, imSize, 0.f, 255.f) != EXIT_SUCCESS) return EXIT_FAILURE;
+	if (saveImage(argv[6], imDiff , imSize, 0.f, 255.f) != EXIT_SUCCESS) return EXIT_FAILURE;
+
+	if (doBias) {
+		if (saveImage(argv[7], imBias     , imSize, 0.f, 255.f) != EXIT_SUCCESS) return EXIT_FAILURE;
+		if (saveImage(argv[8], imBasicBias, imSize, 0.f, 255.f) != EXIT_SUCCESS) return EXIT_FAILURE;
+		if (saveImage(argv[9], imDiffBias , imSize, 0.f, 255.f) != EXIT_SUCCESS) return EXIT_FAILURE;
 	}
 
-	if (saveImage(argv[4], imFinal, imSize, 0.f, 255.f) != EXIT_SUCCESS) {
-		return EXIT_FAILURE;
-	}
-
-    if (saveImage(argv[5], imBasic, imSize, 0.f, 255.f) != EXIT_SUCCESS) {
-        return EXIT_FAILURE;
-    }
-
-    if (saveImage(argv[6], imDiff, imSize, 0.f, 255.f) != EXIT_SUCCESS) {
-		return EXIT_FAILURE;
-    }
-
-    if (doBias) {
-        if (saveImage(argv[7], imBias, imSize, 0.f, 255.f) != EXIT_SUCCESS) {
-            return EXIT_FAILURE;
-        }
-
-        if (saveImage(argv[8], imBasicBias, imSize, 0.f, 255.f) != EXIT_SUCCESS) {
-            return EXIT_FAILURE;
-        }
-
-        if (saveImage(argv[9], imDiffBias, imSize, 0.f, 255.f) != EXIT_SUCCESS) {
-            return EXIT_FAILURE;
-        }
-    }
-    if (verbose) {
-        cout << "done." << endl;
-    }
+	if (verbose) cout << "done." << endl;
 
 	return EXIT_SUCCESS;
 }

@@ -49,11 +49,11 @@ using namespace std;
 void initializeNlbParameters(
 	nlbParams &o_paramStep1
 ,	nlbParams &o_paramStep2
-,   const float p_sigma
+,	const float p_sigma
 ,	const ImageSize &p_imSize
 ,	const bool p_useArea1
-,   const bool p_useArea2
-,   const bool p_verbose
+,	const bool p_useArea2
+,	const bool p_verbose
 ){
 	//! Standard deviation of the noise
 	o_paramStep1.sigma = p_sigma;
@@ -65,20 +65,14 @@ void initializeNlbParameters(
 		o_paramStep2.sizePatch = 5;
 	}
 	else {
-		o_paramStep1.sizePatch = (p_sigma < 20.f ? 3 :
-                                 (p_sigma < 50.f ? 5 : 7));
-        o_paramStep2.sizePatch = (p_sigma < 50.f ? 3 :
-                                 (p_sigma < 70.f ? 5 : 7));
+		o_paramStep1.sizePatch = (p_sigma < 20.f ? 3 : (p_sigma < 50.f ? 5 : 7));
+		o_paramStep2.sizePatch = (p_sigma < 50.f ? 3 : (p_sigma < 70.f ? 5 : 7));
 	}
 
 	//! Number of similar patches
 	if (p_imSize.nChannels == 1) {
-		o_paramStep1.nSimilarPatches =	(p_sigma < 10.f ? 35 :
-										(p_sigma < 30.f ? 45 :
-										(p_sigma < 80.f ? 90 : 100)));
-		o_paramStep2.nSimilarPatches =	(p_sigma < 20.f ? 15 :
-										(p_sigma < 40.f ? 25 :
-										(p_sigma < 80.f ? 30 : 45)));
+		o_paramStep1.nSimilarPatches = (p_sigma < 10.f ? 35 : (p_sigma < 30.f ? 45 : (p_sigma < 80.f ? 90 : 100))); // ASK MARC differs from manuscript
+		o_paramStep2.nSimilarPatches = (p_sigma < 20.f ? 15 : (p_sigma < 40.f ? 25 : (p_sigma < 80.f ? 30 :  45))); // ASK MARC differs from manuscript
 	}
 	else {
 		o_paramStep1.nSimilarPatches = o_paramStep1.sizePatch * o_paramStep1.sizePatch * 3;
@@ -94,14 +88,10 @@ void initializeNlbParameters(
 	o_paramStep2.useHomogeneousArea = p_useArea2;
 
 	//! Size of the search window around the reference patch (must be odd)
-	o_paramStep1.sizeSearchWindow = o_paramStep1.nSimilarPatches / 2;
-	if (o_paramStep1.sizeSearchWindow % 2 == 0) {
-		o_paramStep1.sizeSearchWindow++;
-	}
-	o_paramStep2.sizeSearchWindow = o_paramStep2.nSimilarPatches / 2;
-	if (o_paramStep2.sizeSearchWindow % 2 == 0) {
-		o_paramStep2.sizeSearchWindow++;
-	}
+	o_paramStep1.sizeSearchWindow = o_paramStep1.nSimilarPatches / 2; // ASK MARC and 7*sizePatch1 in IPOL manuscript
+	o_paramStep2.sizeSearchWindow = o_paramStep2.nSimilarPatches / 2; // ASK MARC and 7*sizePatch2 in IPOL manuscript
+	if (o_paramStep1.sizeSearchWindow % 2 == 0) o_paramStep1.sizeSearchWindow++;
+	if (o_paramStep2.sizeSearchWindow % 2 == 0) o_paramStep2.sizeSearchWindow++;
 
 	//! Size of boundaries used during the sub division
 	o_paramStep1.boundary = int(1.5f * float(o_paramStep1.sizeSearchWindow));
@@ -113,10 +103,8 @@ void initializeNlbParameters(
 
 	//! Parameter used to estimate the covariance matrix
 	if (p_imSize.nChannels == 1) {
-		o_paramStep1.beta = (p_sigma < 15.f ? 1.1f :
-                            (p_sigma < 70.f ? 1.f : 0.9f));
-		o_paramStep2.beta = (p_sigma < 15.f ? 1.1f :
-                            (p_sigma < 35.f ? 1.f : 0.9f));
+		o_paramStep1.beta = (p_sigma < 15.f ? 1.1f : (p_sigma < 70.f ? 1.f : 0.9f));
+		o_paramStep2.beta = (p_sigma < 15.f ? 1.1f : (p_sigma < 35.f ? 1.f : 0.9f));
 	}
 	else {
 		o_paramStep1.beta = 1.f;
@@ -124,6 +112,8 @@ void initializeNlbParameters(
 	}
 
 	//! Parameter used to determine similar patches
+	//  Differs from manuscript (tau = 4) because (1) this threshold is to be used 
+	//  with the squared distance and (2) the distance is not normalized
 	o_paramStep2.tau = 16.f * o_paramStep2.sizePatch * o_paramStep2.sizePatch * p_imSize.nChannels;
 
 	//! Print information?
@@ -142,6 +132,11 @@ void initializeNlbParameters(
 /**
  * @brief Main function to process the whole NL-Bayes algorithm.
  *
+ * This function splits the image in several subimages when using
+ * OpenMP. Each subimage is then assinged to a thread, which runs
+ * processNlBayes on the subimage. The subimages are then assembled
+ * into the final image.
+ *
  * @param i_imNoisy: contains the noisy image;
  * @param o_imBasic: will contain the basic estimate image after the first step;
  * @param o_imFinal: will contain the final denoised image after the second step;
@@ -155,28 +150,26 @@ void initializeNlbParameters(
  **/
 int runNlBayes(
 	std::vector<float> const& i_imNoisy
-,   std::vector<float> &o_imBasic
+,	std::vector<float> &o_imBasic
 ,	std::vector<float> &o_imFinal
 ,	const ImageSize &p_imSize
 ,	const bool p_useArea1
 ,	const bool p_useArea2
 ,	const float p_sigma
-,   const bool p_verbose
+,	const bool p_verbose
 ){
 	//! Only 1, 3 or 4-channels images can be processed.
 	const unsigned chnls = p_imSize.nChannels;
 	if (! (chnls == 1 || chnls == 3 || chnls == 4)) {
-		cout << "Wrong number of channels. Must be 1 or 3!!" << endl;
+		cout << "Wrong number of channels. Must be 1, 3 or 4!!" << endl;
 		return EXIT_FAILURE;
 	}
 
 	//! Number of available cores
 	unsigned nbThreads = 1;
 #ifdef _OPENMP
-    nbThreads = omp_get_max_threads();
-    if (p_verbose) {
-        cout << "Open MP is used" << endl;
-    }
+	nbThreads = omp_get_max_threads();
+	if (p_verbose) cout << "Open MP is used" << endl;
 #endif
 
 	//! Initialization
@@ -186,12 +179,10 @@ int runNlBayes(
 	//! Parameters Initialization
 	nlbParams paramStep1, paramStep2;
 	initializeNlbParameters(paramStep1, paramStep2, p_sigma, p_imSize, p_useArea1, p_useArea2,
-                         p_verbose);
+			p_verbose);
 
 	//! Step 1
-	if (paramStep1.verbose) {
-		cout << "1st Step...";
-	}
+	if (paramStep1.verbose) cout << "1st Step...";
 
 	//! RGB to YUV
 	vector<float> imNoisy = i_imNoisy;
@@ -202,67 +193,55 @@ int runNlBayes(
 	vector<vector<float> > imNoisySub(nbParts), imBasicSub(nbParts), imFinalSub(nbParts);
 	ImageSize imSizeSub;
 	if (subDivide(imNoisy, imNoisySub, p_imSize, imSizeSub, paramStep1.boundary, nbParts)
-		!= EXIT_SUCCESS) {
+			!= EXIT_SUCCESS)
 		return EXIT_FAILURE;
-	}
 
 	//! Process all sub-images
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic, nbParts/nbThreads) \
-            shared(imNoisySub, imBasicSub, imFinalSub, imSizeSub) \
-		firstprivate (paramStep1)
+	shared(imNoisySub, imBasicSub, imFinalSub, imSizeSub) \
+	firstprivate (paramStep1)
 #endif
-	for (int n = 0; n < (int) nbParts; n++) {
-	    processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], imSizeSub, paramStep1);
-	}
+	for (int n = 0; n < (int) nbParts; n++)
+		processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], imSizeSub, paramStep1);
 
 	//! Get the basic estimate
 	if (subBuild(o_imBasic, imBasicSub, p_imSize, imSizeSub, paramStep1.boundary)
-		!= EXIT_SUCCESS) {
+			!= EXIT_SUCCESS)
 		return EXIT_FAILURE;
-	}
 
 	//! YUV to RGB
 	transformColorSpace(o_imBasic, p_imSize, false);
 
-	if (paramStep1.verbose) {
-		cout << "done." << endl;
-	}
+	if (paramStep1.verbose) cout << "done." << endl;
 
 	//! 2nd Step
-	if (paramStep2.verbose) {
-		cout << "2nd Step...";
-	}
+	if (paramStep2.verbose) cout << "2nd Step...";
 
 	//! Divide the noisy and basic images into sub-images in order to easier parallelize the process
 	if (subDivide(i_imNoisy, imNoisySub, p_imSize, imSizeSub, paramStep2.boundary, nbParts)
-        != EXIT_SUCCESS) {
+			!= EXIT_SUCCESS)
 		return EXIT_FAILURE;
-	}
+
 	if (subDivide(o_imBasic, imBasicSub, p_imSize, imSizeSub, paramStep2.boundary, nbParts)
-		!= EXIT_SUCCESS) {
+			!= EXIT_SUCCESS)
 		return EXIT_FAILURE;
-	}
 
 	//! Process all sub-images
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic, nbParts/nbThreads) \
-            shared(imNoisySub, imBasicSub, imFinalSub) \
-		firstprivate (paramStep2)
+	shared(imNoisySub, imBasicSub, imFinalSub) \
+	firstprivate (paramStep2)
 #endif
-	for (int n = 0; n < (int) nbParts; n++) {
+	for (int n = 0; n < (int) nbParts; n++)
 		processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], imSizeSub, paramStep2);
-	}
 
 	//! Get the final result
 	if (subBuild(o_imFinal, imFinalSub, p_imSize, imSizeSub, paramStep2.boundary)
-		!= EXIT_SUCCESS) {
+			!= EXIT_SUCCESS)
 		return EXIT_FAILURE;
-	}
 
-	if (paramStep2.verbose) {
-		cout << "done." << endl << endl;
-	}
+	if (paramStep2.verbose) cout << "done." << endl << endl;
 
 	return EXIT_SUCCESS;
 }
@@ -286,19 +265,17 @@ void processNlBayes(
 ,	nlbParams &p_params
 ){
 	//! Parameters initialization
-	const unsigned sW		= p_params.sizeSearchWindow;
-	const unsigned sP		= p_params.sizePatch;
-	const unsigned sP2		= sP * sP;
-	const unsigned sPC		= sP2 * p_imSize.nChannels;
-	const unsigned nSP		= p_params.nSimilarPatches;
-	unsigned nInverseFailed	= 0;
-	const float threshold	= p_params.sigma * p_params.sigma * p_params.gamma *
-                                (p_params.isFirstStep ? p_imSize.nChannels : 1.f);
+	const unsigned sW  = p_params.sizeSearchWindow;
+	const unsigned sP  = p_params.sizePatch;
+	const unsigned sP2 = sP * sP;
+	const unsigned sPC = sP2 * p_imSize.nChannels;
+	const unsigned nSP = p_params.nSimilarPatches;
+	unsigned nInverseFailed = 0;
+	const float threshold = p_params.sigma * p_params.sigma * p_params.gamma *
+		(p_params.isFirstStep ? p_imSize.nChannels : 1.f);
 
 	//! Allocate Sizes
-	if (p_params.isFirstStep) {
-		io_imBasic.resize(p_imSize.whc);
-	}
+	if (p_params.isFirstStep) io_imBasic.resize(p_imSize.whc);
 	o_imFinal.resize(p_imSize.whc);
 
 	//! Used matrices during Bayes' estimate
@@ -315,73 +292,61 @@ void processNlBayes(
 	//! ponderation: weight sum per pixel
 	vector<float> weight(i_imNoisy.size(), 0.f);
 
-	//! Mask: non-already processed patches
+	//! Mask: true for pixels that still need to be processed
 	vector<bool> mask(p_imSize.wh, false);
 
 	//! Only pixels of the center of the image must be processed (not the boundaries)
-	for (unsigned i = sW; i < p_imSize.height - sW; i++) {
-		for (unsigned j = sW; j < p_imSize.width - sW; j++) {
-			mask[i * p_imSize.width + j] = true;
-		}
-	}
+	for (unsigned i = sW; i < p_imSize.height - sW; i++)
+	for (unsigned j = sW; j < p_imSize.width  - sW; j++)
+		mask[i * p_imSize.width + j] = true;
 
-	for (unsigned ij = 0; ij < p_imSize.wh; ij += p_params.offSet) {
+	for (unsigned ij = 0; ij < p_imSize.wh; ij += p_params.offSet)
 		//! Only non-seen patches are processed
 		if (mask[ij]) {
 			//! Search for similar patches around the reference one
 			unsigned nSimP = p_params.nSimilarPatches;
-			if (p_params.isFirstStep) {
+			if (p_params.isFirstStep)
 				estimateSimilarPatchesStep1(i_imNoisy, group3d, index, ij, p_imSize, p_params);
-			}
-			else {
+			else
 				nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic, group3dNoisy,
-					group3dBasic, index, ij, p_imSize, p_params);
-			}
+						group3dBasic, index, ij, p_imSize, p_params);
 
 			//! Initialization
 			bool doBayesEstimate = true;
 
 			//! If we use the homogeneous area trick
 			if (p_params.useHomogeneousArea) {
-				if (p_params.isFirstStep) {
+				if (p_params.isFirstStep)
 					doBayesEstimate = !computeHomogeneousAreaStep1(group3d, sP, nSP,
-						threshold, p_imSize);
-				}
-				else {
+							threshold, p_imSize);
+				else
 					doBayesEstimate = !computeHomogeneousAreaStep2(group3dNoisy, group3dBasic,
-						sP, nSimP, threshold, p_imSize);
-				}
+							sP, nSimP, threshold, p_imSize);
 			}
 
 			//! Else, use Bayes' estimate
 			if (doBayesEstimate) {
-				if (p_params.isFirstStep) {
+				if (p_params.isFirstStep)
 					computeBayesEstimateStep1(group3d, mat, nInverseFailed, p_params);
-				}
-				else {
+				else
 					computeBayesEstimateStep2(group3dNoisy, group3dBasic, mat, nInverseFailed,
-						p_imSize, p_params, nSimP);
-				}
+							p_imSize, p_params, nSimP);
 			}
 
 			//! Aggregation
-			if (p_params.isFirstStep) {
+			if (p_params.isFirstStep)
 				computeAggregationStep1(io_imBasic, weight, mask, group3d, index, p_imSize,
-					p_params);
-			}
-			else {
+						p_params);
+			else
 				computeAggregationStep2(o_imFinal, weight, mask, group3dBasic, index, p_imSize,
-					p_params, nSimP);
-			}
+						p_params, nSimP);
 		}
-	}
 
 	//! Weighted aggregation
 	computeWeightedAggregation(i_imNoisy, io_imBasic, o_imFinal, weight, p_params, p_imSize);
 
-	if (nInverseFailed > 0 && p_params.verbose) {
+	if (nInverseFailed > 0 && p_params.verbose)
 		cout << "nInverseFailed = " << nInverseFailed << endl;
-	}
 }
 
 /**
@@ -405,50 +370,48 @@ void estimateSimilarPatchesStep1(
 ,	const nlbParams &p_params
 ){
 	//! Initialization
-	const unsigned sW		= p_params.sizeSearchWindow;
-	const unsigned sP		= p_params.sizePatch;
-	const unsigned width	= p_imSize.width;
-	const unsigned chnls	= p_imSize.nChannels;
-	const unsigned wh		= width * p_imSize.height;
-	const unsigned ind		= p_ij - (sW - 1) * (width + 1) / 2;
-	const unsigned nSimP	= p_params.nSimilarPatches;
+	const unsigned sW    = p_params.sizeSearchWindow;
+	const unsigned sP    = p_params.sizePatch;
+	const unsigned width = p_imSize.width;
+	const unsigned chnls = p_imSize.nChannels;
+	const unsigned wh    = width * p_imSize.height;
+	const unsigned ind   = p_ij - (sW - 1) * (width + 1) / 2;
+	const unsigned nSimP = p_params.nSimilarPatches;
 	vector<pair<float, unsigned> > distance(sW * sW);
 
 	//! Compute distance between patches
-	for (unsigned i = 0; i < sW; i++) {
-		for (unsigned j = 0; j < sW; j++) {
-			const unsigned k = i * width + j + ind;
-			float diff = 0.f;
-			for (unsigned p = 0; p < sP; p++) {
-				for (unsigned q = 0; q < sP; q++) {
-					const float tmpValue = i_im[p_ij + p * width + q] - i_im[k + p * width + q];
-					diff += tmpValue * tmpValue;
-				}
-			}
-
-			//! Save all distances
-			distance[i * sW + j] = make_pair(diff, k);
+	for (unsigned i = 0; i < sW; i++)
+	for (unsigned j = 0; j < sW; j++) {
+		const unsigned k = i * width + j + ind;
+		float diff = 0.f;
+		for (unsigned p = 0; p < sP; p++)
+		for (unsigned q = 0; q < sP; q++) {
+			const float tmpValue = i_im[p_ij + p * width + q] - i_im[k + p * width + q];
+			diff += tmpValue * tmpValue;
 		}
+
+		//! Save all distances
+		distance[i * sW + j] = make_pair(diff, k);
 	}
 
 	//! Keep only the N2 best similar patches
 	partial_sort(distance.begin(), distance.begin() + nSimP, distance.end(), comparaisonFirst);
 
 	//! Register position of patches
-	for (unsigned n = 0; n < nSimP; n++) {
-		o_index[n] = distance[n].second;
-	}
+	for (unsigned n = 0; n < nSimP; n++) o_index[n] = distance[n].second;
 
 	//! Register similar patches into the 3D group
-	for (unsigned c = 0; c < chnls; c++) {
-		for (unsigned p = 0, k = 0; p < sP; p++) {
-			for (unsigned q = 0; q < sP; q++) {
-				for (unsigned n = 0; n < nSimP; n++, k++) {
-					o_group3d[c][k] = i_im[o_index[n] + p * width + q + c * wh];
-				}
-			}
-		}
-	}
+	for (unsigned c = 0; c < chnls; c++)
+	for (unsigned p = 0, k = 0; p < sP; p++)
+	for (unsigned q = 0;        q < sP; q++)
+	for (unsigned n = 0; n < nSimP; n++, k++)
+		o_group3d[c][k] = i_im[o_index[n] + p * width + q + c * wh];
+
+	/* 00  pixels from all patches
+	 * 01  pixels from all patches
+	 * ...
+	 * 0sp pixels from all patches
+	 */
 }
 
 /**
@@ -476,62 +439,59 @@ unsigned estimateSimilarPatchesStep2(
 ,	const nlbParams &p_params
 ){
 	//! Initialization
-	const unsigned width	= p_imSize.width;
-	const unsigned chnls	= p_imSize.nChannels;
-	const unsigned wh		= width * p_imSize.height;
-	const unsigned sP		= p_params.sizePatch;
-	const unsigned sW		= p_params.sizeSearchWindow;
-	const unsigned ind		= p_ij - (sW - 1) * (width + 1) / 2;
+	const unsigned width = p_imSize.width;
+	const unsigned chnls = p_imSize.nChannels;
+	const unsigned wh    = width * p_imSize.height;
+	const unsigned sP    = p_params.sizePatch;
+	const unsigned sW    = p_params.sizeSearchWindow;
+	const unsigned ind   = p_ij - (sW - 1) * (width + 1) / 2;
 	vector<pair<float, unsigned> > distance(sW * sW);
 
 	//! Compute distance between patches
-	for (unsigned i = 0; i < sW; i++) {
-		for (unsigned j = 0; j < sW; j++) {
-			const unsigned k = i * width + j + ind;
-			float diff = 0.0f;
+	for (unsigned i = 0; i < sW; i++)
+	for (unsigned j = 0; j < sW; j++)
+	{
+		const unsigned k = i * width + j + ind;
+		float diff = 0.0f;
 
-			for (unsigned c = 0; c < chnls; c++) {
-				const unsigned dc = c * wh;
-				for (unsigned p = 0; p < sP; p++) {
-					for (unsigned q = 0; q < sP; q++) {
-						const float tmpValue = i_imBasic[dc + p_ij + p * width + q]
-											- i_imBasic[dc + k + p * width + q];
-						diff += tmpValue * tmpValue;
-					}
-				}
+		for (unsigned c = 0; c < chnls; c++)
+		{
+			const unsigned dc = c * wh;
+			for (unsigned p = 0; p < sP; p++)
+			for (unsigned q = 0; q < sP; q++)
+			{
+				const float tmpValue = i_imBasic[dc + p_ij + p * width + q]
+				                     - i_imBasic[dc + k    + p * width + q];
+				diff += tmpValue * tmpValue;
 			}
-
-			//! Save all distances
-			distance[i * sW + j] = make_pair(diff, k);
 		}
+
+		//! Save all distances
+		distance[i * sW + j] = make_pair(diff, k);
 	}
 
 	//! Keep only the nSimilarPatches best similar patches
 	partial_sort(distance.begin(), distance.begin() + p_params.nSimilarPatches, distance.end(),
-		comparaisonFirst);
+			comparaisonFirst);
 
 	//! Save index of similar patches
 	const float threshold = (p_params.tau > distance[p_params.nSimilarPatches - 1].first ?
-							p_params.tau : distance[p_params.nSimilarPatches - 1].first);
+	                         p_params.tau : distance[p_params.nSimilarPatches - 1].first);
 	unsigned nSimP = 0;
 
 	//! Register position of similar patches
-	for (unsigned n = 0; n < distance.size(); n++) {
-		if (distance[n].first < threshold) {
+	for (unsigned n = 0; n < distance.size(); n++)
+		if (distance[n].first < threshold)
 			o_index[nSimP++] = distance[n].second;
-		}
-	}
 
 	//! Save similar patches into 3D groups
-	for (unsigned c = 0, k = 0; c < chnls; c++) {
-		for (unsigned p = 0; p < sP; p++) {
-			for (unsigned q = 0; q < sP; q++) {
-				for (unsigned n = 0; n < nSimP; n++, k++) {
-					o_group3dNoisy[k] = i_imNoisy[c * wh + o_index[n] + p * width + q];
-					o_group3dBasic[k] = i_imBasic[c * wh + o_index[n] + p * width + q];
-				}
-			}
-		}
+	for (unsigned c = 0, k = 0; c < chnls; c++)
+	for (unsigned p = 0; p < sP; p++)
+	for (unsigned q = 0; q < sP; q++)
+	for (unsigned n = 0; n < nSimP; n++, k++)
+	{
+		o_group3dNoisy[k] = i_imNoisy[c * wh + o_index[n] + p * width + q];
+		o_group3dBasic[k] = i_imBasic[c * wh + o_index[n] + p * width + q];
 	}
 
 	return nSimP;
@@ -562,30 +522,22 @@ int computeHomogeneousAreaStep1(
 
 	//! Compute the standard deviation of the set of patches
 	float stdDev = 0.f;
-	for (unsigned c = 0; c < p_imSize.nChannels; c++) {
+	for (unsigned c = 0; c < p_imSize.nChannels; c++)
 		stdDev += computeStdDeviation(io_group3d[c], p_sP * p_sP, p_nSimP, 1);
-	}
 
 	//! If we are in an homogeneous area
 	if (stdDev < p_threshold) {
 		for (unsigned c = 0; c < p_imSize.nChannels; c++) {
-            float mean = 0.f;
+			float mean = 0.f;
 
-            for (unsigned k = 0; k < N; k++) {
-                mean += io_group3d[c][k];
-            }
+			for (unsigned k = 0; k < N; k++) mean += io_group3d[c][k];
+			mean /= (float) N;
 
-            mean /= (float) N;
-
-            for (unsigned k = 0; k < N; k++) {
-                io_group3d[c][k] = mean;
-            }
-        }
+			for (unsigned k = 0; k < N; k++) io_group3d[c][k] = mean;
+		}
 		return 1;
 	}
-	else {
-		return 0;
-	}
+	else return 0;
 }
 
 /**
@@ -647,11 +599,11 @@ int computeHomogeneousAreaStep2(
  *
  * @param io_group3d: contains all similar patches. Will contain estimates for all similar patches;
  * @param i_mat: contains :
- *		- group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
- *		- baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
- *		- covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
- *		- covMatTmp: allocated memory. Used to process the Bayes estimate;
- *		- tmpMat: allocated memory. Used to process the Bayes estimate;
+ *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
+ *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+ *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
+ *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
+ *    - tmpMat: allocated memory. Used to process the Bayes estimate;
  * @param io_nInverseFailed: update the number of failed matrix inversion;
  * @param p_params: see processStep1 for more explanation.
  *
@@ -663,53 +615,49 @@ int computeHomogeneousAreaStep2(
 ,	unsigned &io_nInverseFailed
 ,	nlbParams &p_params
 ){
-	//! Parameters
-	const unsigned chnls = io_group3d.size();
-	const unsigned nSimP = p_params.nSimilarPatches;
-	const unsigned sP2   = p_params.sizePatch * p_params.sizePatch;
-	const float valDiag  = p_params.beta * p_params.sigma * p_params.sigma;
+	 //! Parameters
+	 const unsigned chnls = io_group3d.size();
+	 const unsigned nSimP = p_params.nSimilarPatches;
+	 const unsigned sP2   = p_params.sizePatch * p_params.sizePatch;
+	 const float valDiag  = p_params.beta * p_params.sigma * p_params.sigma;
 
-	//! Bayes estimate
-	for (unsigned c = 0; c < chnls; c++) {
+	 //! Bayes estimate
+	 for (unsigned c = 0; c < chnls; c++) {
 
-	    //! Center data around the baricenter
-		centerData(io_group3d[c], i_mat.baricenter, nSimP, sP2);
+		 //! Center data around the baricenter
+		 centerData(io_group3d[c], i_mat.baricenter, nSimP, sP2);
 
-		//! Compute the covariance matrix of the set of similar patches
-		covarianceMatrix(io_group3d[c], i_mat.covMat, nSimP, sP2);
+		 //! Compute the covariance matrix of the set of similar patches
+		 covarianceMatrix(io_group3d[c], i_mat.covMat, nSimP, sP2);
 
-		//! Bayes' Filtering
-		if (inverseMatrix(i_mat.covMat, sP2) == EXIT_SUCCESS) {
-            productMatrix(i_mat.group3dTranspose, i_mat.covMat, io_group3d[c], sP2, sP2, nSimP);
-            for (unsigned k = 0; k < sP2 * nSimP; k++) {
-                io_group3d[c][k] -= valDiag * i_mat.group3dTranspose[k];
-            }
-		}
-		else {
-			io_nInverseFailed++;
-		}
+		 //! Bayes' Filtering
+		 if (inverseMatrix(i_mat.covMat, sP2) == EXIT_SUCCESS) {
+			 productMatrix(i_mat.group3dTranspose, i_mat.covMat, io_group3d[c], sP2, sP2, nSimP);
+			 for (unsigned k = 0; k < sP2 * nSimP; k++)
+				 io_group3d[c][k] -= valDiag * i_mat.group3dTranspose[k];
+		 }
+		 else 
+			 io_nInverseFailed++;
 
-		//! Add baricenter
-		for (unsigned j = 0, k = 0; j < sP2; j++) {
-			for (unsigned i = 0; i < nSimP; i++, k++) {
-			    io_group3d[c][k] += i_mat.baricenter[j];
-			}
-		}
-	}
-}
+		 //! Add baricenter
+		 for (unsigned j = 0, k = 0; j < sP2; j++)
+			 for (unsigned i = 0; i < nSimP; i++, k++)
+				 io_group3d[c][k] += i_mat.baricenter[j];
+	 }
+ }
 
 /**
  * @brief Compute the Bayes estimation.
  *
  * @param i_group3dNoisy: contains all similar patches in the noisy image;
  * @param io_group3dBasic: contains all similar patches in the basic image. Will contain estimates
- *			for all similar patches;
+ *       for all similar patches;
  * @param i_mat: contains :
- *		- group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
- *		- baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
- *		- covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
- *		- covMatTmp: allocated memory. Used to process the Bayes estimate;
- *		- tmpMat: allocated memory. Used to process the Bayes estimate;
+ *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
+ *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+ *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
+ *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
+ *    - tmpMat: allocated memory. Used to process the Bayes estimate;
  * @param io_nInverseFailed: update the number of failed matrix inversion;
  * @param p_imSize: size of the image;
  * @param p_params: see processStep2 for more explanations;
@@ -738,27 +686,22 @@ void computeBayesEstimateStep2(
 	covarianceMatrix(io_group3dBasic, i_mat.covMat, p_nSimP, sPC);
 
 	//! Bayes' Filtering
-    for (unsigned k = 0; k < sPC; k++) {
-        i_mat.covMat[k * sPC + k] += diagVal;
-    }
+	for (unsigned k = 0; k < sPC; k++)
+		i_mat.covMat[k * sPC + k] += diagVal;
 
 	//! Compute the estimate
 	if (inverseMatrix(i_mat.covMat, sPC) == EXIT_SUCCESS) {
-        productMatrix(io_group3dBasic, i_mat.covMat, i_group3dNoisy, sPC, sPC, p_nSimP);
-        for (unsigned k = 0; k < sPC * p_nSimP; k++) {
-            io_group3dBasic[k] = i_group3dNoisy[k] - diagVal * io_group3dBasic[k];
-        }
+		productMatrix(io_group3dBasic, i_mat.covMat, i_group3dNoisy, sPC, sPC, p_nSimP);
+		for (unsigned k = 0; k < sPC * p_nSimP; k++)
+			io_group3dBasic[k] = i_group3dNoisy[k] - diagVal * io_group3dBasic[k];
 	}
-	else {
+	else 
 		io_nInverseFailed++;
-	}
 
 	//! Add baricenter
-	for (unsigned j = 0, k = 0; j < sPC; j++) {
-		for (unsigned i = 0; i < p_nSimP; i++, k++) {
+	for (unsigned j = 0, k = 0; j < sPC; j++)
+		for (unsigned i = 0; i < p_nSimP; i++, k++)
 			io_group3dBasic[k] += i_mat.baricenter[j];
-		}
-	}
 }
 
 /**
@@ -784,22 +727,21 @@ void computeAggregationStep1(
 ,	const nlbParams &p_params
 ){
 	//! Parameters initializations
-	const unsigned chnls	= p_imSize.nChannels;
-	const unsigned width	= p_imSize.width;
-	const unsigned height	= p_imSize.height;
-	const unsigned sP		= p_params.sizePatch;
-	const unsigned nSimP	= p_params.nSimilarPatches;
+	const unsigned chnls  = p_imSize.nChannels;
+	const unsigned width  = p_imSize.width;
+	const unsigned height = p_imSize.height;
+	const unsigned sP     = p_params.sizePatch;
+	const unsigned nSimP  = p_params.nSimilarPatches;
 
 	//! Aggregate estimates
 	for (unsigned n = 0; n < nSimP; n++) {
 		const unsigned ind = i_index[n];
 		for (unsigned c = 0; c < chnls; c++) {
 			const unsigned ij = ind + c * width * height;
-			for (unsigned p = 0; p < sP; p++) {
-				for (unsigned q = 0; q < sP; q++) {
-					io_im[ij + p * width + q] += i_group3d[c][(p * sP + q) * nSimP + n];
-					io_weight[ij + p * width + q]++;
-				}
+			for (unsigned p = 0; p < sP; p++)
+			for (unsigned q = 0; q < sP; q++) {
+				io_im[ij + p * width + q] += i_group3d[c][(p * sP + q) * nSimP + n];
+				io_weight[ij + p * width + q]++;
 			}
 		}
 
@@ -809,8 +751,8 @@ void computeAggregationStep1(
 		if (p_params.doPasteBoost) {
 			io_mask[ind - width ] = false;
 			io_mask[ind + width ] = false;
-			io_mask[ind - 1		] = false;
-			io_mask[ind + 1		] = false;
+			io_mask[ind - 1     ] = false;
+			io_mask[ind + 1     ] = false;
 		}
 	}
 }
@@ -840,21 +782,23 @@ void computeAggregationStep2(
 ,	const unsigned p_nSimP
 ){
 	//! Parameters initializations
-	const unsigned chnls	= p_imSize.nChannels;
-	const unsigned width	= p_imSize.width;
-	const unsigned wh		= width * p_imSize.height;
-	const unsigned sP		= p_params.sizePatch;
+	const unsigned chnls = p_imSize.nChannels;
+	const unsigned width = p_imSize.width;
+	const unsigned wh    = width * p_imSize.height;
+	const unsigned sP    = p_params.sizePatch;
 
 	//! Aggregate estimates
-	for (unsigned n = 0; n < p_nSimP; n++) {
+	for (unsigned n = 0; n < p_nSimP; n++)
+	{
 		const unsigned ind = i_index[n];
-		for (unsigned c = 0, k = 0; c < chnls; c++) {
+		for (unsigned c = 0, k = 0; c < chnls; c++)
+		{
 			const unsigned ij = ind + c * wh;
-			for (unsigned p = 0; p < sP; p++) {
-				for (unsigned q = 0; q < sP; q++, k++) {
-					io_im[ij + p * width + q] += i_group3d[k * p_nSimP + n];
-					io_weight[ij + p * width + q]++;
-				}
+			for (unsigned p = 0; p < sP; p++)
+			for (unsigned q = 0; q < sP; q++, k++)
+			{
+				io_im[ij + p * width + q] += i_group3d[k * p_nSimP + n];
+				io_weight[ij + p * width + q]++;
 			}
 		}
 
@@ -887,27 +831,15 @@ void computeWeightedAggregation(
 ,	const nlbParams &p_params
 ,	const ImageSize &p_imSize
 ){
-	for (unsigned c = 0, k = 0; c < p_imSize.nChannels; c++) {
-
-		for (unsigned ij = 0; ij < p_imSize.wh; ij++, k++) {
-
-			//! To avoid weighting problem (particularly near boundaries of the image)
-			if (i_weight[k] > 0.f) {
-				if (p_params.isFirstStep) {
-					io_imBasic[k] /= i_weight[k];
-				}
-				else {
-					io_imFinal[k] /= i_weight[k];
-				}
-			}
-			else {
-				if (p_params.isFirstStep) {
-					io_imBasic[k] = i_imNoisy[k];
-				}
-				else {
-					io_imFinal[k] = io_imBasic[k];
-				}
-			}
+	for (unsigned c = 0, k = 0; c < p_imSize.nChannels; c++)
+	for (unsigned ij = 0; ij < p_imSize.wh; ij++, k++)
+		//! To avoid weighting problem (particularly near boundaries of the image)
+		if (i_weight[k] > 0.f) {
+			if (p_params.isFirstStep) io_imBasic[k] /= i_weight[k];
+			else                      io_imFinal[k] /= i_weight[k];
 		}
-	}
+		else {
+			if (p_params.isFirstStep) io_imBasic[k] = i_imNoisy[k];
+			else                      io_imFinal[k] = io_imBasic[k];
+		}
 }

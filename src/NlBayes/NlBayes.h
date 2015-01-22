@@ -86,11 +86,11 @@ struct matParams
 void initializeNlbParameters(
 	nlbParams &o_paramStep1
 ,	nlbParams &o_paramStep2
-,   const float p_sigma
+,	const float p_sigma
 ,	const ImageSize &p_imSize
 ,	const bool p_useArea1
-,   const bool p_useArea2
-,   const bool p_verbose
+,	const bool p_useArea2
+,	const bool p_verbose
 );
 
 /**
@@ -109,13 +109,13 @@ void initializeNlbParameters(
  **/
 int runNlBayes(
 	std::vector<float> const& i_imNoisy
-,   std::vector<float> &o_imBasic
+,	std::vector<float> &o_imBasic
 ,	std::vector<float> &o_imFinal
 ,	const ImageSize &p_imSize
 ,	const bool p_useArea1
 ,	const bool p_useArea2
 ,	const float p_sigma
-,   const bool p_verbose
+,	const bool p_verbose
 );
 
 /**
