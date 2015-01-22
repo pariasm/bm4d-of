@@ -7,6 +7,7 @@ add_library(videoNlBayes SHARED
 	LibMatrix.cpp
 	../Utilities/io_png.c
 	../Utilities/LibImages.cpp
+	../Utilities/LibVideo.cpp
 	../Utilities/mt19937ar.c
 	../Utilities/Utilities.cpp
 	)

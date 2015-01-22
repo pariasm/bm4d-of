@@ -46,6 +46,8 @@ using namespace std;
  *
  * @return none.
  **/
+//< TODO VIDEO initialize sizeSearchTimeRangeFwd
+//< TODO VIDEO initialize sizeSearchTimeRangeBwd
 void initializeNlbParameters(
 	nlbParams &o_paramStep1
 ,	nlbParams &o_paramStep2
@@ -187,6 +189,7 @@ int runNlBayes(
 	//! RGB to YUV
 	vector<float> imNoisy = i_imNoisy;
 	transformColorSpace(imNoisy, p_imSize, true);
+	// TODO VIDEO extend to video
 
 	//! Divide the noisy image into sub-images in order to easier parallelize the process
 	const unsigned nbParts = 2 * nbThreads;
@@ -195,6 +198,9 @@ int runNlBayes(
 	if (subDivide(imNoisy, imNoisySub, p_imSize, imSizeSub, paramStep1.boundary, nbParts)
 			!= EXIT_SUCCESS)
 		return EXIT_FAILURE;
+	// TODO VIDEO extend to video
+	// ASK MARC: any suggestion on the best way to split the
+	//           space time cube
 
 	//! Process all sub-images
 #ifdef _OPENMP
@@ -209,6 +215,7 @@ int runNlBayes(
 	if (subBuild(o_imBasic, imBasicSub, p_imSize, imSizeSub, paramStep1.boundary)
 			!= EXIT_SUCCESS)
 		return EXIT_FAILURE;
+	// TODO VIDEO extend to video
 
 	//! YUV to RGB
 	transformColorSpace(o_imBasic, p_imSize, false);
@@ -264,6 +271,9 @@ void processNlBayes(
 ,	const ImageSize &p_imSize
 ,	nlbParams &p_params
 ){
+	// TODO VIDEO: minor changes some loops that go through images
+	//             should go throught videos
+
 	//! Parameters initialization
 	const unsigned sW  = p_params.sizeSearchWindow;
 	const unsigned sP  = p_params.sizePatch;
@@ -379,6 +389,7 @@ void estimateSimilarPatchesStep1(
 	const unsigned nSimP = p_params.nSimilarPatches;
 	vector<pair<float, unsigned> > distance(sW * sW);
 
+	//< TODO VIDEO search through spatio-temporal domain
 	//! Compute distance between patches
 	for (unsigned i = 0; i < sW; i++)
 	for (unsigned j = 0; j < sW; j++) {
@@ -447,6 +458,7 @@ unsigned estimateSimilarPatchesStep2(
 	const unsigned ind   = p_ij - (sW - 1) * (width + 1) / 2;
 	vector<pair<float, unsigned> > distance(sW * sW);
 
+	//< TODO VIDEO search through spatio-temporal domain
 	//! Compute distance between patches
 	for (unsigned i = 0; i < sW; i++)
 	for (unsigned j = 0; j < sW; j++)
@@ -733,6 +745,7 @@ void computeAggregationStep1(
 	const unsigned sP     = p_params.sizePatch;
 	const unsigned nSimP  = p_params.nSimilarPatches;
 
+	//< TODO VIDEO take into account indexing in the video array
 	//! Aggregate estimates
 	for (unsigned n = 0; n < nSimP; n++) {
 		const unsigned ind = i_index[n];
@@ -831,6 +844,7 @@ void computeWeightedAggregation(
 ,	const nlbParams &p_params
 ,	const ImageSize &p_imSize
 ){
+	// TODO VIDEO minor modifications
 	for (unsigned c = 0, k = 0; c < p_imSize.nChannels; c++)
 	for (unsigned ij = 0; ij < p_imSize.wh; ij++, k++)
 		//! To avoid weighting problem (particularly near boundaries of the image)

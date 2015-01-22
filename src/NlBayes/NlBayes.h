@@ -41,8 +41,10 @@ struct nlbParams
 	unsigned sizePatch;
 	unsigned nSimilarPatches;
 	unsigned sizeSearchWindow;
+	unsigned sizeSearchTimeRangeFwd; //< TODO VIDEO how many forward  frames in search cube
+	unsigned sizeSearchTimeRangeBwd; //< TODO VIDEO how many backward frames in search cube
 	unsigned boundary;
-	unsigned offSet;
+	unsigned offSet; //< ASK MARC any experiment quantifying implact of this parameter
 	bool useHomogeneousArea;
 	float gamma;
 	float beta;
