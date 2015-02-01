@@ -92,8 +92,8 @@ namespace VideoUtils
 		{
 			fprintf(stderr, "Error @ LibVideo::computePsnr: "
 					          "videos have different sizes:\n");
-			fprintf(stderr, "\ti_vid1 %dx%dx%d - %d ch\n", i_vid1.width, i_vid1.height, i_vid1.nFrames, i_vid1.nChannels);
-			fprintf(stderr, "\ti_vid2 %dx%dx%d - %d ch\n", i_vid2.width, i_vid2.height, i_vid2.nFrames, i_vid2.nChannels);
+			fprintf(stderr, "\ti_vid1 %dx%dx%d - %d ch\n", i_vid1.width, i_vid1.height, i_vid1.frames, i_vid1.channels);
+			fprintf(stderr, "\ti_vid2 %dx%dx%d - %d ch\n", i_vid2.width, i_vid2.height, i_vid2.frames, i_vid2.channels);
 			return EXIT_FAILURE;
 		}
 
@@ -140,8 +140,8 @@ namespace VideoUtils
 		{
 			fprintf(stderr, "Error @ VideoUtils::computeDiff: "
 			                "videos have different sizes\n");
-			fprintf(stderr, "\ti_vid1 %dx%dx%d - %d ch\n", i_vid1.width, i_vid1.height, i_vid1.nFrames, i_vid1.nChannels);
-			fprintf(stderr, "\ti_vid2 %dx%dx%d - %d ch\n", i_vid2.width, i_vid2.height, i_vid2.nFrames, i_vid2.nChannels);
+			fprintf(stderr, "\ti_vid1 %dx%dx%d - %d ch\n", i_vid1.width, i_vid1.height, i_vid1.frames, i_vid1.channels);
+			fprintf(stderr, "\ti_vid2 %dx%dx%d - %d ch\n", i_vid2.width, i_vid2.height, i_vid2.frames, i_vid2.channels);
 			return EXIT_FAILURE;
 		}
 
@@ -157,103 +157,27 @@ namespace VideoUtils
 		return EXIT_SUCCESS;
 	}
 	
-
 	/**
-	 * @brief Add boundary by symmetry.
+	 * @brief Add borders by symmetrizing
 	 *
-	 * @param i_vid : video to symmetrize;
-	 * @param o_vidSym : will contain i_vid with symmetrized boundaries;
-	 *
-	 * @return none.
-	 **
-	int addBoundary(
-		std::vector<float> const& i_vid
-	,	std::vector<float> &o_vidSym
-	){
-		//! Parameters declarations
-		const unsigned width  = p_vid.width;
-		const unsigned height = p_vid.height;
-		const unsigned chnls  = p_vid.nChannels;
-		const unsigned h      = p_vidSym.height;
-		const unsigned w      = p_vidSym.width;
-
-		if (w < width || h < height)
-		{
-			fprintf(stderr, "Error @ VideoUtils::addBoundary: symmetrized"
-			                "video has to be larger than original\n");
-			return EXIT_FAILURE;
-		}
-
-		//! Resize output image if nenessary
-		if (o_imSym.size() != chnls * h * w) o_imSym.resize(chnls * w * h);
-
-		//! Declaration
-		for (unsigned c = 0; c < chnls; c++)
-		{
-			const unsigned dc1 = c * width * height;
-			const unsigned dc2 = c * w * h;
-
-			//! Center of the image
-			for (unsigned i = 0; i < height; i++)
-			for (unsigned j = 0; j < width ; j++)
-				o_imSym[dc2 + i * w + j] = i_im[dc1 + i * width + j];
-
-			//! Right
-			for (unsigned i = 0    ; i < height; i++)
-			for (unsigned j = width; j < w     ; j++)
-				o_imSym[dc2 + i * w + j] = o_imSym[dc2 + i * w + 2 * width - j - 1];
-
-			//! Bottom
-			for (unsigned i = height; i < h; i++)
-			for (unsigned j = 0     ; j < w; j++)
-				o_imSym[dc2 + i * w + j] = o_imSym[dc2 + (2 * height - i - 1) * w + j];
-		}
-
-		return EXIT_SUCCESS;
-	}*/
-
-	/**
-	 * @brief Remove boundaries added with addBoundary
-	 *
-	 * @param o_vid : will contain the inner image;
-	 * @param i_vidSym : contains i_vid with symmetrized boundaries;
-	 *
+	 * @param i_vid1 : original video;
+	 * @param o_vid2 : output with border added or removed;
+	 * @param p_borderSize: size of added border;
+	 * @param p_isForward: add border if true, else remove border;
+	 * 
 	 * @return none.
 	 **/
-	int removeBoundary(
-		std::vector<float> &o_vid
-	,	std::vector<float> const& i_vidSym
-	){
-	}
-	
-	/**
-	 * @brief Add boundaries by symmetry
-	 *
-	 * @param io_vid : original image;
-	 * @param io_vidSym : contain io_im symmetrized;
-	 *
-	 * @return none.
-	 **/
-	// TODO: make more general: we will need different sizes for different
-	//       borders. More general inputs could be:
-	//				 - vid_in   : input video
-	//				 - vid_out  : output video
-	//				 - size_out : size of output video
-	//				 - offset   : position of vid2 origin in vid1 coordinates
-	void symmetrizeVideo(
+	void addBorder(
 		Video_f32 const &i_vid1
 	,	Video_f32 &o_vid2
 	,	const unsigned p_borderSize
 	,	const bool p_isForward
 	){
 		//! Sizes
-		const unsigned w1 = i_vid1.width;
-		const unsigned h1 = i_vid1.height;
-		const unsigned f1 = i_vid1.nFrames;
-		const unsigned w2 = w1 + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
-		const unsigned h2 = h1 + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
-		const unsigned f2 = f1 + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
-		const unsigned ch = i_vid1.nChannels;
+		const unsigned w2 = i_vid1.width  + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
+		const unsigned h2 = i_vid1.height + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
+		const unsigned f2 = i_vid1.frames + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
+		const unsigned ch = i_vid1.channels;
 
 		//! Position of vid2 origin in vid1 coordinates
 		const int tx = p_isForward ? -p_borderSize : p_borderSize;
@@ -263,17 +187,44 @@ namespace VideoUtils
 		//! Resize output image, if necessary
 		o_vid2.resize(w2, h2, f2, ch);
 
-		// TODO: more efficient implementation
-		for (int      f = 0; f < f2; f++)
-		for (unsigned c = 0; c < ch; c++)
-		for (int      y = 0; y < h2; y++)
-		for (int      x = 0; x < w2; x++)
-			o_vid2(x,y,f,c) = 
-				i_vid1.getPixelSymmetric(x + tx,y + ty,f + tf,c);
-
-		return;
+		//! Call generalized crop
+		crop(i_vid1, o_vid2, tx, ty, tf);
 	}
-	
+
+	/**
+	 * @brief 'Generalized' croping of a video (cropped video may be larger than original).
+	 *
+	 * @param i_vid1 : original video;
+	 * @param o_vid2 : output video, already allocated to desired size;
+	 * @param i_origin2 : vid1 coordinates of vid2 origin. Origin coordinates
+	 * larger than corresponding vid1 dimension are redefined to center the crop
+	 * in that dimension.
+	 *
+	 * @return none.
+	 **/
+	void crop(
+		Video_f32 const &i_vid1
+	,	Video_f32 &o_vid2
+	,	int p_origin_t
+	,	int p_origin_x
+	,	int p_origin_y
+	){
+		assert(o_vid2.channels == i_vid1.channels);
+
+		//! Redefine invalid origin coordinates to default (centered crop)
+		if (p_origin_t > (int)i_vid1.frames) p_origin_t = ((int)i_vid1.frames - (int)o_vid2.frames)/2;
+		if (p_origin_x > (int)i_vid1.width ) p_origin_x = ((int)i_vid1.width  - (int)o_vid2.width )/2;
+		if (p_origin_y > (int)i_vid1.height) p_origin_y = ((int)i_vid1.height - (int)o_vid2.height)/2;
+
+		// TODO: more efficient implementation
+		for (int      f = 0; f < o_vid2.frames  ; f++)
+		for (unsigned c = 0; c < o_vid2.channels; c++)
+		for (int      y = 0; y < o_vid2.height  ; y++)
+		for (int      x = 0; x < o_vid2.width   ; x++)
+			o_vid2(x,y,f,c) = 
+				i_vid1.getPixelSymmetric(x + p_origin_x, y + p_origin_y, f + p_origin_t, c);
+	}
+
 	/**
 	 * @brief Transform the color space of an video, from RGB to YUV, or vice-versa.
 	 *
@@ -287,15 +238,15 @@ namespace VideoUtils
 	,	const bool p_isForward
 	){
 		//! If the image as only one channel, do nothing
-		if (io_vid.nChannels == 1) return;
+		if (io_vid.channels == 1) return;
 
 		//! Initialization
 		const unsigned width  = io_vid.width;
 		const unsigned height = io_vid.height;
-		const unsigned chnls  = io_vid.nChannels;
+		const unsigned chnls  = io_vid.channels;
 		const unsigned wh     = io_vid.wh;
 
-		for (int f = 0; f < io_vid.nFrames; f++)
+		for (int f = 0; f < io_vid.frames; f++)
 			if (p_isForward) //< RGB to YUV
 			{
 				if (chnls == 3)

@@ -20,30 +20,30 @@
 /**
  * @brief Structure containing size informations of a video.
  *
- * @param width     : width of the image;
- * @param height    : height of the image;
- * @param nChannels : number of channels in the image;
- * @param nFrames   : number of frames in the video;
- * @param wh        : equal to width * height. Provided for convenience;
- * @param whc       : equal to width * height * nChannels. Provided for convenience.
- * @param whcf      : equal to width * height * nFrames * nChannels. Provided for convenience.
+ * @param width    : width of the image;
+ * @param height   : height of the image;
+ * @param channels : number of channels in the image;
+ * @param frames   : number of frames in the video;
+ * @param wh       : equal to width * height. Provided for convenience;
+ * @param whc      : equal to width * height * channels. Provided for convenience.
+ * @param whcf     : equal to width * height * frames * channels. Provided for convenience.
  **/
 struct VideoSize
 {
 	unsigned width;
 	unsigned height;
-	unsigned nFrames;
-	unsigned nChannels;
+	unsigned frames;
+	unsigned channels;
 	unsigned wh;
 	unsigned whc;
 	unsigned whcf;
 
 	inline bool operator == (const VideoSize& sz)
 	{
-		return (width     == sz.width      &&
-		        height    == sz.height     &&
-		        nChannels == sz.nChannels  &&
-		        nFrames   == sz.nFrames    );
+		return (width    == sz.width     &&
+		        height   == sz.height    &&
+		        channels == sz.channels  &&
+		        frames   == sz.frames    );
 	}
 
 	inline bool operator != (const VideoSize& sz)
@@ -55,14 +55,14 @@ struct VideoSize
 /**
  * @brief A float video class with very basic functionalities.
  *
- * @param width     : width of the video;
- * @param height    : height of the video;
- * @param nChannels : number of channels in the video;
- * @param nFrames   : number of frames in the video;
- * @param wh        : equal to width * height. Provided for convenience;
- * @param whc       : equal to width * height * nChannels. Provided for convenience.
- * @param whcf      : equal to width * height * nFrames * nChannels. Provided for convenience.
- * @param data      : pointer to an std::vector<float> containing the data
+ * @param width    : width of the video;
+ * @param height   : height of the video;
+ * @param channels : number of channels in the video;
+ * @param frames   : number of frames in the video;
+ * @param wh       : equal to width * height. Provided for convenience;
+ * @param whc      : equal to width * height * channels. Provided for convenience.
+ * @param whcf     : equal to width * height * frames * channels. Provided for convenience.
+ * @param data     : pointer to an std::vector<float> containing the data
  **/
 class Video_f32
 {
@@ -71,8 +71,8 @@ class Video_f32
 		//! Size
 		unsigned width;
 		unsigned height;
-		unsigned nFrames;
-		unsigned nChannels;
+		unsigned frames;
+		unsigned channels;
 		unsigned wh;
 		unsigned whc;
 		unsigned whcf;
@@ -85,14 +85,14 @@ class Video_f32
 		Video_f32(const Video_f32& i_in); //< copy
 		Video_f32(const std::string i_pathToFiles,
 		          unsigned i_firstFrame, unsigned i_lastFrame, unsigned i_frameStep = 1); //< from filename
-		Video_f32(unsigned i_width, unsigned i_height, unsigned i_nFrames, unsigned i_nChannels = 1);  //< alloc
+		Video_f32(unsigned i_width, unsigned i_height, unsigned i_frames, unsigned i_channels = 1);  //< alloc
 		Video_f32(const VideoSize& i_size);  //< alloc
 
 		//! Destructor
 		~Video_f32(void) { };
 
 		void clear(void);
-		void resize(unsigned i_width, unsigned i_height, unsigned nFrames, unsigned i_nChannels = 1);
+		void resize(unsigned i_width, unsigned i_height, unsigned frames, unsigned i_channels = 1);
 		void resize(const VideoSize& i_size);
 
 		//! Read/write pixel access ~ inline for efficiency
@@ -122,8 +122,7 @@ class Video_f32
 
 		VideoSize size(void) const
 		{
-			VideoSize sz = {width, height, nFrames, nChannels, 
-			                wh, whc, whcf};
+			VideoSize sz = {width, height, frames, channels, wh, whc, whcf};
 			return sz; 
 		}
 };
@@ -165,13 +164,13 @@ inline float& Video_f32::getPixelSymmetric(
 ,	unsigned c
 ) {
 	// NOTE: assumes that -width+1 < x < 2*(width -1)
-	assert(-(int)width   < x && x < 2*(int)width  -1&&
-	       -(int)height  < y && y < 2*(int)height -1&&
-	       -(int)nFrames < t && t < 2*(int)nFrames-1);
+	assert(-(int)width   < x && x < 2*(int)width -1&&
+	       -(int)height  < y && y < 2*(int)height-1&&
+	       -(int)frames  < t && t < 2*(int)frames-1);
 	// symmetrize
-	x = (x < 0) ? -x : (x >= (int)width  ) ? 2*(int)width  -2 - x : x ;
-	y = (y < 0) ? -y : (y >= (int)height ) ? 2*(int)height -2 - y : y ;
-	t = (t < 0) ? -t : (t >= (int)nFrames) ? 2*(int)nFrames-2 - t : t ;
+	x = (x < 0) ? -x : (x >= (int)width  ) ? 2*(int)width  - 2 - x : x ;
+	y = (y < 0) ? -y : (y >= (int)height ) ? 2*(int)height - 2 - y : y ;
+	t = (t < 0) ? -t : (t >= (int)frames ) ? 2*(int)frames - 2 - t : t ;
 
 	return data[index(x,y,t,c)];
 }
@@ -183,13 +182,13 @@ inline float Video_f32::getPixelSymmetric(
 ,	unsigned c
 ) const {
 	// NOTE: assumes that -width+1 < x < 2*(width -1)
-	assert(-(int)width   < x && x < 2*(int)width  -1&&
-	       -(int)height  < y && y < 2*(int)height -1&&
-	       -(int)nFrames < t && t < 2*(int)nFrames-1);
+	assert(-(int)width   < x && x < 2*(int)width  - 1 &&
+	       -(int)height  < y && y < 2*(int)height - 1 &&
+	       -(int)frames  < t && t < 2*(int)frames - 1 );
 	// symmetrize
-	x = (x < 0) ? -x : (x >= (int)width  ) ? 2*(int)width  -2 - x : x ;
-	y = (y < 0) ? -y : (y >= (int)height ) ? 2*(int)height -2 - y : y ;
-	t = (t < 0) ? -t : (t >= (int)nFrames) ? 2*(int)nFrames-2 - t : t ;
+	x = (x < 0) ? -x : (x >= (int)width  ) ? 2*(int)width  - 2 - x : x ;
+	y = (y < 0) ? -y : (y >= (int)height ) ? 2*(int)height - 2 - y : y ;
+	t = (t < 0) ? -t : (t >= (int)frames ) ? 2*(int)frames - 2 - t : t ;
 
 	return data[index(x,y,t,c)];
 }
@@ -200,7 +199,7 @@ inline unsigned Video_f32::index(
 ,	unsigned t
 ,	unsigned c
 ) const {
-	assert(x < width && y < height && t < nFrames && c < nChannels);
+	assert(x < width && y < height && t < frames && c < channels);
 	return t*whc + c*wh + y*width + x;
 }
 
@@ -284,32 +283,6 @@ namespace VideoUtils
 	);
 	
 	/**
-	 * @brief Add boundary by symmetry.
-	 *
-	 * @param i_vid : video to symmetrize;
-	 * @param o_vidSym : will contain i_vid with symmetrized boundaries;
-	 *
-	 * @return none.
-	 **/
-	int addBoundary(
-		std::vector<float> const& i_vid
-	,	std::vector<float> &o_vidSym
-	);
-	
-	/**
-	 * @brief Remove boundaries added with addBoundary
-	 *
-	 * @param o_vid : will contain the inner image;
-	 * @param i_vidSym : contains i_vid with symmetrized boundaries;
-	 *
-	 * @return none.
-	 **/
-	int removeBoundary(
-		std::vector<float> &o_vid
-	,	std::vector<float> const& i_vidSym
-	);
-	
-	/**
 	 * @brief Add boundaries by symmetry
 	 *
 	 * @param io_vid : original image;
@@ -317,11 +290,30 @@ namespace VideoUtils
 	 *
 	 * @return none.
 	 **/
-	void symmetrizeImage(
+	void addBorder(
 		Video_f32 const& i_vid1
 	,	Video_f32 &o_vid2
 	,	const unsigned p_borderSize
 	,	const bool p_isForward
+	);
+
+	/**
+	 * @brief 'Generalized' croping of a video (cropped video may be larger than original).
+	 *
+	 * @param i_vid1 : original video;
+	 * @param o_vid2 : output video, already allocated to desired size;
+	 * @param i_origin2 : vid1 coordinates of vid2 origin. Origin coordinates
+	 * larger than corresponding vid1 dimension are redefined to center the crop
+	 * in that dimension.
+	 *
+	 * @return none.
+	 **/
+	void crop(
+		Video_f32 const &i_vid1
+	,	Video_f32 &o_vid2
+	,	int p_origin_t
+	,	int p_origin_x
+	,	int p_origin_y
 	);
 	
 	/**

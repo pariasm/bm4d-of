@@ -28,8 +28,8 @@
 Video_f32::Video_f32(void)
 	: width(0)
 	, height(0)
-	, nFrames(0)
-	, nChannels(0)
+	, frames(0)
+	, channels(0)
 	, wh(0)
 	, whc(0)
 	, whcf(0)
@@ -39,8 +39,8 @@ Video_f32::Video_f32(void)
 Video_f32::Video_f32(const Video_f32& i_in)
 	: width(i_in.width)
 	, height(i_in.height)
-	, nFrames(i_in.nFrames)
-	, nChannels(i_in.nChannels)
+	, frames(i_in.frames)
+	, channels(i_in.channels)
 	, wh(i_in.wh)
 	, whc(i_in.whc)
 	, whcf(i_in.whcf)
@@ -55,8 +55,8 @@ Video_f32::Video_f32(
 )
 	: width(0)
 	, height(0)
-	, nFrames(0)
-	, nChannels(0)
+	, frames(0)
+	, channels(0)
 	, wh(0)
 	, whc(0)
 	, whcf(0)
@@ -70,27 +70,27 @@ Video_f32::Video_f32(
 Video_f32::Video_f32(
 	unsigned i_width
 ,	unsigned i_height
-,	unsigned i_nFrames
-,	unsigned i_nChannels
+,	unsigned i_frames
+,	unsigned i_channels
 )
 	: width(i_width)
 	, height(i_height)
-	, nFrames(i_nFrames)
-	, nChannels(i_nChannels)
+	, frames(i_frames)
+	, channels(i_channels)
 	, wh(width * height)
-	, whc(width * height * nChannels)
-	, whcf(width * height * nChannels * nFrames)
+	, whc(width * height * channels)
+	, whcf(width * height * channels * frames)
 	, data(whcf)
 { }
 
 Video_f32::Video_f32(const VideoSize& i_size)
 	: width(i_size.width)
 	, height(i_size.height)
-	, nFrames(i_size.nFrames)
-	, nChannels(i_size.nChannels)
+	, frames(i_size.frames)
+	, channels(i_size.channels)
 	, wh(width * height)
-	, whc(width * height * nChannels)
-	, whcf(width * height * nChannels * nFrames)
+	, whc(width * height * channels)
+	, whcf(width * height * channels * frames)
 	, data(whcf)
 { }
 
@@ -98,8 +98,8 @@ void Video_f32::clear(void)
 {
 	width = 0;
 	height = 0;
-	nFrames = 0;
-	nChannels = 0;
+	frames = 0;
+	channels = 0;
 	wh = 0;
 	whc = 0;
 	whcf = 0;
@@ -109,30 +109,30 @@ void Video_f32::clear(void)
 void Video_f32::resize(
 	unsigned i_width
 ,	unsigned i_height
-,	unsigned i_nFrames
-,	unsigned i_nChannels
+,	unsigned i_frames
+,	unsigned i_channels
 ){
 	if (width != i_width ||
 	    height != i_height ||
-	    nFrames != i_nFrames ||
-	    nChannels != i_nChannels ) 
+	    frames != i_frames ||
+	    channels != i_channels ) 
 	{
 		clear();
 
 		width = i_width;
 		height = i_height;
-		nFrames = i_nFrames;
-		nChannels = i_nChannels;
+		frames = i_frames;
+		channels = i_channels;
 		wh = width * height;
-		whc = wh * nChannels;
-		whcf = whc * nFrames;
+		whc = wh * channels;
+		whcf = whc * frames;
 		data.resize(whcf);
 	}
 }
 
 void Video_f32::resize(const VideoSize& i_size)
 {
-	resize(i_size.width, i_size.height, i_size.nFrames, i_size.nChannels);
+	resize(i_size.width, i_size.height, i_size.frames, i_size.channels);
 }
 
 
@@ -156,13 +156,13 @@ int Video_f32::loadVideo(
 			return EXIT_FAILURE;
 
 		//! set size
-		width     = frameSize.width;
-		height    = frameSize.height;
-		nChannels = frameSize.nChannels;
-		nFrames   = (i_lastFrame - i_firstFrame + 1)/i_frameStep;
-		wh        = width * height;
-		whc       = width * height * nChannels;
-		whcf      = width * height * nChannels * nFrames;
+		width    = frameSize.width;
+		height   = frameSize.height;
+		channels = frameSize.nChannels;
+		frames   = (i_lastFrame - i_firstFrame + 1)/i_frameStep;
+		wh       = width * height;
+		whc      = width * height * channels;
+		whcf     = width * height * channels * frames;
 		
 		//! allocate
 		data.resize(whcf);
@@ -189,7 +189,7 @@ int Video_f32::loadVideo(
 
 		if (frameSize.width != width ||
 		    frameSize.height != height ||
-		    frameSize.nChannels != nChannels)
+		    frameSize.nChannels != channels)
 		{
 			std::cerr << "Error @ Video_f32::loadVideo: Size of frame "
 			          << f << " does not match video size" << std::endl;
@@ -215,11 +215,11 @@ int Video_f32::saveVideo(
 	ImageSize frameSize;
 	frameSize.width     = width;
 	frameSize.height    = height;
-	frameSize.nChannels = nChannels;
+	frameSize.nChannels = channels;
 	frameSize.wh        = width * height;
-	frameSize.whc       = width * height * nChannels;
+	frameSize.whc       = width * height * channels;
 
-	unsigned lastFrame = i_firstFrame + nFrames * i_frameStep;
+	unsigned lastFrame = i_firstFrame + frames * i_frameStep;
 	std::vector<float> frame(whc);
 	std::vector<float>::const_iterator p_data = data.begin();
 	for (unsigned f = i_firstFrame; f < lastFrame; f += i_frameStep, p_data += whc)
@@ -249,8 +249,8 @@ int Video_f32::saveVideoAscii(
 ) const {
 	char channel[32], frame[32];
 
-	int C = nChannels;
-	int F = nFrames;
+	int C = channels;
+	int F = frames;
 	int W = width;
 	int H = height;
 

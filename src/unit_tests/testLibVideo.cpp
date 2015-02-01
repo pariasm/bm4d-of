@@ -36,7 +36,7 @@ void print_video_size(const std::string& name, const Video_f32& vid)
 {
 	printf("%s", name.c_str());
 	printf("\tFrames: %d - Channels: %d - Height: %d - Width %d\n", 
-			vid.nFrames, vid.nChannels, vid.height, vid.width);
+			vid.frames, vid.channels, vid.height, vid.width);
 }
 
 int main(int argc, char **argv)
@@ -73,7 +73,7 @@ int main(int argc, char **argv)
 
 
 	/*! Accessing pixels through coordinates
-	for (int f =  0; f < vid1.nFrames; f += 2)
+	for (int f =  0; f < vid1.frames; f += 2)
 	for (int y = 10; y < vid1.height - 10; y++)
 	for (int x = 10; x < vid1.width  - 10; x++)
 		vid1(x,y,f,0) = 250;
@@ -87,7 +87,7 @@ int main(int argc, char **argv)
 
 	//! Pad video by symmetry
 	Video_f32 vid1_sym;
-	VideoUtils::symmetrizeImage(vid1, vid1_sym, 4, true);
+	VideoUtils::addBorder(vid1, vid1_sym, 4, true);
 	print_video_size("video with border added by symmetrizing", vid1_sym);
 	vid1_sym.saveVideo("/tmp/vid1_sym_%02d.png", i_firstFrame, i_frameStep);//*/
 	
