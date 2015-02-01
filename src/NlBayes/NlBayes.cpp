@@ -99,6 +99,9 @@ void initializeNlbParameters(
 	o_paramStep1.boundary = int(1.5f * float(o_paramStep1.sizeSearchWindow));
 	o_paramStep2.boundary = int(1.5f * float(o_paramStep2.sizeSearchWindow));
 
+	printf("PARAM1 SW: %d - boundary = %d\n", o_paramStep1.sizeSearchWindow, o_paramStep1.boundary);
+	printf("PARAM2 SW: %d - boundary = %d\n", o_paramStep2.sizeSearchWindow, o_paramStep2.boundary);
+
 	//! Parameter used to determine if an area is homogeneous
 	o_paramStep1.gamma = 1.05f;
 	o_paramStep2.gamma = 1.05f;
@@ -171,7 +174,7 @@ int runNlBayes(
 	unsigned nbThreads = 1;
 #ifdef _OPENMP
 	nbThreads = omp_get_max_threads();
-	if (p_verbose) cout << "Open MP is used" << endl;
+	if (p_verbose) printf("OpenMP is using %d threads\n", nbThreads);
 #endif
 
 	//! Initialization
@@ -385,7 +388,7 @@ void estimateSimilarPatchesStep1(
 	const unsigned width = p_imSize.width;
 	const unsigned chnls = p_imSize.nChannels;
 	const unsigned wh    = width * p_imSize.height;
-	const unsigned ind   = p_ij - (sW - 1) * (width + 1) / 2;
+	const unsigned ind   = p_ij - (sW - 1) /2 * width - (sW - 1) / 2; // index of top-left pixel of search region
 	const unsigned nSimP = p_params.nSimilarPatches;
 	vector<pair<float, unsigned> > distance(sW * sW);
 

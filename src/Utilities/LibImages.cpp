@@ -331,29 +331,27 @@ int removeBoundary(
 ,	const ImageSize &p_imSizeSym
 ){
 	//! Parameters declaration
-	const unsigned width	= p_imSize.width;
-	const unsigned height	= p_imSize.height;
-	const unsigned chnls	= p_imSize.nChannels;
-	const unsigned h		= p_imSizeSym.height;
-	const unsigned w		= p_imSizeSym.width;
+	const unsigned width  = p_imSize.width;
+	const unsigned height = p_imSize.height;
+	const unsigned chnls  = p_imSize.nChannels;
+	const unsigned h      = p_imSizeSym.height;
+	const unsigned w      = p_imSizeSym.width;
 
-	if (w < width || h < height) {
+	if (w < width || h < height)
+	{
 		cout << "i_imSym must be greater than o_im!!!" << endl;
 		return EXIT_FAILURE;
 	}
 
-	if (o_im.size() != chnls * height * width) {
+	if (o_im.size() != chnls * height * width)
 		o_im.resize(chnls * height * width);
-	}
 
-	for (unsigned c = 0, k = 0; c < chnls; c++) {
+	for (unsigned c = 0, k = 0; c < chnls; c++)
+	{
 		const unsigned dc = c * w * h;
-
-		for (unsigned i = 0; i < height; i++) {
-			for (unsigned j = 0; j < width; j++, k++) {
-				o_im[k] = i_imSym[dc + i * w + j];
-			}
-		}
+		for (unsigned i = 0; i < height; i++)
+		for (unsigned j = 0; j < width ; j++, k++)
+			o_im[k] = i_imSym[dc + i * w + j];
 	}
 
 	return EXIT_SUCCESS;
@@ -383,14 +381,14 @@ void symetrizeImage(
 	unsigned w1, h1, w2, h2;
 	if (p_isForward) {
 		w1 = p_imSize.width;
-		w2 = w1 + 2 * p_borderSize;
 		h1 = p_imSize.height;
+		w2 = w1 + 2 * p_borderSize;
 		h2 = h1 + 2 * p_borderSize;
 	}
 	else {
 		w2 = p_imSize.width;
-		w1 = w2 + 2 * p_borderSize;
 		h2 = p_imSize.height;
+		w1 = w2 + 2 * p_borderSize;
 		h1 = h2 + 2 * p_borderSize;
 	}
 	const unsigned chnls = p_imSize.nChannels;
@@ -576,6 +574,8 @@ int subDivide(
 	const unsigned wTmp = ceil(float(p_imSize.width ) / float(nW)); // sizes w/out 
 	const unsigned hTmp = ceil(float(p_imSize.height) / float(nH)); // borders
 
+	printf("Subdividing image into %d x %d subimages\n",nW, nH);
+
 	//! Resize to next multiple of wTmp, hTmp, by adding right and bottom symmetrized borders
 	vector<float> imTmp;
 	ImageSize imSizeTmp;
@@ -638,7 +638,7 @@ int subBuild(
 ,	ImageSize &p_imSizeSub
 ,	const unsigned p_N
 ){
-    //! Determine width and height composition
+	//! Determine width and height composition
 	unsigned nW, nH;
 	determineFactor(i_imSub.size(), nW, nH);
 	const unsigned hTmp = p_imSizeSub.height - 2 * p_N;
@@ -653,20 +653,17 @@ int subBuild(
 	imSizeTmp.whc       = imSizeTmp.wh * imSizeTmp.nChannels;
 	vector<float> imTmp(imSizeTmp.whc);
 
-	for (unsigned p = 0, n = 0; p < nH; p++) {
-        for (unsigned q = 0; q < nW; q++, n++) {
-            for (unsigned c = 0; c < p_imSize.nChannels; c++) {
-                const unsigned dc   = c * imSizeTmp.wh + p * hTmp * imSizeTmp.width + q * wTmp;
-                const unsigned dcS  = c * p_imSizeSub.wh + p_N * p_imSizeSub.width + p_N;
-                for (unsigned i = 0; i < hTmp; i++) {
-                    for (unsigned j = 0; j < wTmp; j++) {
-                        imTmp[dc + i * imSizeTmp.width + j] =
-                            i_imSub[n][dcS + i * p_imSizeSub.width + j];
-                    }
-                }
-            }
-        }
-	}
+	for (unsigned p = 0, n = 0; p < nH; p++)
+	for (unsigned q = 0       ; q < nW; q++, n++)
+		for (unsigned c = 0; c < p_imSize.nChannels; c++)
+		{
+			const unsigned dc   = c * imSizeTmp.wh + p * hTmp * imSizeTmp.width + q * wTmp;
+			const unsigned dcS  = c * p_imSizeSub.wh + p_N * p_imSizeSub.width + p_N;
+			for (unsigned i = 0; i < hTmp; i++)
+			for (unsigned j = 0; j < wTmp; j++)
+				imTmp[dc + i * imSizeTmp.width + j] =
+					i_imSub[n][dcS + i * p_imSizeSub.width + j];
+		}
 
 	//! Remove Boundaries
 	return removeBoundary(o_im, imTmp, p_imSize, imSizeTmp);

@@ -32,11 +32,24 @@ struct VideoSize
 {
 	unsigned width;
 	unsigned height;
-	unsigned nChannels;
 	unsigned nFrames;
+	unsigned nChannels;
 	unsigned wh;
 	unsigned whc;
 	unsigned whcf;
+
+	inline bool operator == (const VideoSize& sz)
+	{
+		return (width     == sz.width      &&
+		        height    == sz.height     &&
+		        nChannels == sz.nChannels  &&
+		        nFrames   == sz.nFrames    );
+	}
+
+	inline bool operator != (const VideoSize& sz)
+	{ 
+		return !operator==(sz);
+	}
 };
 
 /**
@@ -72,18 +85,21 @@ class Video_f32
 		Video_f32(const Video_f32& i_in); //< copy
 		Video_f32(const std::string i_pathToFiles,
 		          unsigned i_firstFrame, unsigned i_lastFrame, unsigned i_frameStep = 1); //< from filename
-		Video_f32(unsigned i_width, unsigned i_height, unsigned nFrames, unsigned i_nChannels = 1);  //< alloc
+		Video_f32(unsigned i_width, unsigned i_height, unsigned i_nFrames, unsigned i_nChannels = 1);  //< alloc
+		Video_f32(const VideoSize& i_size);  //< alloc
 
 		//! Destructor
 		~Video_f32(void) { };
 
 		void clear(void);
+		void resize(unsigned i_width, unsigned i_height, unsigned nFrames, unsigned i_nChannels = 1);
+		void resize(const VideoSize& i_size);
 
-		//! Read/write pixel access ~ inplace for efficiency
+		//! Read/write pixel access ~ inline for efficiency
 		float& operator () (unsigned idx); //< from coordinates
 		float& operator () (unsigned x, unsigned y, unsigned t, unsigned c = 0); //< from coordinates
 
-		//! Read only pixel access ~ inplace for efficiency
+		//! Read only pixel access ~ inline for efficiency
 		float operator () (unsigned idx) const; //< from index
 		float operator () (unsigned x, unsigned y, unsigned t, unsigned c = 0) const; //< from coordinates
 		
@@ -93,10 +109,19 @@ class Video_f32
 		int saveVideo(const std::string i_pathToFiles, 
 		              unsigned i_firstFrame, unsigned i_frameStep = 1,
 		              float i_pmin = 0, float i_pmax = 255) const;
+		int saveVideoAscii(const std::string i_prefix, 
+		                   unsigned i_firstFrame, unsigned i_frameStep = 1) const;
 
 		//! Utilities
 		unsigned index(unsigned x, unsigned y, unsigned t, unsigned c = 0) const;
 		void coords(unsigned index, unsigned& x, unsigned& y, unsigned& t, unsigned& c) const;
+
+		VideoSize size(void) const
+		{
+			VideoSize sz = {width, height, nFrames, nChannels, 
+			                wh, whc, whcf};
+			return sz; 
+		}
 };
 
 inline float& Video_f32::operator () (unsigned idx) 
