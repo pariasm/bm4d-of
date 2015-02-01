@@ -102,6 +102,10 @@ class Video_f32
 		//! Read only pixel access ~ inline for efficiency
 		float operator () (unsigned idx) const; //< from index
 		float operator () (unsigned x, unsigned y, unsigned t, unsigned c = 0) const; //< from coordinates
+
+		//! Pixel access with special boundary conditions
+		float& getPixelSymmetric(int x, int y, int t, unsigned c = 0);
+		float  getPixelSymmetric(int x, int y, int t, unsigned c = 0) const;
 		
 		//! I/O
 		int loadVideo(const std::string i_pathToFiles, 
@@ -154,6 +158,42 @@ inline float Video_f32::operator() (
 	return data[index(x,y,t,c)];
 }
 
+inline float& Video_f32::getPixelSymmetric(
+	int x
+,	int y
+,	int t
+,	unsigned c
+) {
+	// NOTE: assumes that -width+1 < x < 2*(width -1)
+	assert(-(int)width   < x && x < 2*(int)width  -1&&
+	       -(int)height  < y && y < 2*(int)height -1&&
+	       -(int)nFrames < t && t < 2*(int)nFrames-1);
+	// symmetrize
+	x = (x < 0) ? -x : (x >= (int)width  ) ? 2*(int)width  -2 - x : x ;
+	y = (y < 0) ? -y : (y >= (int)height ) ? 2*(int)height -2 - y : y ;
+	t = (t < 0) ? -t : (t >= (int)nFrames) ? 2*(int)nFrames-2 - t : t ;
+
+	return data[index(x,y,t,c)];
+}
+
+inline float Video_f32::getPixelSymmetric(
+	int x
+,	int y
+,	int t
+,	unsigned c
+) const {
+	// NOTE: assumes that -width+1 < x < 2*(width -1)
+	assert(-(int)width   < x && x < 2*(int)width  -1&&
+	       -(int)height  < y && y < 2*(int)height -1&&
+	       -(int)nFrames < t && t < 2*(int)nFrames-1);
+	// symmetrize
+	x = (x < 0) ? -x : (x >= (int)width  ) ? 2*(int)width  -2 - x : x ;
+	y = (y < 0) ? -y : (y >= (int)height ) ? 2*(int)height -2 - y : y ;
+	t = (t < 0) ? -t : (t >= (int)nFrames) ? 2*(int)nFrames-2 - t : t ;
+
+	return data[index(x,y,t,c)];
+}
+
 inline unsigned Video_f32::index(
 	unsigned x
 ,	unsigned y
@@ -181,157 +221,155 @@ inline void Video_f32::coords(
 //	x = (idx - t*whc - c*wh - y*width) ;
 }
 
-#if 0
 //! Utilities for video
 namespace VideoUtils
 {
-
-/**
- * @brief add noise to video.
- *
- * @param i_vid : original noise-free image;
- * @param o_vidNoisy = vid + noise;
- * @param p_sigma : standard deviation of the noise.
- *
- * @return none.
- **/
-void addNoise(
-    Video_f32 const& i_vid
-,   Video_f32 &o_vidNoisy
-,   const float p_sigma
-,   const bool p_verbose = false
-);
-
-/**
- * @brief Compute PSNR and RMSE between i_vid1 and i_vid2
- *
- * @param i_vid1 : video 1;
- * @param i_vid2 : video 2;
- * @param o_psnr  : will contain the PSNR;
- * @param o_rmse  : will contain the RMSE;
- * @param p_videoName: name of the video;
- * @param p_verbose: if true, print values of PSNR and RMSE.
- *
- * @return EXIT_FAILURE if both videos haven't the same size.
- **/
-int computePsnr(
-    Video_f32 const& i_vid1
-,   Video_f32 const& i_vid2
-,   float &o_psnr
-,   float &o_rmse
-,   const char* p_videoName
-,   const bool p_verbose = false
-);
-
-/**
- * @brief Compute a difference image between i_vid1 and i_vid2.
- *
- * @param i_vid1: reference image;
- * @param i_vid2: image to compare;
- * @param o_vidDiff: will contain the difference;
- * @param p_sigma: standard deviation of the noise;
- * @param p_min, p_max : range of data (usually [0, 255]);
- * @param p_verbose : if true, print some informations.
- *
- * @return EXIT_FAILURE if i_im1 and i_im2 don't have the same size.
- **/
-int computeDiff(
-    Video_f32 const& i_vid1
-,   Video_f32 const& i_vid2
-,   Video_f32 &o_vidDiff
-,   const float p_sigma
-,   const float p_min = 0.f
-,   const float p_max = 255.f
-,   const bool p_verbose = false
-);
-
-/**
- * @brief Add boundary by symmetry.
- *
- * @param i_vid : video to symmetrize;
- * @param o_vidSym : will contain i_vid with symmetrized boundaries;
- *
- * @return none.
- **/
-int addBoundary(
-	std::vector<float> const& i_vid
-,	std::vector<float> &o_vidSym
-);
-
-/**
- * @brief Remove boundaries added with addBoundary
- *
- * @param o_vid : will contain the inner image;
- * @param i_vidSym : contains i_vid with symmetrized boundaries;
- *
- * @return none.
- **/
-int removeBoundary(
-	std::vector<float> &o_vid
-,	std::vector<float> const& i_vidSym
-);
-
-/**
- * @brief Add boundaries by symmetry
- *
- * @param io_vid : original image;
- * @param io_vidSym : contain io_im symmetrized;
- *
- * @return none.
- **/
-void symmetrizeImage(
-	std::vector<float> const& i_vid1
-,	std::vector<float> &o_vid2
-,	const unsigned p_borderSize
-,	const bool p_isForward
-);
-
-/**
- * @brief Transform the color space of an video, from RGB to YUV, or vice-versa.
- *
- * @param io_vid: image on which the transform will be applied;
- * @param p_isForward: if true, go from RGB to YUV, otherwise go from YUV to RGB.
- *
- * @return none.
- **/
-void transformColorSpace(
-	std::vector<float> &io_vid
-,	const bool p_isForward
-);
-
-/**
- * @brief Subdivide a video into small sub-videos
- *
- * @param i_video : image to subdivide;
- * @param o_videoSub : will contain all sub-videos;
- * @param p_videoSizeSub : size of sub-videos;
- * @param p_N : boundary around sub-videos;
- * @param p_nb : number of sub-videos wanted. Need to be a power of 2.
- *
- * @return EXIT_FAILURE in case of problems.
- **/
-int subDivide(
-	Video_f32 const& i_im
-,	std::vector<Video_f32> &o_imSub
-,	VideoSize &p_imSizeSub
-,	const unsigned p_N
-,	const unsigned p_nb
-);
-
-/**
- * @brief Reconstruct an video from its small sub-videos
- *
- * @param o_vid : image to reconstruct;
- * @param i_vidSub : will contain all sub-images;
- * @param p_N : boundary around sub-videos.
- *
- * @return EXIT_FAILURE in case of problems.
- **/
-int subBuild(
-	Video_f32 &o_vid
-,	std::vector<Video_f32> const& i_vidSub
-,	const unsigned p_N
-);
-#endif
+	/**
+	 * @brief add noise to video.
+	 *
+	 * @param i_vid : original noise-free image;
+	 * @param o_vidNoisy = vid + noise;
+	 * @param p_sigma : standard deviation of the noise.
+	 *
+	 * @return none.
+	 **/
+	void addNoise(
+	    Video_f32 const& i_vid
+	,   Video_f32 &o_vidNoisy
+	,   const float p_sigma
+	,   const bool p_verbose = false
+	);
+	
+	/**
+	 * @brief Compute PSNR and RMSE between i_vid1 and i_vid2
+	 *
+	 * @param i_vid1 : video 1;
+	 * @param i_vid2 : video 2;
+	 * @param o_psnr  : will contain the PSNR;
+	 * @param o_rmse  : will contain the RMSE;
+	 * @param p_videoName: name of the video;
+	 * @param p_verbose: if true, print values of PSNR and RMSE.
+	 *
+	 * @return EXIT_FAILURE if both videos haven't the same size.
+	 **/
+	int computePSNR(
+	    Video_f32 const& i_vid1
+	,   Video_f32 const& i_vid2
+	,   float &o_psnr
+	,   float &o_rmse
+//	,   const char* p_videoName
+//	,   const bool p_verbose = false
+	);
+	
+	/**
+	 * @brief Compute a difference image between i_vid1 and i_vid2.
+	 *
+	 * @param i_vid1: reference image;
+	 * @param i_vid2: image to compare;
+	 * @param o_vidDiff: will contain the difference;
+	 * @param p_sigma: standard deviation of the noise;
+	 * @param p_min, p_max : range of data (usually [0, 255]);
+	 * @param p_verbose : if true, print some informations.
+	 *
+	 * @return EXIT_FAILURE if i_im1 and i_im2 don't have the same size.
+	 **/
+	int computeDiff(
+	    Video_f32 const& i_vid1
+	,   Video_f32 const& i_vid2
+	,   Video_f32 &o_vidDiff
+	,   const float p_sigma
+	,   const float p_min = 0.f
+	,   const float p_max = 255.f
+	,   const bool p_verbose = false
+	);
+	
+	/**
+	 * @brief Add boundary by symmetry.
+	 *
+	 * @param i_vid : video to symmetrize;
+	 * @param o_vidSym : will contain i_vid with symmetrized boundaries;
+	 *
+	 * @return none.
+	 **/
+	int addBoundary(
+		std::vector<float> const& i_vid
+	,	std::vector<float> &o_vidSym
+	);
+	
+	/**
+	 * @brief Remove boundaries added with addBoundary
+	 *
+	 * @param o_vid : will contain the inner image;
+	 * @param i_vidSym : contains i_vid with symmetrized boundaries;
+	 *
+	 * @return none.
+	 **/
+	int removeBoundary(
+		std::vector<float> &o_vid
+	,	std::vector<float> const& i_vidSym
+	);
+	
+	/**
+	 * @brief Add boundaries by symmetry
+	 *
+	 * @param io_vid : original image;
+	 * @param io_vidSym : contain io_im symmetrized;
+	 *
+	 * @return none.
+	 **/
+	void symmetrizeImage(
+		Video_f32 const& i_vid1
+	,	Video_f32 &o_vid2
+	,	const unsigned p_borderSize
+	,	const bool p_isForward
+	);
+	
+	/**
+	 * @brief Transform the color space of an video, from RGB to YUV, or vice-versa.
+	 *
+	 * @param io_vid: image on which the transform will be applied;
+	 * @param p_isForward: if true, go from RGB to YUV, otherwise go from YUV to RGB.
+	 *
+	 * @return none.
+	 **/
+	void transformColorSpace(
+		Video_f32 &io_vid
+	,	const bool p_isForward
+	);
+	
+	/**
+	 * @brief Subdivide a video into small sub-videos
+	 *
+	 * @param i_video : image to subdivide;
+	 * @param o_videoSub : will contain all sub-videos;
+	 * @param p_videoSizeSub : size of sub-videos;
+	 * @param p_N : boundary around sub-videos;
+	 * @param p_nb : number of sub-videos wanted. Need to be a power of 2.
+	 *
+	 * @return EXIT_FAILURE in case of problems.
+	 **/
+	int subDivide(
+		Video_f32 const& i_im
+	,	std::vector<Video_f32> &o_imSub
+	,	VideoSize &p_imSizeSub
+	,	const unsigned p_N
+	,	const unsigned p_nb
+	);
+	
+	/**
+	 * @brief Reconstruct an video from its small sub-videos
+	 *
+	 * @param o_vid : image to reconstruct;
+	 * @param i_vidSub : will contain all sub-images;
+	 * @param p_N : boundary around sub-videos.
+	 *
+	 * @return EXIT_FAILURE in case of problems.
+	 **/
+	int subBuild(
+		Video_f32 &o_vid
+	,	std::vector<Video_f32> const& i_vidSub
+	,	const unsigned p_N
+	);
+}
 
 #endif // LIB_VIDEO_H_INCLUDED

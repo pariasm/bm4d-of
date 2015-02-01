@@ -234,12 +234,44 @@ namespace VideoUtils
 	 *
 	 * @return none.
 	 **/
-	void symmetrizeImage(
-		std::vector<float> const& i_vid1
-	,	std::vector<float> &o_vid2
+	// TODO: make more general: we will need different sizes for different
+	//       borders. More general inputs could be:
+	//				 - vid_in   : input video
+	//				 - vid_out  : output video
+	//				 - size_out : size of output video
+	//				 - offset   : position of vid2 origin in vid1 coordinates
+	void symmetrizeVideo(
+		Video_f32 const &i_vid1
+	,	Video_f32 &o_vid2
 	,	const unsigned p_borderSize
 	,	const bool p_isForward
 	){
+		//! Sizes
+		const unsigned w1 = i_vid1.width;
+		const unsigned h1 = i_vid1.height;
+		const unsigned f1 = i_vid1.nFrames;
+		const unsigned w2 = w1 + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
+		const unsigned h2 = h1 + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
+		const unsigned f2 = f1 + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
+		const unsigned ch = i_vid1.nChannels;
+
+		//! Position of vid2 origin in vid1 coordinates
+		const int tx = p_isForward ? -p_borderSize : p_borderSize;
+		const int ty = p_isForward ? -p_borderSize : p_borderSize;
+		const int tf = p_isForward ? -p_borderSize : p_borderSize;
+
+		//! Resize output image, if necessary
+		o_vid2.resize(w2, h2, f2, ch);
+
+		// TODO: more efficient implementation
+		for (int      f = 0; f < f2; f++)
+		for (unsigned c = 0; c < ch; c++)
+		for (int      y = 0; y < h2; y++)
+		for (int      x = 0; x < w2; x++)
+			o_vid2(x,y,f,c) = 
+				i_vid1.getPixelSymmetric(x + tx,y + ty,f + tf,c);
+
+		return;
 	}
 	
 	/**

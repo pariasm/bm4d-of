@@ -42,17 +42,18 @@ void print_video_size(const std::string& name, const Video_f32& vid)
 int main(int argc, char **argv)
 {
 	//! Check if there is the right call for the algorithm
-	if (argc != 5)
+	if (argc != 6)
 	{
-		fprintf(stdout, "Usage: %s path-to-frames first-frame last-frame frame-step\n", argv[0]);
+		fprintf(stdout, "Usage: %s path-to-frames first-frame last-frame frame-step sigma\n", argv[0]);
 		return EXIT_FAILURE;
 	}
 
-	//! Get CMD line inputs
+	//! Get command line inputs
 	const char* i_video_path =    argv[1] ;
 	const int i_firstFrame = atoi(argv[2]);
 	const int i_lastFrame  = atoi(argv[3]);
 	const int i_frameStep  = atoi(argv[4]);
+	const int i_sigma      = atoi(argv[5]);
 
 	//! Create empty video
 	Video_f32 vid1;
@@ -70,19 +71,54 @@ int main(int argc, char **argv)
 	}
 	print_video_size("loaded video1", vid1);
 
-	// accessing pixels through coordinates
+
+	/*! Accessing pixels through coordinates
 	for (int f =  0; f < vid1.nFrames; f += 2)
 	for (int y = 10; y < vid1.height - 10; y++)
 	for (int x = 10; x < vid1.width  - 10; x++)
 		vid1(x,y,f,0) = 250;
 
-	// accessing pixels through indices
-	for (int i = 0; i < vid1.whcf; i += 17) vid1(i) = 0;
+	//! Accessing pixels through indices
+	for (int i = 0; i < vid1.whcf; i += 17) vid1(i) = 0;//*/
 
 	//! Save video
-	vid1.saveVideo("/tmp/vid1_%02d.png",i_firstFrame, i_frameStep);
+	vid1.saveVideo("/tmp/vid1_%02d.png", i_firstFrame, i_frameStep);
+	vid1.saveVideoAscii("/tmp/vid1"    , i_firstFrame, i_frameStep);
 
-	//! Load a video through constructor
+	//! Pad video by symmetry
+	Video_f32 vid1_sym;
+	VideoUtils::symmetrizeImage(vid1, vid1_sym, 4, true);
+	print_video_size("video with border added by symmetrizing", vid1_sym);
+	vid1_sym.saveVideo("/tmp/vid1_sym_%02d.png", i_firstFrame, i_frameStep);//*/
+	
+
+	/*/! Change colorspace
+	VideoUtils::transformColorSpace(vid1, true);
+	vid1.saveVideoAscii("/tmp/vid1_yuv", i_firstFrame, i_frameStep);
+
+	VideoUtils::transformColorSpace(vid1, false);//*/
+
+	/*/! Add noise
+	Video_f32 vid1_noise;
+	VideoUtils::addNoise(vid1, vid1_noise, i_sigma, true);
+
+	//! Save video
+	vid1_noise.saveVideo("/tmp/vid1_noise_%02d.png",i_firstFrame, i_frameStep);//*/
+
+	/*/! Compute PSNR
+	float psnr, rmse;
+	VideoUtils::computePSNR(vid1, vid1_noise, psnr, rmse);
+	printf("Computed RMSE: %f - PSNR: %f\n", rmse, psnr);//*/
+
+	/*/! Compute difference
+	Video_f32 diff;
+	VideoUtils::computeDiff(vid1, vid1_noise, diff, i_sigma);
+	print_video_size("difference", diff);
+
+	//! Save difference video
+	diff.saveVideo("/tmp/diff_%02d.png",i_firstFrame, i_frameStep);//*/
+
+	/*! Load a video through constructor
 	Video_f32 vid2(i_video_path, i_firstFrame, i_lastFrame, i_frameStep);
 	print_video_size("loaded video2", vid2);
 
@@ -94,7 +130,7 @@ int main(int argc, char **argv)
 	print_video_size("copied video3", vid3);
 
 	//! Save
-	vid2.saveVideo("/tmp/vid3_%02d.png",i_firstFrame, i_frameStep);
+	vid2.saveVideo("/tmp/vid3_%02d.png",i_firstFrame, i_frameStep);*/
 
 	return EXIT_SUCCESS;
 }
