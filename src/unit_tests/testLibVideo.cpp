@@ -59,7 +59,7 @@ int main(int argc, char **argv)
 	Video_f32 vid1;
 	print_video_size("empty video", vid1);
 
-	//! Save video
+	//! Save video / should do nothing!
 	vid1.saveVideo("/tmp/vid1_empty_%02d.png",i_firstFrame, i_frameStep);
 
 	//! Load a video through loadVideo 
@@ -72,7 +72,7 @@ int main(int argc, char **argv)
 	print_video_size("loaded video1", vid1);
 
 
-	/*! Accessing pixels through coordinates
+	/*/! Accessing pixels through coordinates
 	for (int f =  0; f < vid1.frames; f += 2)
 	for (int y = 10; y < vid1.height - 10; y++)
 	for (int x = 10; x < vid1.width  - 10; x++)
@@ -83,14 +83,35 @@ int main(int argc, char **argv)
 
 	//! Save video
 	vid1.saveVideo("/tmp/vid1_%02d.png", i_firstFrame, i_frameStep);
-	vid1.saveVideoAscii("/tmp/vid1"    , i_firstFrame, i_frameStep);
+//	vid1.saveVideoAscii("/tmp/vid1"    , i_firstFrame, i_frameStep);//*/
 
-	//! Pad video by symmetry
+	//! Subdivide into smaller videos with border
+	unsigned nvids = 8;
+	unsigned border = 10;
+	std::vector<Video_f32> subvids1;
+	VideoUtils::subDivide(vid1, subvids1, border, nvids); 
+
+	for (int n = 0; n < subvids1.size(); n++)
+	{
+		char name[1024];
+		sprintf(name, "/tmp/vid1_sub%02d_%%02d.png", n);
+		subvids1[n].saveVideo(name, i_firstFrame, i_frameStep);
+	}
+
+	//! Join again into large video, removing border
+	Video_f32 vid3(vid1.size());
+	VideoUtils::subBuild (subvids1, vid3, border); 
+
+	float psnr_13, rmse_13;
+	VideoUtils::computePSNR(vid1, vid3, psnr_13, rmse_13);
+	printf("After joining the subvideos... RMSE: %f - PSNR: %f\n", rmse_13, psnr_13);//*/
+
+
+	/*/! Pad video by symmetry
 	Video_f32 vid1_sym;
 	VideoUtils::addBorder(vid1, vid1_sym, 4, true);
 	print_video_size("video with border added by symmetrizing", vid1_sym);
 	vid1_sym.saveVideo("/tmp/vid1_sym_%02d.png", i_firstFrame, i_frameStep);//*/
-	
 
 	/*/! Change colorspace
 	VideoUtils::transformColorSpace(vid1, true);
@@ -118,7 +139,7 @@ int main(int argc, char **argv)
 	//! Save difference video
 	diff.saveVideo("/tmp/diff_%02d.png",i_firstFrame, i_frameStep);//*/
 
-	/*! Load a video through constructor
+	/*/! Load a video through constructor
 	Video_f32 vid2(i_video_path, i_firstFrame, i_lastFrame, i_frameStep);
 	print_video_size("loaded video2", vid2);
 

@@ -16,6 +16,7 @@
 #include <string>
 #include <fftw3.h>
 #include <cassert>
+#include <climits>
 
 /**
  * @brief Structure containing size informations of a video.
@@ -49,6 +50,13 @@ struct VideoSize
 	inline bool operator != (const VideoSize& sz)
 	{ 
 		return !operator==(sz);
+	}
+
+	void update_fields(void)
+	{
+		wh = width * height;
+		whc = wh * channels;
+		whcf = whc * frames;
 	}
 };
 
@@ -311,9 +319,26 @@ namespace VideoUtils
 	void crop(
 		Video_f32 const &i_vid1
 	,	Video_f32 &o_vid2
-	,	int p_origin_t
-	,	int p_origin_x
-	,	int p_origin_y
+	,	int p_origin_t = INT_MAX
+	,	int p_origin_x = INT_MAX
+	,	int p_origin_y = INT_MAX
+	);
+
+	/**
+	 * @brief 'Generalized' croping of a video (cropped video may be larger than original).
+	 *
+	 * @param i_vid1 : original video;
+	 * @param o_vid2 : output video, already allocated to desired size;
+	 * @param i_origin2 : vid1 coordinates of vid2 origin. Origin coordinates
+	 * larger than corresponding vid1 dimension are redefined to center the crop
+	 * in that dimension.
+	 *
+	 * @return none.
+	 **/
+	void crop(
+		Video_f32 const &i_vid1
+	,	Video_f32 &o_vid2
+	,	const int * const p_origin
 	);
 	
 	/**
@@ -334,16 +359,14 @@ namespace VideoUtils
 	 *
 	 * @param i_video : image to subdivide;
 	 * @param o_videoSub : will contain all sub-videos;
-	 * @param p_videoSizeSub : size of sub-videos;
 	 * @param p_N : boundary around sub-videos;
 	 * @param p_nb : number of sub-videos wanted. Need to be a power of 2.
 	 *
 	 * @return EXIT_FAILURE in case of problems.
 	 **/
 	int subDivide(
-		Video_f32 const& i_im
-	,	std::vector<Video_f32> &o_imSub
-	,	VideoSize &p_imSizeSub
+		Video_f32 const& i_vid
+	,	std::vector<Video_f32> &o_vidSub
 	,	const unsigned p_N
 	,	const unsigned p_nb
 	);
@@ -358,8 +381,8 @@ namespace VideoUtils
 	 * @return EXIT_FAILURE in case of problems.
 	 **/
 	int subBuild(
-		Video_f32 &o_vid
-	,	std::vector<Video_f32> const& i_vidSub
+	 	std::vector<Video_f32> const& i_vidSub
+	,	Video_f32 &o_vid
 	,	const unsigned p_N
 	);
 }

@@ -226,6 +226,25 @@ namespace VideoUtils
 	}
 
 	/**
+	 * @brief 'Generalized' croping of a video (cropped video may be larger than original).
+	 *
+	 * @param i_vid1 : original video;
+	 * @param o_vid2 : output video, already allocated to desired size;
+	 * @param i_origin2 : vid1 coordinates of vid2 origin. Origin coordinates
+	 * larger than corresponding vid1 dimension are redefined to center the crop
+	 * in that dimension.
+	 *
+	 * @return none.
+	 **/
+	void crop(
+		Video_f32 const &i_vid1
+	,	Video_f32 &o_vid2
+	,	const int * const p_origin
+	){
+		crop(i_vid1, o_vid2, p_origin[2], p_origin[0], p_origin[1]);
+	}
+
+	/**
 	 * @brief Transform the color space of an video, from RGB to YUV, or vice-versa.
 	 *
 	 * @param io_vid: image on which the transform will be applied;
@@ -356,15 +375,48 @@ namespace VideoUtils
 	 *
 	 * @return EXIT_FAILURE in case of problems.
 	 **/
+	// TODO pending decision for video
 	int subDivide(
 		Video_f32 const& i_im
 	,	std::vector<Video_f32> &o_imSub
-	,	VideoSize &p_imSizeSub
 	,	const unsigned p_N
 	,	const unsigned p_nb
 	){
+		/* FIXME current version splits the video only spatially. 
+		 *       The reason is to mantain consistency with Marc's
+		 *       code. For its proper extension to video, we need
+		 *       to determine how to split the video in space and
+		 *       time. */
+		
+		//! Determine number of sub-images
+		unsigned nW, nH;
+		determineFactor(p_nb, nW, nH);
+		const unsigned wTmp = ceil(float(i_im.width ) / float(nW)); // sizes w/out 
+		const unsigned hTmp = ceil(float(i_im.height) / float(nH)); //     borders
+
+		//! Obtain sub-images
+		VideoSize imSubSize;
+		imSubSize.width    = wTmp + 2 * p_N; // each sub-image has border
+		imSubSize.height   = hTmp + 2 * p_N;
+		imSubSize.frames   = i_im.frames; // NOTE: same frames as original
+		imSubSize.channels = i_im.channels;
+		imSubSize.update_fields();
+
+		o_imSub.resize(p_nb);
+		for (unsigned p = 0, n = 0; p < nH; p++)
+		for (unsigned q = 0;        q < nW; q++, n++)
+		{
+			o_imSub[n].resize(imSubSize);
+
+			// The origin is shifted -p_N to account for the subimage border
+			int origin[3] = {q * wTmp - p_N, p * hTmp - p_N, 0};
+
+			// Crop using symmetric boundary conditions
+			VideoUtils::crop(i_im, o_imSub[n], origin);
+		}
+		return EXIT_SUCCESS;
 	}
-	
+
 	/**
 	 * @brief Reconstruct an video from its small sub-videos
 	 *
@@ -374,10 +426,60 @@ namespace VideoUtils
 	 *
 	 * @return EXIT_FAILURE in case of problems.
 	 **/
+	// TODO pending decision for video
 	int subBuild(
-		Video_f32 &o_vid
-	,	std::vector<Video_f32> const& i_vidSub
+	 	std::vector<Video_f32> const& i_vidSub
+	,	Video_f32 &o_vid
 	,	const unsigned p_N
 	){
+		/* FIXME current version builds a video that has been split
+		 *       only spatially by subDivide. 
+		 *       The reason is to mantain consistency with Marc's
+		 *       code. For its proper extension to video, we need
+		 *       to determine how to split the video in space and
+		 *       time. */
+
+		assert(i_vidSub.size());
+		assert(i_vidSub[0].whcf);
+		assert(o_vid.whcf);
+		assert(o_vid.frames   == i_vidSub[0].frames  );
+		assert(o_vid.channels == i_vidSub[0].channels);
+
+		//! Determine width and height composition
+		unsigned nW, nH;
+		determineFactor(i_vidSub.size(), nW, nH);
+		const unsigned hTmp = i_vidSub[0].height - 2 * p_N;
+		const unsigned wTmp = i_vidSub[0].width  - 2 * p_N;
+
+		//! Obtain inner image (containing boundaries)
+		// TODO pending decision for video
+		for (unsigned py = 0, n = 0; py < nH*hTmp; py += hTmp)
+		for (unsigned px = 0       ; px < nW*wTmp; px += wTmp, n++)
+		{
+			/* Diagram for a 1D image with W = 8, covered
+			 * with 2 sub images of w = 5, with border 2.
+			 * Symmetrized pixels are indicated with an s.
+			 *
+			 * ori         0  1  2  3  4  5  6  7
+			 * sub1 s0 s1  2  3  4  5  6 s7 s8
+			 * sub2                s0 s1  2  3  4 s5 s6 s7 s8
+			 * 
+			 * px         0*w            1*w       <-- don't exceed 1*w + W-1*w
+			 *
+			 * Notation: [px,py] coords on big image of sub-image top-left point 
+			 *           [qx,qy] point on big image
+			 *           [sx,sy] corresponding point on sub-image
+			 */
+			unsigned wmax = std::min(wTmp, o_vid.width  - px) + p_N;
+			unsigned hmax = std::min(hTmp, o_vid.height - py) + p_N;
+
+			for (unsigned f = 0; f < o_vid.frames  ; f++)
+			for (unsigned c = 0; c < o_vid.channels; c++)
+			for (unsigned sy = p_N, qy = py; sy < hmax; sy++, qy++)
+			for (unsigned sx = p_N, qx = px; sx < wmax; sx++, qx++)
+				o_vid(qx, qy, f, c) = i_vidSub[n](sx, sy, f, c);
+		}
+
+		return EXIT_SUCCESS;
 	}
 }
