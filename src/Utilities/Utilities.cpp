@@ -139,19 +139,19 @@ void determineFactor(
 ,   unsigned &o_a
 ,   unsigned &o_b
 ){
-    if (i_n == 1) {
+    if (i_n == 1)
+	 {
         o_a = 1;
         o_b = 1;
         return;
     }
 
     o_b = 2;
-    while (i_n % o_b > 0) {
-        o_b++;
-    }
+    while (i_n % o_b > 0) o_b++;
     o_a = i_n / o_b;
 
-    if (o_b > o_a) {
+    if (o_b > o_a)
+	 {
         o_a = o_b;
         o_b = i_n / o_a;
     }

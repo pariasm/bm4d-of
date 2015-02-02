@@ -4,6 +4,7 @@ include_directories(${CMAKE_SOURCE_DIR}/src/Utilities)
 
 add_library(videoNlBayes SHARED
 	NlBayes.cpp
+	VideoNLBayes.cpp
 	LibMatrix.cpp
 	../Utilities/io_png.c
 	../Utilities/LibImages.cpp
