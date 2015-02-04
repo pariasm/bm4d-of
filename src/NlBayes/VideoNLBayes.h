@@ -92,10 +92,23 @@ void initializeNlbParameters(
 	nlbParams &o_paramStep1
 ,	nlbParams &o_paramStep2
 ,	const float p_sigma
-,	const ImageSize &p_imSize
+,	const VideoSize &p_imSize
 ,	const bool p_useArea1
 ,	const bool p_useArea2
 ,	const bool p_verbose
+);
+
+/**
+ * @brief Display parameters of the NL-Bayes algorithm.
+ *
+ * @param i_paramStep1 : nlbParams for the first step of the algorithm;
+ * @param i_paramStep2 : nlbParams for the second step of the algorithm;
+ *
+ * @return none.
+ **/
+void printNlbParameters(
+	nlbParams &i_paramStep1
+,	nlbParams &i_paramStep2
 );
 
 /**
@@ -338,11 +351,9 @@ void computeAggregationStep2(
  * @return none.
  **/
 void computeWeightedAggregation(
-	Video_f32 const& i_imNoisy
-,	Video_f32 &io_imBasic
-,	Video_f32 &io_imFinal
+	Video_f32 const& i_im
+,	Video_f32 &io_im
 ,	Video_f32 const& i_weight
-,	const nlbParams &p_params
 );
 
 } // namespace

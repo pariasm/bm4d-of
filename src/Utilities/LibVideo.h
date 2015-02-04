@@ -28,6 +28,7 @@
  * @param wh       : equal to width * height. Provided for convenience;
  * @param whc      : equal to width * height * channels. Provided for convenience.
  * @param whcf     : equal to width * height * frames * channels. Provided for convenience.
+ * @param whf      : equal to width * height * frames. Provided for convenience.
  **/
 struct VideoSize
 {
@@ -38,6 +39,7 @@ struct VideoSize
 	unsigned wh;
 	unsigned whc;
 	unsigned whcf;
+	unsigned whf;
 
 	inline bool operator == (const VideoSize& sz)
 	{
@@ -52,11 +54,48 @@ struct VideoSize
 		return !operator==(sz);
 	}
 
-	void update_fields(void)
+	//! Updates products of dimensions
+	inline void update_fields(void)
 	{
 		wh = width * height;
 		whc = wh * channels;
 		whcf = whc * frames;
+		whf  = wh  * frames;
+	}
+
+	//! Returns index
+	inline signed index(unsigned x, unsigned y, unsigned t, unsigned c) const
+	{
+		assert(x < width && y < height && t < frames && c < channels);
+		return t*whc + c*wh + y*width + x;
+	}
+
+	//! Returns index assuming the video has one channel
+	inline unsigned index(unsigned x, unsigned y, unsigned t) const
+	{
+		assert(x < width && y < height && t < frames);
+		return t*wh + y*width + x;
+	}
+
+	//! Compute coordinates from index
+	inline
+	void coords(unsigned idx, unsigned& x, unsigned& y, unsigned& t, unsigned& c) const
+	{
+		assert(idx < whcf);
+		t = (idx      ) / whc;
+		c = (idx % whc) / wh ;
+		y = (idx % wh ) / width;
+		x = (idx % width  );
+	}
+
+	//! Compute coordinates from index assuming the video has one channel
+	inline
+	void coords(unsigned idx, unsigned& x, unsigned& y, unsigned& t) const
+	{
+		assert(idx < whf);
+		t = (idx      ) / wh;
+		y = (idx % wh ) / width;
+		x = (idx % width  );
 	}
 };
 
@@ -84,6 +123,7 @@ class Video_f32
 		unsigned wh;
 		unsigned whc;
 		unsigned whcf;
+		unsigned whf;
 
 		//! Data
 		std::vector<float> data;
@@ -94,7 +134,9 @@ class Video_f32
 		Video_f32(const std::string i_pathToFiles,
 		          unsigned i_firstFrame, unsigned i_lastFrame, unsigned i_frameStep = 1); //< from filename
 		Video_f32(unsigned i_width, unsigned i_height, unsigned i_frames, unsigned i_channels = 1);  //< alloc
+		Video_f32(unsigned i_width, unsigned i_height, unsigned i_frames, unsigned i_channels, float val);  //< init
 		Video_f32(const VideoSize& i_size);  //< alloc
+		Video_f32(const VideoSize& i_size, float val);  //< init
 
 		//! Destructor
 		~Video_f32(void) { };
@@ -125,12 +167,12 @@ class Video_f32
 		                   unsigned i_firstFrame, unsigned i_frameStep = 1) const;
 
 		//! Utilities
-		unsigned index(unsigned x, unsigned y, unsigned t, unsigned c = 0) const;
+		unsigned index(unsigned x, unsigned y, unsigned t, unsigned c) const;
 		void coords(unsigned index, unsigned& x, unsigned& y, unsigned& t, unsigned& c) const;
 
 		VideoSize size(void) const
 		{
-			VideoSize sz = {width, height, frames, channels, wh, whc, whcf};
+			VideoSize sz = {width, height, frames, channels, wh, whc, whcf, whf};
 			return sz; 
 		}
 };

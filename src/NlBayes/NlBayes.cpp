@@ -278,29 +278,15 @@ void processNlBayes(
 	//             should go throught videos
 
 	//! Parameters initialization
-	const unsigned sW  = p_params.sizeSearchWindow;
-	const unsigned sP  = p_params.sizePatch;
-	const unsigned sP2 = sP * sP;
-	const unsigned sPC = sP2 * p_imSize.nChannels;
-	const unsigned nSP = p_params.nSimilarPatches;
+	const unsigned sW = p_params.sizeSearchWindow;
+	const unsigned sP = p_params.sizePatch;
+	const unsigned patch_dim = p_params.isFirstStep ? sP * sP
+	                                                : sP * sP * p_imSize.nChannels;
+	const unsigned patch_num = p_params.isFirstStep ? p_params.nSimilarPatches
+	                                                : sW * sW;
 	unsigned nInverseFailed = 0;
 	const float threshold = p_params.sigma * p_params.sigma * p_params.gamma *
-		(p_params.isFirstStep ? p_imSize.nChannels : 1.f);
-
-	//! Allocate Sizes
-	if (p_params.isFirstStep) io_imBasic.resize(p_imSize.whc);
-	o_imFinal.resize(p_imSize.whc);
-
-	//! Used matrices during Bayes' estimate
-	vector<vector<float> > group3d(p_imSize.nChannels, vector<float> (nSP * sP2));
-	vector<float> group3dNoisy(sW * sW * sPC), group3dBasic(sW * sW * sPC);
-	vector<unsigned> index(p_params.isFirstStep ? nSP : sW * sW);
-	matParams mat;
-	mat.group3dTranspose.resize(p_params.isFirstStep ? nSP * sP2 : sW * sW * sPC);
-	mat.tmpMat          .resize(p_params.isFirstStep ? sP2 * sP2 : sPC * sPC);
-	mat.baricenter      .resize(p_params.isFirstStep ? sP2 : sPC);
-	mat.covMat          .resize(p_params.isFirstStep ? sP2 * sP2 : sPC * sPC);
-	mat.covMatTmp       .resize(p_params.isFirstStep ? sP2 * sP2 : sPC * sPC);
+	                       (p_params.isFirstStep ? p_imSize.nChannels : 1.f);
 
 	//! ponderation: weight sum per pixel
 	vector<float> weight(i_imNoisy.size(), 0.f);
@@ -313,50 +299,84 @@ void processNlBayes(
 	for (unsigned j = sW; j < p_imSize.width  - sW; j++)
 		mask[i * p_imSize.width + j] = true;
 
-	for (unsigned ij = 0; ij < p_imSize.wh; ij += p_params.offSet)
-		//! Only non-seen patches are processed
-		if (mask[ij]) {
-			//! Search for similar patches around the reference one
-			unsigned nSimP = p_params.nSimilarPatches;
-			if (p_params.isFirstStep)
+	//! Matrices used for Bayes' estimate
+	vector<unsigned> index(patch_num);
+	matParams mat;
+	mat.group3dTranspose.resize(patch_num * patch_dim);
+	mat.tmpMat          .resize(patch_dim * patch_dim);
+	mat.covMat          .resize(patch_dim * patch_dim);
+	mat.covMatTmp       .resize(patch_dim * patch_dim);
+	mat.baricenter      .resize(patch_dim);
+
+	if (p_params.isFirstStep)
+	{
+		//! Allocate Sizes
+		io_imBasic.resize(p_imSize.whc);
+
+		//! Matrices used for Bayes' estimate
+		vector<vector<float> > group3d(p_imSize.nChannels,
+		                               vector<float> (patch_num * patch_dim));
+
+		for (unsigned ij = 0; ij < p_imSize.wh; ij += p_params.offSet)
+			if (mask[ij]) //< Only non-seen patches are processed
+			{
+				//! Search for similar patches around the reference one
 				estimateSimilarPatchesStep1(i_imNoisy, group3d, index, ij, p_imSize, p_params);
-			else
-				nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic, group3dNoisy,
-						group3dBasic, index, ij, p_imSize, p_params);
 
-			//! Initialization
-			bool doBayesEstimate = true;
-
-			//! If we use the homogeneous area trick
-			if (p_params.useHomogeneousArea) {
-				if (p_params.isFirstStep)
-					doBayesEstimate = !computeHomogeneousAreaStep1(group3d, sP, nSP,
+				//! If we use the homogeneous area trick
+				bool doBayesEstimate = true;
+				if (p_params.useHomogeneousArea)
+					doBayesEstimate = !computeHomogeneousAreaStep1(group3d, sP, patch_num,
 							threshold, p_imSize);
-				else
-					doBayesEstimate = !computeHomogeneousAreaStep2(group3dNoisy, group3dBasic,
-							sP, nSimP, threshold, p_imSize);
-			}
 
-			//! Else, use Bayes' estimate
-			if (doBayesEstimate) {
-				if (p_params.isFirstStep)
+				//! Else, use Bayes' estimate
+				if (doBayesEstimate)
 					computeBayesEstimateStep1(group3d, mat, nInverseFailed, p_params);
-				else
-					computeBayesEstimateStep2(group3dNoisy, group3dBasic, mat, nInverseFailed,
-							p_imSize, p_params, nSimP);
+
+				//! Aggregation
+				computeAggregationStep1(io_imBasic, weight, mask, group3d, index,
+						p_imSize, p_params);
 			}
 
-			//! Aggregation
-			if (p_params.isFirstStep)
-				computeAggregationStep1(io_imBasic, weight, mask, group3d, index, p_imSize,
-						p_params);
-			else
-				computeAggregationStep2(o_imFinal, weight, mask, group3dBasic, index, p_imSize,
-						p_params, nSimP);
-		}
+		//! Weighted aggregation
+		computeWeightedAggregation(i_imNoisy, io_imBasic, weight, p_imSize);
+	}
+	else
+	{
+		//! Allocate Sizes
+		o_imFinal.resize(p_imSize.whc);
 
-	//! Weighted aggregation
-	computeWeightedAggregation(i_imNoisy, io_imBasic, o_imFinal, weight, p_params, p_imSize);
+		//! Matrices used for Bayes' estimate
+		vector<float> group3dNoisy(patch_num * patch_dim);
+		vector<float> group3dBasic(patch_num * patch_dim);
+
+		for (unsigned ij = 0; ij < p_imSize.wh; ij += p_params.offSet)
+			if (mask[ij]) //< Only non-seen patches are processed
+			{
+				//! Search for similar patches around the reference one
+				unsigned nSimP = p_params.nSimilarPatches;
+				nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic,
+						group3dNoisy, group3dBasic, index, ij, p_imSize, p_params);
+
+				//! If we use the homogeneous area trick
+				bool doBayesEstimate = true;
+				if (p_params.useHomogeneousArea)
+					doBayesEstimate = !computeHomogeneousAreaStep2(group3dNoisy,
+							group3dBasic, sP, nSimP, threshold, p_imSize);
+
+				//! Else, use Bayes' estimate
+				if (doBayesEstimate)
+					computeBayesEstimateStep2(group3dNoisy, group3dBasic, mat,
+							nInverseFailed, p_imSize, p_params, nSimP);
+
+				//! Aggregation
+				computeAggregationStep2(o_imFinal, weight, mask, group3dBasic,
+						index, p_imSize, p_params, nSimP);
+			}
+
+		//! Weighted aggregation
+		computeWeightedAggregation(i_imNoisy, o_imFinal, weight, p_imSize);
+	}
 
 	if (nInverseFailed > 0 && p_params.verbose)
 		cout << "nInverseFailed = " << nInverseFailed << endl;
@@ -840,23 +860,14 @@ void computeAggregationStep2(
  * @return : none.
  **/
 void computeWeightedAggregation(
-	std::vector<float> const& i_imNoisy
-,	std::vector<float> &io_imBasic
-,	std::vector<float> &io_imFinal
+	std::vector<float> const& i_im
+,	std::vector<float> &io_im
 ,	std::vector<float> const& i_weight
-,	const nlbParams &p_params
 ,	const ImageSize &p_imSize
 ){
-	// TODO VIDEO minor modifications
 	for (unsigned c = 0, k = 0; c < p_imSize.nChannels; c++)
 	for (unsigned ij = 0; ij < p_imSize.wh; ij++, k++)
 		//! To avoid weighting problem (particularly near boundaries of the image)
-		if (i_weight[k] > 0.f) {
-			if (p_params.isFirstStep) io_imBasic[k] /= i_weight[k];
-			else                      io_imFinal[k] /= i_weight[k];
-		}
-		else {
-			if (p_params.isFirstStep) io_imBasic[k] = i_imNoisy[k];
-			else                      io_imFinal[k] = io_imBasic[k];
-		}
+		if (i_weight[k] > 0.f) io_im[k] /= i_weight[k];
+		else                   io_im[k] = i_im[k];
 }

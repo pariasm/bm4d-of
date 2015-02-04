@@ -100,10 +100,10 @@ void initializeNlbParameters(
 	if (o_paramStep2.sizeSearchWindow % 2 == 0) o_paramStep2.sizeSearchWindow++;
 
 	//! Search window, temporal search radii// VIDEO
-	o_paramStep1.sizeSearchTimeRangeFwd = 2;// VIDEO
-	o_paramStep1.sizeSearchTimeRangeBwd = 2;// VIDEO
-	o_paramStep2.sizeSearchTimeRangeFwd = 2;// VIDEO
-	o_paramStep2.sizeSearchTimeRangeBwd = 2;// VIDEO
+	o_paramStep1.sizeSearchTimeRangeFwd = 2;//2;// VIDEO
+	o_paramStep1.sizeSearchTimeRangeBwd = 2;//2;// VIDEO
+	o_paramStep2.sizeSearchTimeRangeFwd = 2;//2;// VIDEO
+	o_paramStep2.sizeSearchTimeRangeBwd = 2;//2;// VIDEO
 
 	//! Size of boundaries used during the sub division
 	o_paramStep1.boundary = int(1.5f * float(o_paramStep1.sizeSearchWindow));
@@ -111,8 +111,8 @@ void initializeNlbParameters(
 
 	// TODO VIDEO: do we need to specify temporal boundary?
 
-	printf("PARAM1 SW: %d - boundary = %d\n", o_paramStep1.sizeSearchWindow, o_paramStep1.boundary);
-	printf("PARAM2 SW: %d - boundary = %d\n", o_paramStep2.sizeSearchWindow, o_paramStep2.boundary);
+//	printf("PARAM1 SW: %d - boundary = %d\n", o_paramStep1.sizeSearchWindow, o_paramStep1.boundary);
+//	printf("PARAM2 SW: %d - boundary = %d\n", o_paramStep2.sizeSearchWindow, o_paramStep2.boundary);
 
 	//! Parameter used to determine if an area is homogeneous
 	o_paramStep1.gamma = 1.05f;
@@ -146,6 +146,54 @@ void initializeNlbParameters(
 	//! Boost the paste trick
 	o_paramStep1.doPasteBoost = true;
 	o_paramStep2.doPasteBoost = true;
+}
+
+/**
+ * @brief Display parameters of the NL-Bayes algorithm.
+ *
+ * @param i_paramStep1 : nlbParams for the first step of the algorithm;
+ * @param i_paramStep2 : nlbParams for the second step of the algorithm;
+ *
+ * @return none.
+ **/
+void printNlbParameters(
+	nlbParams &i_prms1
+,	nlbParams &i_prms2
+){
+	printf("\nVideo NLBayes parameters\n");
+	printf("------------------------\n\n");
+	printf("Noise sigma = %g\n", i_prms1.sigma);
+
+	printf("Step 1:\n");
+	printf("\tPatch search:\n");
+	printf("\t\tPatch size                 = %d\n"       , i_prms1.sizePatch);
+	printf("\t\tNumber of patches          = %d\n"       , i_prms1.nSimilarPatches);
+	printf("\t\tSpatial search window      = %dx%d\n"    , i_prms1.sizeSearchWindow, i_prms1.sizeSearchWindow);
+	printf("\t\tTemporal search range      = [-%d,%d]\n" , i_prms1.sizeSearchTimeRangeBwd, i_prms1.sizeSearchTimeRangeBwd);
+	printf("\tPatch stack filtering: beta        = %f\n" , i_prms1.beta);
+	printf("\tSpatial border                     = %d\n" , i_prms1.boundary);
+	printf("\tSpeed-ups:\n");
+	printf("\t\tOffset                     = %d\n"       , i_prms1.offSet);
+	if (i_prms1.useHomogeneousArea)
+	printf("\t\tFlat area trick with gamma = %f\n"       , i_prms1.gamma);
+	if (i_prms1.doPasteBoost)
+		printf("\t\tPasteBoost (TM) active!\n\n");
+	
+	printf("Step 2:\n");
+	printf("\tPatch search:\n");
+	printf("\t\tPatch size                 = %d\n"       , i_prms2.sizePatch);
+	printf("\t\tNumber of patches          = %d\n"       , i_prms2.nSimilarPatches);
+	printf("\t\tDistance threshold (tau)   = %f\n"       , i_prms2.tau);
+	printf("\t\tSpatial search window      = %dx%d\n"    , i_prms2.sizeSearchWindow, i_prms1.sizeSearchWindow);
+	printf("\t\tTemporal search range      = [-%d,%d]\n" , i_prms2.sizeSearchTimeRangeBwd, i_prms1.sizeSearchTimeRangeBwd);
+	printf("\tPatch stack filtering: beta        = %f\n" , i_prms2.beta);
+	printf("\tSpatial border                     = %d\n" , i_prms2.boundary);
+	printf("\tSpeed-ups:\n");
+	printf("\t\tOffset                     = %d\n"       , i_prms2.offSet);
+	if (i_prms1.useHomogeneousArea)
+	printf("\t\tFlat area trick with gamma = %f\n"       , i_prms2.gamma);
+	if (i_prms1.doPasteBoost)
+		printf("\t\tPasteBoost (TM) active!\n\n");
 }
 
 /**
@@ -211,9 +259,8 @@ int runNlBayes(
 	VideoUtils::transformColorSpace(imNoisy, true);
 
 	//! Divide the noisy image into sub-images in order to easier parallelize the process
-	// TODO VIDEO extend to video
 	// ASK MARC: any suggestion on the best way to split the space time cube
-	const unsigned nParts = 1;
+	const unsigned nParts = 2 * nThreads;
 	std::vector<Video_f32> imNoisySub(nParts);
 	if (VideoUtils::subDivide(imNoisy, imNoisySub, paramStep1.boundary, nParts)
 			!= EXIT_SUCCESS)
@@ -231,7 +278,6 @@ int runNlBayes(
 		processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], paramStep1);
 
 	//! Get the basic estimate
-	// TODO VIDEO extend to video
 	if (VideoUtils::subBuild(imBasicSub, o_imBasic, paramStep1.boundary)
 			!= EXIT_SUCCESS)
 		return EXIT_FAILURE;
@@ -239,35 +285,33 @@ int runNlBayes(
 	//! YUV to RGB
 	VideoUtils::transformColorSpace(o_imBasic, false);
 
-	if (paramStep1.verbose) std::cout << "done." << std::endl;
+	//! 2nd Step
+	if (paramStep2.verbose) std::cout << "done." << std::endl << "2nd Step...";
 
-//	//! 2nd Step
-//	if (paramStep2.verbose) std::cout << "2nd Step...";
-//
-//	//! Divide the noisy and basic images into sub-images in order to easier parallelize the process
-//	if (subDivide(i_imNoisy, imNoisySub, p_imSize, imSizeSub, paramStep2.boundary, nParts)
-//			!= EXIT_SUCCESS)
-//		return EXIT_FAILURE;
-//
-//	if (subDivide(o_imBasic, imBasicSub, p_imSize, imSizeSub, paramStep2.boundary, nParts)
-//			!= EXIT_SUCCESS)
-//		return EXIT_FAILURE;
-//
-//	//! Process all sub-images
-//#ifdef _OPENMP
-//#pragma omp parallel for schedule(dynamic, nParts/nThreads) \
-//	shared(imNoisySub, imBasicSub, imFinalSub) \
-//	firstprivate (paramStep2)
-//#endif
-//	for (int n = 0; n < (int) nParts; n++)
-//		processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], imSizeSub, paramStep2);
-//
-//	//! Get the final result
-//	if (subBuild(o_imFinal, imFinalSub, p_imSize, imSizeSub, paramStep2.boundary)
-//			!= EXIT_SUCCESS)
-//		return EXIT_FAILURE;
-//
-//	if (paramStep2.verbose) std::cout << "done." << std::endl << std::endl;
+	//! Divide the noisy and basic images into sub-images in order to easier parallelize the process
+	if (VideoUtils::subDivide(imNoisy, imNoisySub, paramStep2.boundary, nParts)
+			!= EXIT_SUCCESS)
+		return EXIT_FAILURE;
+
+	if (VideoUtils::subDivide(o_imBasic, imBasicSub, paramStep2.boundary, nParts)
+			!= EXIT_SUCCESS)
+		return EXIT_FAILURE;
+
+	//! Process all sub-images
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic, nParts/nThreads) \
+	shared(imNoisySub, imBasicSub, imFinalSub) \
+	firstprivate (paramStep2)
+#endif
+	for (int n = 0; n < (int) nParts; n++)
+		processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], paramStep2);
+
+	//! Get the final result
+	if (VideoUtils::subBuild(imFinalSub, o_imFinal, paramStep2.boundary)
+			!= EXIT_SUCCESS)
+		return EXIT_FAILURE;
+
+	if (paramStep2.verbose) std::cout << "done." << std::endl << std::endl;
 
 	return EXIT_SUCCESS;
 }
@@ -278,7 +322,6 @@ int runNlBayes(
  * @param i_imNoisy: contains the noisy image;
  * @param io_imBasic: will contain the denoised image after the first step (basic estimation);
  * @param o_imFinal: will contain the denoised image after the second step;
- * @param p_imSize: size of i_imNoisy;
  * @param p_params: see nlbParams.
  *
  * @return none.
@@ -289,92 +332,134 @@ void processNlBayes(
 ,	Video_f32 &o_imFinal
 ,	nlbParams &p_params
 ){
-//	// TODO VIDEO: minor changes some loops that go through images
-//	//             should go throught videos
-//
-//	//! Parameters initialization
-//	const unsigned sW  = p_params.sizeSearchWindow;
-//	const unsigned sP  = p_params.sizePatch;
-//	const unsigned sP2 = sP * sP;
-//	const unsigned sPC = sP2 * p_imSize.channels;
-//	const unsigned nSP = p_params.nSimilarPatches;
-//	unsigned nInverseFailed = 0;
-//	const float threshold = p_params.sigma * p_params.sigma * p_params.gamma *
-//		(p_params.isFirstStep ? p_imSize.channels : 1.f);
-//
-//	//! Allocate Sizes
-//	if (p_params.isFirstStep) io_imBasic.resize(p_imSize.whc);
-//	o_imFinal.resize(p_imSize.whc);
-//
-//	//! Used matrices during Bayes' estimate
-//	std::vector<std::vector<float> > group3d(p_imSize.channels, std::vector<float> (nSP * sP2));
-//	std::vector<float> group3dNoisy(sW * sW * sPC), group3dBasic(sW * sW * sPC);
-//	std::vector<unsigned> index(p_params.isFirstStep ? nSP : sW * sW);
-//	matParams mat;
-//	mat.group3dTranspose.resize(p_params.isFirstStep ? nSP * sP2 : sW * sW * sPC);
-//	mat.tmpMat          .resize(p_params.isFirstStep ? sP2 * sP2 : sPC * sPC);
-//	mat.baricenter      .resize(p_params.isFirstStep ? sP2 : sPC);
-//	mat.covMat          .resize(p_params.isFirstStep ? sP2 * sP2 : sPC * sPC);
-//	mat.covMatTmp       .resize(p_params.isFirstStep ? sP2 * sP2 : sPC * sPC);
-//
-//	//! ponderation: weight sum per pixel
-//	std::vector<float> weight(i_imNoisy.size(), 0.f); // FIXME: only one channel
-//
-//	//! Mask: true for pixels that still need to be processed
-//	std::vector<bool> mask(p_imSize.wh, false);
-//
-//	//! Only pixels of the center of the image must be processed (not the boundaries)
-//	for (unsigned i = sW; i < p_imSize.height - sW; i++)
-//	for (unsigned j = sW; j < p_imSize.width  - sW; j++)
-//		mask[i * p_imSize.width + j] = true;
-//
-//	for (unsigned ij = 0; ij < p_imSize.wh; ij += p_params.offSet)
-//		//! Only non-seen patches are processed
-//		if (mask[ij]) {
-//			//! Search for similar patches around the reference one
-//			unsigned nSimP = p_params.nSimilarPatches;
-//			if (p_params.isFirstStep)
-//				estimateSimilarPatchesStep1(i_imNoisy, group3d, index, ij, p_imSize, p_params);
-//			else
-//				nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic, group3dNoisy,
-//						group3dBasic, index, ij, p_imSize, p_params);
-//
-//			//! Initialization
-//			bool doBayesEstimate = true;
-//
-//			//! If we use the homogeneous area trick
-//			if (p_params.useHomogeneousArea) {
-//				if (p_params.isFirstStep)
-//					doBayesEstimate = !computeHomogeneousAreaStep1(group3d, sP, nSP,
-//							threshold, p_imSize);
-//				else
-//					doBayesEstimate = !computeHomogeneousAreaStep2(group3dNoisy, group3dBasic,
-//							sP, nSimP, threshold, p_imSize);
-//			}
-//
-//			//! Else, use Bayes' estimate
-//			if (doBayesEstimate) {
-//				if (p_params.isFirstStep)
-//					computeBayesEstimateStep1(group3d, mat, nInverseFailed, p_params);
-//				else
-//					computeBayesEstimateStep2(group3dNoisy, group3dBasic, mat, nInverseFailed,
-//							p_imSize, p_params, nSimP);
-//			}
-//
-//			//! Aggregation
-//			if (p_params.isFirstStep)
-//				computeAggregationStep1(io_imBasic, weight, mask, group3d, index, p_imSize,
-//						p_params);
-//			else
-//				computeAggregationStep2(o_imFinal, weight, mask, group3dBasic, index, p_imSize,
-//						p_params, nSimP);
-//		}
-//
-//	//! Weighted aggregation
-//	computeWeightedAggregation(i_imNoisy, io_imBasic, o_imFinal, weight, p_params, p_imSize);
-//
-//	if (nInverseFailed > 0 && p_params.verbose)
-//		std::cout << "nInverseFailed = " << nInverseFailed << std::endl;
+	using std::vector;
+
+	//! Parameters initialization
+	const bool step1 = p_params.isFirstStep;
+	const unsigned sWx = p_params.sizeSearchWindow;
+	const unsigned sWt = p_params.sizeSearchTimeRangeFwd +
+	                     p_params.sizeSearchTimeRangeBwd + 1;// VIDEO
+	const unsigned sP  = p_params.sizePatch;
+
+	unsigned nInverseFailed = 0;
+	const float threshold = p_params.sigma * p_params.sigma * p_params.gamma *
+	                       (p_params.isFirstStep ? i_imNoisy.channels : 1.f);
+
+	//! Weight sum per pixel // FIXME: only one channel
+	Video_f32 weight(i_imNoisy.size(), 0.f);
+
+	//! Mask: true for pixels that still need to be processed
+	vector<bool> mask(i_imNoisy.wh * i_imNoisy.frames, false);
+
+	//! Only pixels of the center of the image must be processed (not the boundaries)
+	for (unsigned f =   0; f < i_imNoisy.frames      ; f++)
+	for (unsigned i = sWx; i < i_imNoisy.height - sWx; i++)
+	for (unsigned j = sWx; j < i_imNoisy.width  - sWx; j++)
+		mask[f * i_imNoisy.wh + i * i_imNoisy.width + j] = true;
+
+	//! Used matrices during Bayes' estimate
+	const unsigned patch_dim = step1 ? sP * sP : sP * sP * i_imNoisy.channels;
+	const unsigned patch_num = step1 ? p_params.nSimilarPatches : sWx * sWx * sWt;
+
+	//! Matrices used for Bayes' estimate
+	vector<unsigned> index(patch_num);
+	matParams mat;
+	mat.group3dTranspose.resize(patch_num * patch_dim);
+	mat.tmpMat          .resize(patch_dim * patch_dim);
+	mat.covMat          .resize(patch_dim * patch_dim);
+	mat.covMatTmp       .resize(patch_dim * patch_dim);
+	mat.baricenter      .resize(patch_dim);
+
+	if (step1)
+	{
+		//! Allocate Sizes
+		io_imBasic.resize(i_imNoisy.size());
+
+		//! Matrices used for Bayes' estimate
+		vector<vector<float> > group3d(i_imNoisy.channels,
+				                         vector<float>(patch_num * patch_dim));
+
+		for (unsigned ij = 0; ij < i_imNoisy.whf; ij += p_params.offSet)
+			if (mask[ij]) //< Only non-seen patches are processed
+			{
+				if (p_params.verbose && (ij % 10000 == 0))
+				{
+					printf("\rprocessing step1 %05.1f", (float)ij/(float)(i_imNoisy.whf)*100.f);
+					std::cout << std::flush;
+				}
+
+				const unsigned ij3 = (ij / i_imNoisy.wh) * i_imNoisy.whc + ij % i_imNoisy.wh;
+
+				//! Search for similar patches around the reference one
+				estimateSimilarPatchesStep1(i_imNoisy, group3d, index, ij3, p_params);
+
+				//! If we use the homogeneous area trick
+				bool doBayesEstimate = true;
+				if (p_params.useHomogeneousArea)
+					doBayesEstimate = !computeHomogeneousAreaStep1(group3d, sP, patch_num,
+							threshold, i_imNoisy.size());
+
+				//! Else, use Bayes' estimate
+				if (doBayesEstimate)
+					computeBayesEstimateStep1(group3d, mat, nInverseFailed, p_params);
+
+				//! Aggregation
+				computeAggregationStep1(io_imBasic, weight, mask, group3d, index, p_params);
+			}
+
+		if (p_params.verbose) printf("\n");
+
+		//! Weighted aggregation
+		computeWeightedAggregation(i_imNoisy, io_imBasic, weight);
+	}
+	else
+	{
+		//! Allocate Sizes
+		o_imFinal.resize(i_imNoisy.size());
+
+		//! Matrices used for Bayes' estimate
+		vector<float> group3dNoisy(patch_num * patch_dim);
+		vector<float> group3dBasic(patch_num * patch_dim);
+
+		for (unsigned ij = 0; ij < i_imNoisy.whf; ij += p_params.offSet)
+			if (mask[ij]) //< Only non-seen patches are processed
+			{
+				if (p_params.verbose && (ij % 10000 == 0))
+				{
+					printf("\rprocessing step2 %05.1f", (float)ij/(float)(i_imNoisy.whf)*100.f);
+					std::cout << std::flush;
+				}
+
+				const unsigned ij3 = (ij / i_imNoisy.wh) * i_imNoisy.whc + ij % i_imNoisy.wh;
+
+				//! Search for similar patches around the reference one
+				unsigned nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic,
+						group3dNoisy, group3dBasic, index, ij3, p_params);
+
+				//! If we use the homogeneous area trick
+				bool doBayesEstimate = true;
+				if (p_params.useHomogeneousArea)
+					doBayesEstimate = !computeHomogeneousAreaStep2(group3dNoisy,
+							group3dBasic, sP, nSimP, threshold, i_imNoisy.size());
+
+				//! Else, use Bayes' estimate
+				if (doBayesEstimate)
+					computeBayesEstimateStep2(group3dNoisy, group3dBasic, mat,
+							nInverseFailed, i_imNoisy.size(), p_params, nSimP);
+
+				//! Aggregation
+				computeAggregationStep2(o_imFinal, weight, mask, group3dBasic,
+						index, p_params, nSimP);
+			}
+
+		if (p_params.verbose) printf("\n");
+
+		//! Weighted aggregation
+		computeWeightedAggregation(i_imNoisy, o_imFinal, weight);
+	}
+
+	if (nInverseFailed > 0 && p_params.verbose)
+		std::cout << "nInverseFailed = " << nInverseFailed << std::endl;
 }
 
 /**
@@ -384,7 +469,6 @@ void processNlBayes(
  * @param o_group3d: will contain values of similar patches;
  * @param o_index: will contain index of similar patches;
  * @param p_ij: index of the reference patch;
- * @param p_imSize: size of the image;
  * @param p_params: see processStep1 for more explanation.
  *
  * @return none.
@@ -393,53 +477,69 @@ void estimateSimilarPatchesStep1(
 	Video_f32 const& i_im
 ,	std::vector<std::vector<float> > &o_group3d
 ,	std::vector<unsigned> &o_index
-,	const unsigned p_ij
+,	const unsigned pidx
 ,	const nlbParams &p_params
 ){
-//	//! Initialization
-//	const unsigned sW    = p_params.sizeSearchWindow;
-//	const unsigned sP    = p_params.sizePatch;
-//	const unsigned width = p_imSize.width;
-//	const unsigned chnls = p_imSize.channels;
-//	const unsigned wh    = width * p_imSize.height;
-//	const unsigned ind   = p_ij - (sW - 1) /2 * width - (sW - 1) / 2; // index of top-left pixel of search region
-//	const unsigned nSimP = p_params.nSimilarPatches;
-//	std::vector<pair<float, unsigned> > distance(sW * sW);
-//
-//	//< TODO VIDEO search through spatio-temporal domain
-//	//! Compute distance between patches
-//	for (unsigned i = 0; i < sW; i++)
-//	for (unsigned j = 0; j < sW; j++) {
-//		const unsigned k = i * width + j + ind;
-//		float diff = 0.f;
-//		for (unsigned p = 0; p < sP; p++)
-//		for (unsigned q = 0; q < sP; q++) {
-//			const float tmpValue = i_im[p_ij + p * width + q] - i_im[k + p * width + q];
-//			diff += tmpValue * tmpValue;
-//		}
-//
-//		//! Save all distances
-//		distance[i * sW + j] = make_pair(diff, k);
-//	}
-//
-//	//! Keep only the N2 best similar patches
-//	partial_sort(distance.begin(), distance.begin() + nSimP, distance.end(), comparaisonFirst);
-//
-//	//! Register position of patches
-//	for (unsigned n = 0; n < nSimP; n++) o_index[n] = distance[n].second;
-//
-//	//! Register similar patches into the 3D group
-//	for (unsigned c = 0; c < chnls; c++)
-//	for (unsigned p = 0, k = 0; p < sP; p++)
-//	for (unsigned q = 0;        q < sP; q++)
-//	for (unsigned n = 0; n < nSimP; n++, k++)
-//		o_group3d[c][k] = i_im[o_index[n] + p * width + q + c * wh];
-//
-//	/* 00  pixels from all patches
-//	 * 01  pixels from all patches
-//	 * ...
-//	 * 0sp pixels from all patches
-//	 */
+	//! Initialization
+	const unsigned sWx   = p_params.sizeSearchWindow;
+	const unsigned sWt_f = p_params.sizeSearchTimeRangeFwd;
+	const unsigned sWt_b = p_params.sizeSearchTimeRangeBwd;
+	const unsigned sP    = p_params.sizePatch;
+	const unsigned nSimP = p_params.nSimilarPatches;
+
+	//! Coordinates of center of search box
+	unsigned px, py, pt, pc;
+	i_im.coords(pidx, px, py, pt, pc);
+
+	const unsigned rangex[2] = {px - (sWx - 1)/2, px + (sWx - 1)/2};
+	const unsigned rangey[2] = {py - (sWx - 1)/2, py + (sWx - 1)/2};
+	const unsigned ranget[2] = {std::max((int)pt - (int)sWt_b, 0),
+	                            std::min((int)pt + (int)sWt_f, (int)i_im.frames-1)};
+
+	std::vector<std::pair<float, unsigned> > distance(sWx * sWx * 
+	                                            (ranget[1] - ranget[0] + 1));
+
+	//! Compute distance between patches in search range
+	for (unsigned qt = ranget[0], dt = 0; qt <= ranget[1]; qt++, dt++)
+	for (unsigned qy = rangey[0], dy = 0; qy <= rangey[1]; qy++, dy++)
+	for (unsigned qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
+	{
+		//! Squared L2 distance
+		float diff = 0.f;
+		for (unsigned hy = 0; hy < sP; hy++)
+		for (unsigned hx = 0; hx < sP; hx++)
+		{
+			const float tmp = i_im(px + hx, py + hy, pt)
+			                - i_im(qx + hx, qy + hy, qt);
+			diff += tmp * tmp;
+		}
+
+		//! Save distance and corresponding patch index
+		distance[dt * sWx*sWx + dy * sWx + dx] = 
+			std::make_pair(diff, i_im.index(qx, qy, qt, 0));
+	}
+
+	//! Keep only the N2 best similar patches
+	std::partial_sort(distance.begin(), distance.begin() + nSimP,
+	                  distance.end(), comparaisonFirst);
+
+	//! Register position of patches
+	for (unsigned n = 0; n < nSimP; n++) o_index[n] = distance[n].second;
+
+	//! Stack selected patches into the 3D group
+	const unsigned w  = i_im.width;
+	const unsigned wh = i_im.wh;
+	for (unsigned c  = 0; c < i_im.channels; c++)
+	for (unsigned hy = 0, k = 0; hy < sP; hy++)
+	for (unsigned hx = 0;        hx < sP; hx++)
+	for (unsigned n  = 0; n < nSimP; n++, k++)
+		o_group3d[c][k] = i_im.data[o_index[n] + hy * w + hx + c * wh];
+
+	/* 00  pixels from all patches
+	 * 01  pixels from all patches
+	 * ...
+	 * 0sp pixels from all patches
+	 */
 }
 
 /**
@@ -462,67 +562,76 @@ unsigned estimateSimilarPatchesStep2(
 ,	std::vector<float> &o_group3dNoisy
 ,	std::vector<float> &o_group3dBasic
 ,	std::vector<unsigned> &o_index
-,	const unsigned p_ij
+,	const unsigned pidx
 ,	const nlbParams &p_params
 ){
-//	//! Initialization
-//	const unsigned width = p_imSize.width;
-//	const unsigned chnls = p_imSize.channels;
-//	const unsigned wh    = width * p_imSize.height;
-//	const unsigned sP    = p_params.sizePatch;
-//	const unsigned sW    = p_params.sizeSearchWindow;
-//	const unsigned ind   = p_ij - (sW - 1) * (width + 1) / 2;
-//	std::vector<pair<float, unsigned> > distance(sW * sW);
-//
-//	//< TODO VIDEO search through spatio-temporal domain
-//	//! Compute distance between patches
-//	for (unsigned i = 0; i < sW; i++)
-//	for (unsigned j = 0; j < sW; j++)
-//	{
-//		const unsigned k = i * width + j + ind;
-//		float diff = 0.0f;
-//
-//		for (unsigned c = 0; c < chnls; c++)
-//		{
-//			const unsigned dc = c * wh;
-//			for (unsigned p = 0; p < sP; p++)
-//			for (unsigned q = 0; q < sP; q++)
-//			{
-//				const float tmpValue = i_imBasic[dc + p_ij + p * width + q]
-//				                     - i_imBasic[dc + k    + p * width + q];
-//				diff += tmpValue * tmpValue;
-//			}
-//		}
-//
-//		//! Save all distances
-//		distance[i * sW + j] = make_pair(diff, k);
-//	}
-//
-//	//! Keep only the nSimilarPatches best similar patches
-//	partial_sort(distance.begin(), distance.begin() + p_params.nSimilarPatches, distance.end(),
-//			comparaisonFirst);
-//
-//	//! Save index of similar patches
-//	const float threshold = (p_params.tau > distance[p_params.nSimilarPatches - 1].first ?
-//	                         p_params.tau : distance[p_params.nSimilarPatches - 1].first);
-//	unsigned nSimP = 0;
-//
-//	//! Register position of similar patches
-//	for (unsigned n = 0; n < distance.size(); n++)
-//		if (distance[n].first < threshold)
-//			o_index[nSimP++] = distance[n].second;
-//
-//	//! Save similar patches into 3D groups
-//	for (unsigned c = 0, k = 0; c < chnls; c++)
-//	for (unsigned p = 0; p < sP; p++)
-//	for (unsigned q = 0; q < sP; q++)
-//	for (unsigned n = 0; n < nSimP; n++, k++)
-//	{
-//		o_group3dNoisy[k] = i_imNoisy[c * wh + o_index[n] + p * width + q];
-//		o_group3dBasic[k] = i_imBasic[c * wh + o_index[n] + p * width + q];
-//	}
-//
-//	return nSimP;
+	//! Initialization
+	const unsigned width = i_imNoisy.width;
+	const unsigned chnls = i_imNoisy.channels;
+	const unsigned wh    = width * i_imNoisy.height;
+	const unsigned sP    = p_params.sizePatch;
+	const unsigned sWx   = p_params.sizeSearchWindow;
+	const unsigned sWt_f = p_params.sizeSearchTimeRangeFwd;
+	const unsigned sWt_b = p_params.sizeSearchTimeRangeBwd;
+
+	//! Coordinates of center of search box
+	unsigned px, py, pt, pc;
+	i_imBasic.coords(pidx, px, py, pt, pc);
+
+	const unsigned rangex[2] = {px - (sWx - 1)/2, px + (sWx - 1)/2};
+	const unsigned rangey[2] = {py - (sWx - 1)/2, py + (sWx - 1)/2};
+	const unsigned ranget[2] = {std::max((int)pt - (int)sWt_b, 0),
+	                            std::min((int)pt + (int)sWt_f, (int)i_imNoisy.frames-1)};
+
+	std::vector<std::pair<float, unsigned> > distance(sWx * sWx * 
+	                                            (ranget[1] - ranget[0] + 1));
+
+	//! Compute distance between patches in search range
+	for (unsigned qt = ranget[0], dt = 0; qt <= ranget[1]; qt++, dt++)
+	for (unsigned qy = rangey[0], dy = 0; qy <= rangey[1]; qy++, dy++)
+	for (unsigned qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
+	{
+		//! Squared L2 distance
+		float diff = 0.f;
+		for (unsigned c = 0; c < chnls; c++)
+		for (unsigned hy = 0; hy < sP; hy++)
+		for (unsigned hx = 0; hx < sP; hx++)
+		{
+			const float tmp = i_imBasic(px + hx, py + hy, pt, c)
+			                - i_imBasic(qx + hx, qy + hy, qt, c);
+			diff += tmp * tmp;
+		}
+
+		//! Save distance and corresponding patch index
+		distance[dt * sWx*sWx + dy * sWx + dx] = 
+			std::make_pair(diff, i_imBasic.index(qx, qy, qt, 0));
+	}
+
+	//! Keep only the nSimilarPatches best similar patches
+	std::partial_sort(distance.begin(), distance.begin() + p_params.nSimilarPatches,
+	                  distance.end(), comparaisonFirst);
+
+	//! Save index of similar patches
+	const float threshold = (p_params.tau > distance[p_params.nSimilarPatches - 1].first ?
+	                         p_params.tau : distance[p_params.nSimilarPatches - 1].first);
+	unsigned nSimP = 0;
+
+	//! Register position of similar patches
+	for (unsigned n = 0; n < distance.size(); n++)
+		if (distance[n].first < threshold)
+			o_index[nSimP++] = distance[n].second;
+
+	//! Save similar patches into 3D groups
+	for (unsigned c = 0, k = 0; c < chnls; c++)
+	for (unsigned hy = 0; hy < sP; hy++)
+	for (unsigned hx = 0; hx < sP; hx++)
+	for (unsigned n = 0; n < nSimP; n++, k++)
+	{
+		o_group3dNoisy[k] = i_imNoisy.data[c * wh + o_index[n] + hy * width + hx];
+		o_group3dBasic[k] = i_imBasic.data[c * wh + o_index[n] + hy * width + hx];
+	}
+
+	return nSimP;
 }
 
 /**
@@ -554,8 +663,10 @@ int computeHomogeneousAreaStep1(
 		stdDev += computeStdDeviation(io_group3d[c], p_sP * p_sP, p_nSimP, 1);
 
 	//! If we are in an homogeneous area
-	if (stdDev < p_threshold) {
-		for (unsigned c = 0; c < p_imSize.channels; c++) {
+	if (stdDev < p_threshold)
+	{
+		for (unsigned c = 0; c < p_imSize.channels; c++)
+		{
 			float mean = 0.f;
 
 			for (unsigned k = 0; k < N; k++) mean += io_group3d[c][k];
@@ -590,36 +701,31 @@ int computeHomogeneousAreaStep2(
 ,	const VideoSize &p_imSize
 ){
 	//! Parameters
-	const unsigned sP2	= p_sP * p_sP;
+	const unsigned sP2 = p_sP * p_sP;
 	const unsigned sPC = sP2 * p_imSize.channels;
 
 	//! Compute the standard deviation of the set of patches
 	const float stdDev = computeStdDeviation(i_group3dNoisy, sP2, p_nSimP, p_imSize.channels);
 
 	//! If we are in an homogeneous area
-	if (stdDev < p_threshold) {
-		for (unsigned c = 0; c < p_imSize.channels; c++) {
-            float mean = 0.f;
+	if (stdDev < p_threshold)
+	{
+		for (unsigned c = 0; c < p_imSize.channels; c++)
+		{
+				float mean = 0.f;
+				for (unsigned n = 0; n < p_nSimP; n++)
+				for (unsigned k = 0; k < sP2; k++)
+					mean += io_group3dBasic[n * sPC + c * sP2 + k];
 
-            for (unsigned n = 0; n < p_nSimP; n++) {
-                for (unsigned k = 0; k < sP2; k++) {
-                    mean += io_group3dBasic[n * sPC + c * sP2 + k];
-                }
-            }
+				mean /= float(sP2 * p_nSimP);
 
-            mean /= float(sP2 * p_nSimP);
-
-            for (unsigned n = 0; n < p_nSimP; n++) {
-                for (unsigned k = 0; k < sP2; k++) {
-                    io_group3dBasic[n * sPC + c * sP2 + k] = mean;
-                }
-            }
+				for (unsigned n = 0; n < p_nSimP; n++)
+				for (unsigned k = 0; k < sP2; k++)
+					io_group3dBasic[n * sPC + c * sP2 + k] = mean;
 		}
 		return 1;
 	}
-	else {
-		return 0;
-	}
+	else return 0;
 }
 
 /**
@@ -643,36 +749,38 @@ void computeBayesEstimateStep1(
 ,	unsigned &io_nInverseFailed
 ,	nlbParams &p_params
 ){
-	 //! Parameters
-	 const unsigned chnls = io_group3d.size();
-	 const unsigned nSimP = p_params.nSimilarPatches;
-	 const unsigned sP2   = p_params.sizePatch * p_params.sizePatch;
-	 const float valDiag  = p_params.beta * p_params.sigma * p_params.sigma;
+	//! Parameters
+	const unsigned chnls = io_group3d.size();
+	const unsigned nSimP = p_params.nSimilarPatches;
+	const unsigned sP2   = p_params.sizePatch * p_params.sizePatch;
+	const float valDiag  = p_params.beta * p_params.sigma * p_params.sigma;
 
-	 //! Bayes estimate
-	 for (unsigned c = 0; c < chnls; c++) {
+	//! Bayes estimate
+	for (unsigned c = 0; c < chnls; c++)
+	{
+		//! Center data around the baricenter
+		centerData(io_group3d[c], i_mat.baricenter, nSimP, sP2);
 
-		 //! Center data around the baricenter
-		 centerData(io_group3d[c], i_mat.baricenter, nSimP, sP2);
+		//! Compute the covariance matrix of the set of similar patches
+		covarianceMatrix(io_group3d[c], i_mat.covMat, nSimP, sP2);
 
-		 //! Compute the covariance matrix of the set of similar patches
-		 covarianceMatrix(io_group3d[c], i_mat.covMat, nSimP, sP2);
+		//! Bayes' Filtering
+		if (inverseMatrix(i_mat.covMat, sP2) == EXIT_SUCCESS)
+		{
+			productMatrix(i_mat.group3dTranspose, i_mat.covMat, io_group3d[c],
+			              sP2, sP2, nSimP);
+			for (unsigned k = 0; k < sP2 * nSimP; k++)
+				io_group3d[c][k] -= valDiag * i_mat.group3dTranspose[k];
+		}
+		else 
+			io_nInverseFailed++;
 
-		 //! Bayes' Filtering
-		 if (inverseMatrix(i_mat.covMat, sP2) == EXIT_SUCCESS) {
-			 productMatrix(i_mat.group3dTranspose, i_mat.covMat, io_group3d[c], sP2, sP2, nSimP);
-			 for (unsigned k = 0; k < sP2 * nSimP; k++)
-				 io_group3d[c][k] -= valDiag * i_mat.group3dTranspose[k];
-		 }
-		 else 
-			 io_nInverseFailed++;
-
-		 //! Add baricenter
-		 for (unsigned j = 0, k = 0; j < sP2; j++)
-			 for (unsigned i = 0; i < nSimP; i++, k++)
-				 io_group3d[c][k] += i_mat.baricenter[j];
-	 }
- }
+		//! Add baricenter
+		for (unsigned j = 0, k = 0; j < sP2; j++)
+			for (unsigned i = 0; i < nSimP; i++, k++)
+				io_group3d[c][k] += i_mat.baricenter[j];
+	}
+}
 
 /**
  * @brief Compute the Bayes estimation.
@@ -718,7 +826,8 @@ void computeBayesEstimateStep2(
 		i_mat.covMat[k * sPC + k] += diagVal;
 
 	//! Compute the estimate
-	if (inverseMatrix(i_mat.covMat, sPC) == EXIT_SUCCESS) {
+	if (inverseMatrix(i_mat.covMat, sPC) == EXIT_SUCCESS)
+	{
 		productMatrix(io_group3dBasic, i_mat.covMat, i_group3dNoisy, sPC, sPC, p_nSimP);
 		for (unsigned k = 0; k < sPC * p_nSimP; k++)
 			io_group3dBasic[k] = i_group3dNoisy[k] - diagVal * io_group3dBasic[k];
@@ -753,36 +862,40 @@ void computeAggregationStep1(
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
 ){
-//	//! Parameters initializations
-//	const unsigned chnls  = p_imSize.channels;
-//	const unsigned width  = p_imSize.width;
-//	const unsigned height = p_imSize.height;
-//	const unsigned sP     = p_params.sizePatch;
-//	const unsigned nSimP  = p_params.nSimilarPatches;
-//
-//	//< TODO VIDEO take into account indexing in the video array
-//	//! Aggregate estimates
-//	for (unsigned n = 0; n < nSimP; n++) {
-//		const unsigned ind = i_index[n];
-//		for (unsigned c = 0; c < chnls; c++) {
-//			const unsigned ij = ind + c * width * height;
-//			for (unsigned p = 0; p < sP; p++)
-//			for (unsigned q = 0; q < sP; q++) {
-//				io_im[ij + p * width + q] += i_group3d[c][(p * sP + q) * nSimP + n];
-//				io_weight[ij + p * width + q]++;
-//			}
-//		}
-//
-//		//! Use Paste Trick
-//		io_mask[ind] = false;
-//
-//		if (p_params.doPasteBoost) {
-//			io_mask[ind - width ] = false;
-//			io_mask[ind + width ] = false;
-//			io_mask[ind - 1     ] = false;
-//			io_mask[ind + 1     ] = false;
-//		}
-//	}
+	//! Parameters initializations
+	const unsigned chnls  = io_im.channels;
+	const unsigned width  = io_im.width;
+	const unsigned height = io_im.height;
+	const unsigned sP     = p_params.sizePatch;
+	const unsigned nSimP  = p_params.nSimilarPatches;
+
+	//! Aggregate estimates
+	for (unsigned n = 0; n < nSimP; n++)
+	{
+		const unsigned ind = i_index[n];
+		for (unsigned c = 0; c < chnls; c++)
+		{
+			const unsigned ij = ind + c * width * height;
+			for (unsigned p = 0; p < sP; p++)
+			for (unsigned q = 0; q < sP; q++)
+			{
+				io_im.data[ij + p * width + q] += i_group3d[c][(p * sP + q) * nSimP + n];
+				io_weight.data[ij + p * width + q]++;
+			}
+		}
+
+		//! Use Paste Trick
+		const unsigned ind1 = (ind / io_im.whc) * io_im.wh + ind % io_im.wh;
+		io_mask[ind1] = false;
+
+		if (p_params.doPasteBoost)
+		{
+			io_mask[ind1 - width] = false;
+			io_mask[ind1 + width] = false;
+			io_mask[ind1 - 1    ] = false;
+			io_mask[ind1 + 1    ] = false;
+		}
+	}
 }
 
 /**
@@ -808,67 +921,59 @@ void computeAggregationStep2(
 ,	const nlbParams &p_params
 ,	const unsigned p_nSimP
 ){
-//	//! Parameters initializations
-//	const unsigned chnls = p_imSize.channels;
-//	const unsigned width = p_imSize.width;
-//	const unsigned wh    = width * p_imSize.height;
-//	const unsigned sP    = p_params.sizePatch;
-//
-//	//! Aggregate estimates
-//	for (unsigned n = 0; n < p_nSimP; n++)
-//	{
-//		const unsigned ind = i_index[n];
-//		for (unsigned c = 0, k = 0; c < chnls; c++)
-//		{
-//			const unsigned ij = ind + c * wh;
-//			for (unsigned p = 0; p < sP; p++)
-//			for (unsigned q = 0; q < sP; q++, k++)
-//			{
-//				io_im[ij + p * width + q] += i_group3d[k * p_nSimP + n];
-//				io_weight[ij + p * width + q]++;
-//			}
-//		}
-//
-//		//! Apply Paste Trick
-//		io_mask[ind] = false;
-//
-//		if (p_params.doPasteBoost) {
-//			io_mask[ind - width ] = false;
-//			io_mask[ind + width ] = false;
-//			io_mask[ind - 1     ] = false;
-//			io_mask[ind + 1     ] = false;
-//		}
-//	}
+	//! Parameters initializations
+	const unsigned chnls = io_im.channels;
+	const unsigned width = io_im.width;
+	const unsigned wh    = width * io_im.height;
+	const unsigned sP    = p_params.sizePatch;
+
+	//! Aggregate estimates
+	for (unsigned n = 0; n < p_nSimP; n++)
+	{
+		const unsigned ind = i_index[n];
+		for (unsigned c = 0, k = 0; c < chnls; c++)
+		{
+			const unsigned ij = ind + c * wh;
+			for (unsigned p = 0; p < sP; p++)
+			for (unsigned q = 0; q < sP; q++, k++)
+			{
+				io_im.data[ij + p * width + q] += i_group3d[k * p_nSimP + n];
+				io_weight.data[ij + p * width + q]++;
+			}
+		}
+
+		//! Apply Paste Trick
+		const unsigned ind1 = (ind / io_im.whc) * io_im.wh + ind % io_im.wh;
+		io_mask[ind] = false;
+
+		if (p_params.doPasteBoost) {
+			io_mask[ind1 - width ] = false;
+			io_mask[ind1 + width ] = false;
+			io_mask[ind1 - 1     ] = false;
+			io_mask[ind1 + 1     ] = false;
+		}
+	}
 }
 
 /**
  * @brief Compute the final weighted aggregation.
  *
- * i_imReference: image of reference, when the weight if null;
- * io_imResult: will contain the final image;
+ * i_im: image of reference, when the weight if null;
+ * io_im: will contain the final image;
  * i_weight: associated weight for each estimate of pixels.
  *
  * @return : none.
  **/
 void computeWeightedAggregation(
-	Video_f32 const& i_imNoisy
-,	Video_f32 &io_imBasic
-,	Video_f32 &io_imFinal
+	Video_f32 const& i_im
+,	Video_f32 &io_im
 ,	Video_f32 const& i_weight
-,	const nlbParams &p_params
 ){
-//	// TODO VIDEO minor modifications
-//	for (unsigned c = 0, k = 0; c < p_imSize.channels; c++)
-//	for (unsigned ij = 0; ij < p_imSize.wh; ij++, k++)
-//		//! To avoid weighting problem (particularly near boundaries of the image)
-//		if (i_weight[k] > 0.f) {
-//			if (p_params.isFirstStep) io_imBasic[k] /= i_weight[k];
-//			else                      io_imFinal[k] /= i_weight[k];
-//		}
-//		else {
-//			if (p_params.isFirstStep) io_imBasic[k] = i_imNoisy[k];
-//			else                      io_imFinal[k] = io_imBasic[k];
-//		}
+	for (unsigned k = 0; k < i_im.whcf; k++)
+		//! To avoid weighting problem (particularly near boundaries of the image)
+		if (i_weight(k) > 0.f) io_im(k) /= i_weight(k);
+		else                   io_im(k) /= i_im(k);
+
 }
 
 }

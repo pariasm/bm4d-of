@@ -347,11 +347,9 @@ void computeAggregationStep2(
  * @return none.
  **/
 void computeWeightedAggregation(
-	std::vector<float> const& i_imNoisy
-,	std::vector<float> &io_imBasic
-,	std::vector<float> &io_imFinal
+	std::vector<float> const& i_im
+,	std::vector<float> &io_im
 ,	std::vector<float> const& i_weight
-,	const nlbParams &p_params
 ,	const ImageSize &p_imSize
 );
 

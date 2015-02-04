@@ -33,6 +33,7 @@ Video_f32::Video_f32(void)
 	, wh(0)
 	, whc(0)
 	, whcf(0)
+	, whf(0)
 	, data(0)
 { }
 
@@ -44,6 +45,7 @@ Video_f32::Video_f32(const Video_f32& i_in)
 	, wh(i_in.wh)
 	, whc(i_in.whc)
 	, whcf(i_in.whcf)
+	, whf(i_in.whf)
 	, data(i_in.data)
 { }
 
@@ -60,6 +62,7 @@ Video_f32::Video_f32(
 	, wh(0)
 	, whc(0)
 	, whcf(0)
+	, whf(0)
 	, data(0)
 {
 	int loaded_ok = loadVideo(i_pathToFiles,
@@ -80,7 +83,38 @@ Video_f32::Video_f32(
 	, wh(width * height)
 	, whc(width * height * channels)
 	, whcf(width * height * channels * frames)
+	, whf(width * height * frames)
 	, data(whcf)
+{ }
+
+Video_f32::Video_f32(
+	unsigned i_width
+,	unsigned i_height
+,	unsigned i_frames
+,	unsigned i_channels
+,	float val
+)
+	: width(i_width)
+	, height(i_height)
+	, frames(i_frames)
+	, channels(i_channels)
+	, wh(width * height)
+	, whc(width * height * channels)
+	, whcf(width * height * channels * frames)
+	, whf(width * height * frames)
+	, data(whcf, val)
+{ }
+
+Video_f32::Video_f32(const VideoSize& i_size, float val)
+	: width(i_size.width)
+	, height(i_size.height)
+	, frames(i_size.frames)
+	, channels(i_size.channels)
+	, wh(width * height)
+	, whc(width * height * channels)
+	, whcf(width * height * channels * frames)
+	, whf(width * height * frames)
+	, data(whcf, val)
 { }
 
 Video_f32::Video_f32(const VideoSize& i_size)
@@ -91,6 +125,7 @@ Video_f32::Video_f32(const VideoSize& i_size)
 	, wh(width * height)
 	, whc(width * height * channels)
 	, whcf(width * height * channels * frames)
+	, whf(width * height * frames)
 	, data(whcf)
 { }
 
@@ -103,6 +138,7 @@ void Video_f32::clear(void)
 	wh = 0;
 	whc = 0;
 	whcf = 0;
+	whf = 0;
 	data.clear();
 }
 
@@ -126,6 +162,7 @@ void Video_f32::resize(
 		wh = width * height;
 		whc = wh * channels;
 		whcf = whc * frames;
+		whf = wh * frames;
 		data.resize(whcf);
 	}
 }
@@ -163,6 +200,7 @@ int Video_f32::loadVideo(
 		wh       = width * height;
 		whc      = width * height * channels;
 		whcf     = width * height * channels * frames;
+		whf      = width * height * frames;
 		
 		//! allocate
 		data.resize(whcf);
