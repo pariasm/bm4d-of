@@ -329,7 +329,6 @@ namespace VideoUtils
 	,   const float p_sigma
 	,   const float p_min = 0.f
 	,   const float p_max = 255.f
-	,   const bool p_verbose = false
 	);
 	
 	/**

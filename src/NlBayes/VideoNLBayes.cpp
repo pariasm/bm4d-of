@@ -238,6 +238,7 @@ int runNlBayes(
 	nThreads = omp_get_max_threads();
 	if (p_verbose) printf("OpenMP is using %d threads\n", nThreads);
 #endif
+	const unsigned nParts = 2 * nThreads;
 
 	//! Video size
 	VideoSize imSize = i_imNoisy.size();
@@ -251,67 +252,73 @@ int runNlBayes(
 	initializeNlbParameters(paramStep1, paramStep2, p_sigma, imSize, 
 			p_useArea1, p_useArea2,	p_verbose);
 
+	if (paramStep1.verbose) printNlbParameters(paramStep1, paramStep2);
+
 	//! Step 1
-	if (paramStep1.verbose) std::cout << "1st Step...";
+	{
+		if (paramStep1.verbose) printf("1st Step\n");
 
-	//! RGB to YUV
-	Video_f32 imNoisy = i_imNoisy;
-	VideoUtils::transformColorSpace(imNoisy, true);
+		//! RGB to YUV
+		Video_f32 imNoisy = i_imNoisy;
+		VideoUtils::transformColorSpace(imNoisy, true);
 
-	//! Divide the noisy image into sub-images in order to easier parallelize the process
-	// ASK MARC: any suggestion on the best way to split the space time cube
-	const unsigned nParts = 2 * nThreads;
-	std::vector<Video_f32> imNoisySub(nParts);
-	if (VideoUtils::subDivide(imNoisy, imNoisySub, paramStep1.boundary, nParts)
-			!= EXIT_SUCCESS)
-		return EXIT_FAILURE;
+		//! Divide the noisy image into sub-images in order to easier parallelize the process
+		// ASK MARC: any suggestion on the best way to split the space time cube
+		std::vector<Video_f32> imNoisySub(nParts);
+		if (VideoUtils::subDivide(imNoisy, imNoisySub, paramStep1.boundary, nParts)
+				!= EXIT_SUCCESS)
+			return EXIT_FAILURE;
 
-	//! Process all sub-images
-	std::vector<Video_f32> imBasicSub(nParts);
-	std::vector<Video_f32> imFinalSub(nParts);
+		//! Process all sub-images
+		std::vector<Video_f32> imBasicSub(nParts);
+		std::vector<Video_f32> imFinalSub(nParts);
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic, nParts/nThreads) \
-	shared(imNoisySub, imBasicSub, imFinalSub, imSizeSub) \
-	firstprivate (paramStep1)
+		shared(imNoisySub, imBasicSub, imFinalSub, imSizeSub) \
+		firstprivate (paramStep1)
 #endif
-	for (int n = 0; n < (int)nParts; n++)
-		processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], paramStep1);
+		for (int n = 0; n < (int)nParts; n++)
+			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], paramStep1);
 
-	//! Get the basic estimate
-	if (VideoUtils::subBuild(imBasicSub, o_imBasic, paramStep1.boundary)
-			!= EXIT_SUCCESS)
-		return EXIT_FAILURE;
+		//! Get the basic estimate
+		if (VideoUtils::subBuild(imBasicSub, o_imBasic, paramStep1.boundary)
+				!= EXIT_SUCCESS)
+			return EXIT_FAILURE;
 
-	//! YUV to RGB
-	VideoUtils::transformColorSpace(o_imBasic, false);
+		//! YUV to RGB
+		VideoUtils::transformColorSpace(o_imBasic, false);
+	}
 
-	//! 2nd Step
-	if (paramStep2.verbose) std::cout << "done." << std::endl << "2nd Step...";
+	//! Step 2
+	{
+		if (paramStep2.verbose) printf("2nd Step\n");
 
-	//! Divide the noisy and basic images into sub-images in order to easier parallelize the process
-	if (VideoUtils::subDivide(imNoisy, imNoisySub, paramStep2.boundary, nParts)
-			!= EXIT_SUCCESS)
-		return EXIT_FAILURE;
+		//! Divide the noisy and basic images into sub-images in order to easier parallelize the process
+		std::vector<Video_f32> imNoisySub(nParts);
+		if (VideoUtils::subDivide(i_imNoisy, imNoisySub, paramStep2.boundary, nParts)
+				!= EXIT_SUCCESS)
+			return EXIT_FAILURE;
 
-	if (VideoUtils::subDivide(o_imBasic, imBasicSub, paramStep2.boundary, nParts)
-			!= EXIT_SUCCESS)
-		return EXIT_FAILURE;
+		std::vector<Video_f32> imBasicSub(nParts);
+		if (VideoUtils::subDivide(o_imBasic, imBasicSub, paramStep2.boundary, nParts)
+				!= EXIT_SUCCESS)
+			return EXIT_FAILURE;
 
-	//! Process all sub-images
+		//! Process all sub-images
+		std::vector<Video_f32> imFinalSub(nParts);
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic, nParts/nThreads) \
-	shared(imNoisySub, imBasicSub, imFinalSub) \
-	firstprivate (paramStep2)
+		shared(imNoisySub, imBasicSub, imFinalSub) \
+		firstprivate (paramStep2)
 #endif
-	for (int n = 0; n < (int) nParts; n++)
-		processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], paramStep2);
+		for (int n = 0; n < (int) nParts; n++)
+			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], paramStep2);
 
-	//! Get the final result
-	if (VideoUtils::subBuild(imFinalSub, o_imFinal, paramStep2.boundary)
-			!= EXIT_SUCCESS)
-		return EXIT_FAILURE;
-
-	if (paramStep2.verbose) std::cout << "done." << std::endl << std::endl;
+		//! Get the final result
+		if (VideoUtils::subBuild(imFinalSub, o_imFinal, paramStep2.boundary)
+				!= EXIT_SUCCESS)
+			return EXIT_FAILURE;
+	}
 
 	return EXIT_SUCCESS;
 }
@@ -944,9 +951,10 @@ void computeAggregationStep2(
 
 		//! Apply Paste Trick
 		const unsigned ind1 = (ind / io_im.whc) * io_im.wh + ind % io_im.wh;
-		io_mask[ind] = false;
+		io_mask[ind1] = false;
 
-		if (p_params.doPasteBoost) {
+		if (p_params.doPasteBoost)
+		{
 			io_mask[ind1 - width ] = false;
 			io_mask[ind1 + width ] = false;
 			io_mask[ind1 - 1     ] = false;

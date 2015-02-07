@@ -20,6 +20,7 @@
 
 #include "Utilities.h"
 #include "VideoNLBayes.h"
+#include "cmd_option.h"
 
 #include <algorithm>
 
@@ -163,26 +164,27 @@ void print_video_size(const std::string& name, const Video_f32& vid)
 int main(int argc, char **argv)
 {
 	//! Check if there is the right call for the algorithm
-	if (argc != 9)
-	{
-		fprintf(stdout, "Usage: %s path-to-frames first-frame last-frame frame-step sigma px py pt\n", argv[0]);
-		return EXIT_FAILURE;
-	}
+	clo_usage("Unit test for Video NL-Bayes methods");
+//	if (argc != 9 && argc != 6)
+//	{
+//		fprintf(stdout, "Usage: %s path-to-frames first-frame last-frame frame-step sigma [px py pt]\n", argv[0]);
+//		return EXIT_FAILURE;
+//	}
 
 	//! Get command line inputs
-	const char* i_video_path =    argv[1] ;
-	const int i_firstFrame = atoi(argv[2]);
-	const int i_lastFrame  = atoi(argv[3]);
-	const int i_frameStep  = atoi(argv[4]);
-	const int i_sigma      = atoi(argv[5]);
-	const unsigned px      = atoi(argv[6]);
-	const unsigned py      = atoi(argv[7]);
-	const unsigned pt      = atoi(argv[8]);
+	const string i_video_path = clo_option("-i", "", "Patch to input sequence (printf format)");
+	const int i_firstFrame = clo_option("-f", 0, "First frame");
+	const int i_lastFrame  = clo_option("-l", 0, "Last frame");
+	const int i_frameStep  = clo_option("-s", 1, "Frame step");
+	const int i_sigma      = clo_option("-sigma", 0, "Add noise of standard deviation sigma");
+	const unsigned px      = clo_option("-px", 0, "Current point of analysis");
+	const unsigned py      = clo_option("-py", 0, "Current point of analysis");
+	const unsigned pt      = clo_option("-pt", 0, "Current point of analysis");
 
 	//! Load video
 	Video_f32 vid_ori;
 	{
-		if (vid_ori.loadVideo(i_video_path, i_firstFrame, i_lastFrame, i_frameStep)
+		if (vid_ori.loadVideo(i_video_path.c_str(), i_firstFrame, i_lastFrame, i_frameStep)
 				== EXIT_FAILURE)
 		{
 			fprintf(stderr, "Exiting. Failed to load video.\n");

@@ -134,7 +134,6 @@ namespace VideoUtils
 	,   const float p_sigma
 	,   const float p_min
 	,   const float p_max
-	,   const bool p_verbose
 	){
 		if (i_vid1.size() != i_vid2.size())
 		{
@@ -145,7 +144,6 @@ namespace VideoUtils
 			return EXIT_FAILURE;
 		}
 
-		if (p_verbose) printf("Compute difference... ");
 		o_vidDiff.resize(i_vid1.size());
 		for (unsigned k = 0; k < i_vid1.whcf; k++)
 		{
@@ -153,7 +151,6 @@ namespace VideoUtils
 			o_vidDiff(k) = clip(value, p_min, p_max);
 		}
 
-		if (p_verbose) printf("done.");
 		return EXIT_SUCCESS;
 	}
 	
