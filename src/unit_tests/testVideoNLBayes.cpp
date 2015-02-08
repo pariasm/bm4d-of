@@ -204,8 +204,10 @@ int main(int argc, char **argv)
 
 		//! Initialize parameter structures
 		VideoNLB::nlbParams prms1, prms2;
-		VideoNLB::initializeNlbParameters(prms1, prms2, i_sigma, vid.size(), 0, 0, 1);
-		VideoNLB::printNlbParameters(prms1, prms2);
+		VideoNLB::initializeNlbParameters(prms1, 1, i_sigma, vid.size(), 0, 1);
+		VideoNLB::initializeNlbParameters(prms2, 2, i_sigma, vid.size(), 0, 1);
+		VideoNLB::printNlbParameters(prms1);
+		VideoNLB::printNlbParameters(prms2);
 
 		//! Used matrices during Bayes' estimate
 		const unsigned patch_dim = prms1.sizePatch * prms1.sizePatch ;
@@ -281,8 +283,10 @@ int main(int argc, char **argv)
 
 		//! Initialize parameter structures
 		VideoNLB::nlbParams prms1, prms2;
-		VideoNLB::initializeNlbParameters(prms1, prms2, i_sigma, vid.size(), 0, 0, 1);
-		VideoNLB::printNlbParameters(prms1, prms2);
+		VideoNLB::initializeNlbParameters(prms1, 1, i_sigma, vid.size(), 0, 1);
+		VideoNLB::initializeNlbParameters(prms2, 2, i_sigma, vid.size(), 0, 1);
+		VideoNLB::printNlbParameters(prms1);
+		VideoNLB::printNlbParameters(prms2);
 
 		//! Used matrices during Bayes' estimate
 		const unsigned patch_dim = prms1.sizePatch * prms1.sizePatch ;
@@ -354,8 +358,10 @@ int main(int argc, char **argv)
 
 		//! Initialize parameter structures
 		VideoNLB::nlbParams prms1, prms2;
-		VideoNLB::initializeNlbParameters(prms1, prms2, i_sigma, vid.size(), 0, 0, 1);
-		VideoNLB::printNlbParameters(prms1, prms2);
+		VideoNLB::initializeNlbParameters(prms1, 1, i_sigma, vid.size(), 0, 1);
+		VideoNLB::initializeNlbParameters(prms2, 2, i_sigma, vid.size(), 0, 1);
+		VideoNLB::printNlbParameters(prms1);
+		VideoNLB::printNlbParameters(prms2);
 
 		//! Parallelization: number of subvideos in which video is divided
 		const unsigned nParts = 2;

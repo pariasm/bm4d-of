@@ -38,162 +38,172 @@ namespace VideoNLB
 /**
  * @brief Initialize Parameters of the NL-Bayes algorithm.
  *
- * @param o_paramStep1 : will contain the nlbParams for the first step of the algorithm;
- * @param o_paramStep2 : will contain the nlbParams for the second step of the algorithm;
- * @param p_sigma : standard deviation of the noise;
- * @param p_imSize: size of the image;
- * @param p_useArea1 : if true, use the homogeneous area trick for the first step;
- * @param p_useArea2 : if true, use the homogeneous area trick for the second step;
- * @param p_verbose : if true, print some informations.
+ * @param o_params   : will contain the nlbParams for the first step of the algorithm;
+ * @param p_step     : select first or second step;
+ * @param p_sigma    : standard deviation of the noise;
+ * @param p_size     : size of the video;
+ * @param p_flatArea : if true, use the homogeneous area trick for the first step;
+ * @param p_verbose  : if true, print some informations.
+ * @param p_timeSearchRagneFwd : temporal search range forwards.
+ * @param p_timeSearchRagneBwd : temporal search range backwards.
  *
  * @return none.
  **/
 void initializeNlbParameters(
-	nlbParams &o_paramStep1
-,	nlbParams &o_paramStep2
+	nlbParams &o_params
+,	const unsigned p_step
 ,	const float p_sigma
-,	const VideoSize &p_imSize
-,	const bool p_useArea1
-,	const bool p_useArea2
+,	const VideoSize &p_size
+,	const bool p_flatArea
 ,	const bool p_verbose
+,	const unsigned timeSearchRangeFwd
+,	const unsigned timeSearchRangeBwd
 ){
+	const bool s1 = (p_step == 1);
+
 	//! Standard deviation of the noise
-	o_paramStep1.sigma = p_sigma;
-	o_paramStep2.sigma = p_sigma;
+	o_params.sigma = p_sigma;
 
 	//! Size of patches
-	if (p_imSize.channels == 1)
+	if (p_size.channels == 1)
 	{
-		o_paramStep1.sizePatch = (p_sigma < 30.f ? 5 : 7);
-		o_paramStep2.sizePatch = 5;
+		if(s1) o_params.sizePatch = (p_sigma < 30.f ? 5 : 7);
+		else   o_params.sizePatch = 5;
 	}
 	else
 	{
-		o_paramStep1.sizePatch = (p_sigma < 20.f ? 3 : (p_sigma < 50.f ? 5 : 7));
-		o_paramStep2.sizePatch = (p_sigma < 50.f ? 3 : (p_sigma < 70.f ? 5 : 7));
+		if(s1) o_params.sizePatch = (p_sigma < 20.f ? 3 : (p_sigma < 50.f ? 5 : 7));
+		else   o_params.sizePatch = (p_sigma < 50.f ? 3 : (p_sigma < 70.f ? 5 : 7));
 	}
 
 	//! Number of similar patches
-	if (p_imSize.channels == 1)
+	if (p_size.channels == 1)
 	{
-		o_paramStep1.nSimilarPatches = (p_sigma < 10.f ? 35 : (p_sigma < 30.f ? 45 : (p_sigma < 80.f ? 90 : 100))); // ASK MARC differs from manuscript
-		o_paramStep2.nSimilarPatches = (p_sigma < 20.f ? 15 : (p_sigma < 40.f ? 25 : (p_sigma < 80.f ? 30 :  45))); // ASK MARC differs from manuscript
+		if(s1) o_params.nSimilarPatches = (p_sigma < 10.f ? 35 : (p_sigma < 30.f ? 45 : (p_sigma < 80.f ? 90 : 100))); // ASK MARC differs from manuscript
+		else   o_params.nSimilarPatches = (p_sigma < 20.f ? 15 : (p_sigma < 40.f ? 25 : (p_sigma < 80.f ? 30 :  45))); // ASK MARC differs from manuscript
 	}
 	else
-	{
-		o_paramStep1.nSimilarPatches = o_paramStep1.sizePatch * o_paramStep1.sizePatch * 3;
-		o_paramStep2.nSimilarPatches = o_paramStep2.sizePatch * o_paramStep2.sizePatch * 3;
-	}
+		o_params.nSimilarPatches = o_params.sizePatch * o_params.sizePatch * 3;
 
 	//! Offset: step between two similar patches
-	o_paramStep1.offSet = o_paramStep1.sizePatch / 2;
-	o_paramStep2.offSet = o_paramStep2.sizePatch / 2;
+	o_params.offSet = o_params.sizePatch / 2;
 
 	//! Use the homogeneous area detection trick
-	o_paramStep1.useHomogeneousArea = p_useArea1;
-	o_paramStep2.useHomogeneousArea = p_useArea2;
+	o_params.useHomogeneousArea = p_flatArea;
 
 	//! Size of the search window around the reference patch (must be odd)
-	o_paramStep1.sizeSearchWindow = o_paramStep1.nSimilarPatches / 2; // ASK MARC and 7*sizePatch1 in IPOL manuscript
-	o_paramStep2.sizeSearchWindow = o_paramStep2.nSimilarPatches / 2; // ASK MARC and 7*sizePatch2 in IPOL manuscript
-	if (o_paramStep1.sizeSearchWindow % 2 == 0) o_paramStep1.sizeSearchWindow++;
-	if (o_paramStep2.sizeSearchWindow % 2 == 0) o_paramStep2.sizeSearchWindow++;
+	o_params.sizeSearchWindow = o_params.nSimilarPatches / 2; // ASK MARC and 7*sizePatch1 in IPOL manuscript
+	if (o_params.sizeSearchWindow % 2 == 0) o_params.sizeSearchWindow++;
 
-	//! Search window, temporal search radii// VIDEO
-	o_paramStep1.sizeSearchTimeRangeFwd = 2;//2;// VIDEO
-	o_paramStep1.sizeSearchTimeRangeBwd = 2;//2;// VIDEO
-	o_paramStep2.sizeSearchTimeRangeFwd = 2;//2;// VIDEO
-	o_paramStep2.sizeSearchTimeRangeBwd = 2;//2;// VIDEO
+	//! Search window, temporal search radii
+	o_params.sizeSearchTimeRangeFwd = timeSearchRangeFwd;
+	o_params.sizeSearchTimeRangeBwd = timeSearchRangeBwd;
+	o_params.nSimilarPatches *= timeSearchRangeFwd + timeSearchRangeBwd + 1; // FIXME: this is just a test
 
 	//! Size of boundaries used during the sub division
-	o_paramStep1.boundary = int(1.5f * float(o_paramStep1.sizeSearchWindow));
-	o_paramStep2.boundary = int(1.5f * float(o_paramStep2.sizeSearchWindow));
+	o_params.boundary = int(1.5f * float(o_params.sizeSearchWindow));
 
 	// TODO VIDEO: do we need to specify temporal boundary?
 
-//	printf("PARAM1 SW: %d - boundary = %d\n", o_paramStep1.sizeSearchWindow, o_paramStep1.boundary);
-//	printf("PARAM2 SW: %d - boundary = %d\n", o_paramStep2.sizeSearchWindow, o_paramStep2.boundary);
-
 	//! Parameter used to determine if an area is homogeneous
-	o_paramStep1.gamma = 1.05f;
-	o_paramStep2.gamma = 1.05f;
+	o_params.gamma = 1.05f;
 
 	//! Parameter used to estimate the covariance matrix
-	if (p_imSize.channels == 1)
+	if (p_size.channels == 1)
 	{
-		o_paramStep1.beta = (p_sigma < 15.f ? 1.1f : (p_sigma < 70.f ? 1.f : 0.9f));
-		o_paramStep2.beta = (p_sigma < 15.f ? 1.1f : (p_sigma < 35.f ? 1.f : 0.9f));
+		if(s1) o_params.beta = (p_sigma < 15.f ? 1.1f : (p_sigma < 70.f ? 1.f : 0.9f));
+		else   o_params.beta = (p_sigma < 15.f ? 1.1f : (p_sigma < 35.f ? 1.f : 0.9f));
 	}
 	else
 	{
-		o_paramStep1.beta = 1.f;
-		o_paramStep2.beta = (p_sigma < 50.f ? 1.2f : 1.f);
+		if(s1) o_params.beta = 1.f;
+		else   o_params.beta = (p_sigma < 50.f ? 1.2f : 1.f);
 	}
 
 	//! Parameter used to determine similar patches
 	//  Differs from manuscript (tau = 4) because (1) this threshold is to be used 
 	//  with the squared distance and (2) the distance is not normalized
-	o_paramStep2.tau = 16.f * o_paramStep2.sizePatch * o_paramStep2.sizePatch * p_imSize.channels;
+	if(s1) o_params.tau = 0; // not used
+	else   o_params.tau = 16.f * o_params.sizePatch * o_params.sizePatch * p_size.channels;
 
 	//! Print information?
-	o_paramStep1.verbose = p_verbose;
-	o_paramStep2.verbose = p_verbose;
+	o_params.verbose = p_verbose;
 
 	//! Is first step?
-	o_paramStep1.isFirstStep = true;
-	o_paramStep2.isFirstStep = false;
+	o_params.isFirstStep = (p_step == 1);
 
 	//! Boost the paste trick
-	o_paramStep1.doPasteBoost = true;
-	o_paramStep2.doPasteBoost = true;
+	o_params.doPasteBoost = false;//true;
 }
 
 /**
  * @brief Display parameters of the NL-Bayes algorithm.
  *
- * @param i_paramStep1 : nlbParams for the first step of the algorithm;
- * @param i_paramStep2 : nlbParams for the second step of the algorithm;
+ * @param i_params : nlbParams for first or second step of the algorithm;
  *
  * @return none.
  **/
 void printNlbParameters(
-	nlbParams &i_prms1
-,	nlbParams &i_prms2
+	const nlbParams &i_prms
 ){
-	printf("\nVideo NLBayes parameters\n");
-	printf("------------------------\n\n");
-	printf("Noise sigma = %g\n", i_prms1.sigma);
+//	printf("\nVideo NLBayes parameters\n");
+//	printf("------------------------\n\n");
+//	printf("Noise sigma = %g\n", i_prms1.sigma);
 
-	printf("Step 1:\n");
+	printf("Parameters for step %d:\n", i_prms.isFirstStep ? 1 : 2);
 	printf("\tPatch search:\n");
-	printf("\t\tPatch size                 = %d\n"       , i_prms1.sizePatch);
-	printf("\t\tNumber of patches          = %d\n"       , i_prms1.nSimilarPatches);
-	printf("\t\tSpatial search window      = %dx%d\n"    , i_prms1.sizeSearchWindow, i_prms1.sizeSearchWindow);
-	printf("\t\tTemporal search range      = [-%d,%d]\n" , i_prms1.sizeSearchTimeRangeBwd, i_prms1.sizeSearchTimeRangeBwd);
-	printf("\tPatch stack filtering: beta        = %f\n" , i_prms1.beta);
-	printf("\tSpatial border                     = %d\n" , i_prms1.boundary);
+	printf("\t\tPatch size                 = %d\n"       , i_prms.sizePatch);
+	printf("\t\tNumber of patches          = %d\n"       , i_prms.nSimilarPatches);
+	if (!i_prms.isFirstStep) printf("\t\tDistance threshold (tau)   = %f\n"       , i_prms.tau);
+	printf("\t\tSpatial search window      = %dx%d\n"    , i_prms.sizeSearchWindow, i_prms.sizeSearchWindow);
+	printf("\t\tTemporal search range      = [-%d,%d]\n" , i_prms.sizeSearchTimeRangeBwd, i_prms.sizeSearchTimeRangeBwd);
+	printf("\tPatch stack filtering: beta        = %f\n" , i_prms.beta);
+	printf("\tSpatial border                     = %d\n" , i_prms.boundary);
 	printf("\tSpeed-ups:\n");
-	printf("\t\tOffset                     = %d\n"       , i_prms1.offSet);
-	if (i_prms1.useHomogeneousArea)
-	printf("\t\tFlat area trick with gamma = %f\n"       , i_prms1.gamma);
-	if (i_prms1.doPasteBoost)
+	printf("\t\tOffset                     = %d\n"       , i_prms.offSet);
+	if (i_prms.useHomogeneousArea)
+	printf("\t\tFlat area trick with gamma = %f\n"       , i_prms.gamma);
+	if (i_prms.doPasteBoost)
 		printf("\t\tPasteBoost (TM) active!\n\n");
-	
-	printf("Step 2:\n");
-	printf("\tPatch search:\n");
-	printf("\t\tPatch size                 = %d\n"       , i_prms2.sizePatch);
-	printf("\t\tNumber of patches          = %d\n"       , i_prms2.nSimilarPatches);
-	printf("\t\tDistance threshold (tau)   = %f\n"       , i_prms2.tau);
-	printf("\t\tSpatial search window      = %dx%d\n"    , i_prms2.sizeSearchWindow, i_prms1.sizeSearchWindow);
-	printf("\t\tTemporal search range      = [-%d,%d]\n" , i_prms2.sizeSearchTimeRangeBwd, i_prms1.sizeSearchTimeRangeBwd);
-	printf("\tPatch stack filtering: beta        = %f\n" , i_prms2.beta);
-	printf("\tSpatial border                     = %d\n" , i_prms2.boundary);
-	printf("\tSpeed-ups:\n");
-	printf("\t\tOffset                     = %d\n"       , i_prms2.offSet);
-	if (i_prms1.useHomogeneousArea)
-	printf("\t\tFlat area trick with gamma = %f\n"       , i_prms2.gamma);
-	if (i_prms1.doPasteBoost)
-		printf("\t\tPasteBoost (TM) active!\n\n");
+}
+
+/**
+ * @brief Main function to process the whole NL-Bayes algorithm.
+ *
+ * This function splits the image in several subimages when using
+ * OpenMP. Each subimage is then assinged to a thread, which runs
+ * processNlBayes on the subimage. The subimages are then assembled
+ * into the final image.
+ *
+ * @param i_noisy: contains the noisy image;
+ * @param o_basic: will contain the basic estimate image after the first step;
+ * @param o_final: will contain the final denoised image after the second step;
+ * @param p_useArea1 : if true, use the flat area trick for the first step;
+ * @param p_useArea2 : if true, use the flat area trick for the second step;
+ * @param p_sigma : standard deviation of the noise;
+ * @param p_verbose : if true, print some informations.
+ *
+ * @return EXIT_FAILURE if something wrong happens during the whole process.
+ **/
+int runNlBayes(
+	Video_f32 const& i_noisy
+,	Video_f32 &o_basic
+,	Video_f32 &o_final
+,	const bool p_useArea1
+,	const bool p_useArea2
+,	const float p_sigma
+,	const bool p_verbose
+){
+	//! Video size
+	VideoSize size = i_noisy.size();
+
+	//! Parameters Initialization
+	nlbParams p_prms1, p_prms2;
+	initializeNlbParameters(p_prms1, 1, p_sigma, size, p_useArea1, p_verbose);
+	initializeNlbParameters(p_prms2, 2, p_sigma, size, p_useArea2, p_verbose);
+
+	//! NL-Bayes
+	return runNlBayes(i_noisy, o_basic, o_final, p_prms1, p_prms2);
 }
 
 /**
@@ -219,10 +229,8 @@ int runNlBayes(
 	Video_f32 const& i_imNoisy
 ,	Video_f32 &o_imBasic
 ,	Video_f32 &o_imFinal
-,	const bool p_useArea1
-,	const bool p_useArea2
-,	const float p_sigma
-,	const bool p_verbose
+,	const nlbParams& p_prms1
+,	const nlbParams& p_prms2
 ){
 	//! Only 1, 3 or 4-channels images can be processed.
 	const unsigned chnls = i_imNoisy.channels;
@@ -247,16 +255,13 @@ int runNlBayes(
 	o_imBasic.resize(imSize);
 	o_imFinal.resize(imSize);
 
-	//! Parameters Initialization
-	nlbParams paramStep1, paramStep2;
-	initializeNlbParameters(paramStep1, paramStep2, p_sigma, imSize, 
-			p_useArea1, p_useArea2,	p_verbose);
-
-	if (paramStep1.verbose) printNlbParameters(paramStep1, paramStep2);
+	//! Print parameters
+	if (p_prms1.verbose) printNlbParameters(p_prms1);
+	if (p_prms2.verbose) printNlbParameters(p_prms2);
 
 	//! Step 1
 	{
-		if (paramStep1.verbose) printf("1st Step\n");
+		if (p_prms1.verbose) printf("1st Step\n");
 
 		//! RGB to YUV
 		Video_f32 imNoisy = i_imNoisy;
@@ -265,7 +270,7 @@ int runNlBayes(
 		//! Divide the noisy image into sub-images in order to easier parallelize the process
 		// ASK MARC: any suggestion on the best way to split the space time cube
 		std::vector<Video_f32> imNoisySub(nParts);
-		if (VideoUtils::subDivide(imNoisy, imNoisySub, paramStep1.boundary, nParts)
+		if (VideoUtils::subDivide(imNoisy, imNoisySub, p_prms1.boundary, nParts)
 				!= EXIT_SUCCESS)
 			return EXIT_FAILURE;
 
@@ -275,13 +280,13 @@ int runNlBayes(
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic, nParts/nThreads) \
 		shared(imNoisySub, imBasicSub, imFinalSub, imSizeSub) \
-		firstprivate (paramStep1)
+		firstprivate (p_prms1)
 #endif
 		for (int n = 0; n < (int)nParts; n++)
-			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], paramStep1);
+			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms1);
 
 		//! Get the basic estimate
-		if (VideoUtils::subBuild(imBasicSub, o_imBasic, paramStep1.boundary)
+		if (VideoUtils::subBuild(imBasicSub, o_imBasic, p_prms1.boundary)
 				!= EXIT_SUCCESS)
 			return EXIT_FAILURE;
 
@@ -291,16 +296,16 @@ int runNlBayes(
 
 	//! Step 2
 	{
-		if (paramStep2.verbose) printf("2nd Step\n");
+		if (p_prms2.verbose) printf("2nd Step\n");
 
 		//! Divide the noisy and basic images into sub-images in order to easier parallelize the process
 		std::vector<Video_f32> imNoisySub(nParts);
-		if (VideoUtils::subDivide(i_imNoisy, imNoisySub, paramStep2.boundary, nParts)
+		if (VideoUtils::subDivide(i_imNoisy, imNoisySub, p_prms2.boundary, nParts)
 				!= EXIT_SUCCESS)
 			return EXIT_FAILURE;
 
 		std::vector<Video_f32> imBasicSub(nParts);
-		if (VideoUtils::subDivide(o_imBasic, imBasicSub, paramStep2.boundary, nParts)
+		if (VideoUtils::subDivide(o_imBasic, imBasicSub, p_prms2.boundary, nParts)
 				!= EXIT_SUCCESS)
 			return EXIT_FAILURE;
 
@@ -309,13 +314,13 @@ int runNlBayes(
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic, nParts/nThreads) \
 		shared(imNoisySub, imBasicSub, imFinalSub) \
-		firstprivate (paramStep2)
+		firstprivate (p_prms2)
 #endif
 		for (int n = 0; n < (int) nParts; n++)
-			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], paramStep2);
+			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms2);
 
 		//! Get the final result
-		if (VideoUtils::subBuild(imFinalSub, o_imFinal, paramStep2.boundary)
+		if (VideoUtils::subBuild(imFinalSub, o_imFinal, p_prms2.boundary)
 				!= EXIT_SUCCESS)
 			return EXIT_FAILURE;
 	}
@@ -337,7 +342,7 @@ void processNlBayes(
 	Video_f32 const& i_imNoisy
 ,	Video_f32 &io_imBasic
 ,	Video_f32 &o_imFinal
-,	nlbParams &p_params
+,	nlbParams const& p_params
 ){
 	using std::vector;
 
@@ -754,7 +759,7 @@ void computeBayesEstimateStep1(
 	std::vector<std::vector<float> > &io_group3d
 ,	matParams &i_mat
 ,	unsigned &io_nInverseFailed
-,	nlbParams &p_params
+,	nlbParams const& p_params
 ){
 	//! Parameters
 	const unsigned chnls = io_group3d.size();
@@ -814,7 +819,7 @@ void computeBayesEstimateStep2(
 ,	matParams &i_mat
 ,	unsigned &io_nInverseFailed
 ,	const VideoSize &p_imSize
-,	nlbParams p_params
+,	nlbParams const& p_params
 ,	const unsigned p_nSimP
 ){
 	//! Parameters initialization

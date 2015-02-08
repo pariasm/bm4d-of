@@ -50,6 +50,7 @@ int main(int argc, char **argv)
 	const string  final_path = clo_option("-deno" , "/tmp/deno_%03d.png" , "> denoised sequence");
 	const string  basic_path = clo_option("-bsic" , "/tmp/bsic_%03d.png" , "> basic denoised sequence");
 	const string   diff_path = clo_option("-diff" , "/tmp/diff_%03d.png" , "> difference sequence");
+	// TODO: this should be determined automatically from the other outputs.
 	const string   bias_path = clo_option("-bdeno", "/tmp/bdeno_%03d.png", "> bias sequence");
 	const string bbasic_path = clo_option("-bbsic", "/tmp/bbsic_%03d.png", "> bias basic sequence");
 	const string  bdiff_path = clo_option("-bdiff", "/tmp/bdiff_%03d.png", "> bias difference sequence");
@@ -96,7 +97,10 @@ int main(int argc, char **argv)
 
 	//! Denoising
 	if (verbose) printf("Running Video NL-Bayes on the noisy video\n");
-	if (VideoNLB::runNlBayes(noisy, basic, final, flat_area1, flat_area2, sigma, verbose) != OK)
+	VideoNLB::nlbParams prms1, prms2;
+	VideoNLB::initializeNlbParameters(prms1, 1, sigma, noisy.size(), flat_area1, verbose, time_search_fwd, time_search_bwd);
+	VideoNLB::initializeNlbParameters(prms2, 2, sigma, noisy.size(), flat_area2, verbose, time_search_fwd, time_search_bwd);
+	if (VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2) != OK)
 		return FK;
 
 	//! Compute PSNR and RMSE

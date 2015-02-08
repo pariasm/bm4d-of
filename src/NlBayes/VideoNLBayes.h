@@ -78,37 +78,37 @@ struct matParams
 /**
  * @brief Initialize Parameters of the NL-Bayes algorithm.
  *
- * @param o_paramStep1 : will contain the nlbParams for the first step of the algorithm;
- * @param o_paramStep2 : will contain the nlbParams for the second step of the algorithm;
- * @param p_sigma : standard deviation of the noise;
- * @param p_imSize: size of the image;
- * @param p_useArea1 : if true, use the homogeneous area trick for the first step;
- * @param p_useArea2 : if true, use the homogeneous area trick for the second step;
- * @param p_verbose : if true, print some informations.
+ * @param o_params   : will contain the nlbParams for the first step of the algorithm;
+ * @param p_step     : select first or second step;
+ * @param p_sigma    : standard deviation of the noise;
+ * @param p_size     : size of the video;
+ * @param p_flatArea : if true, use the homogeneous area trick for the first step;
+ * @param p_verbose  : if true, print some informations.
+ * @param p_timeSearchRagneFwd : temporal search range forwards.
+ * @param p_timeSearchRagneBwd : temporal search range backwards.
  *
  * @return none.
  **/
 void initializeNlbParameters(
-	nlbParams &o_paramStep1
-,	nlbParams &o_paramStep2
+	nlbParams &o_params
+,	const unsigned p_step
 ,	const float p_sigma
-,	const VideoSize &p_imSize
-,	const bool p_useArea1
-,	const bool p_useArea2
+,	const VideoSize &p_size
+,	const bool p_useArea
 ,	const bool p_verbose
+,	const unsigned timeSearchRangeFwd = 0
+,	const unsigned timeSearchRangeBwd = 0
 );
 
 /**
  * @brief Display parameters of the NL-Bayes algorithm.
  *
- * @param i_paramStep1 : nlbParams for the first step of the algorithm;
- * @param i_paramStep2 : nlbParams for the second step of the algorithm;
+ * @param i_params : nlbParams for first or second step of the algorithm;
  *
  * @return none.
  **/
 void printNlbParameters(
-	nlbParams &i_paramStep1
-,	nlbParams &i_paramStep2
+	const nlbParams &i_params
 );
 
 /**
@@ -132,6 +132,27 @@ int runNlBayes(
 ,	const bool p_useArea2
 ,	const float p_sigma
 ,	const bool p_verbose
+);
+
+/**
+ * @brief Main function to process the whole NL-Bayes algorithm.
+ *
+ * @param i_imNoisy: contains the noisy video;
+ * @param o_imBasic: will contain the basic estimate image after the first step;
+ * @param o_imFinal: will contain the final denoised image after the second step;
+ * @param p_sigma : standard deviation of the noise;
+ * @param p_verbose : if true, print some informations.
+ * @param p_params1 : parameters for first step
+ * @param p_params1 : parameters for second step
+ *
+ * @return EXIT_FAILURE if something wrong happens during the whole process.
+ **/
+int runNlBayes(
+	Video_f32 const& i_imNoisy
+,	Video_f32 &o_imBasic
+,	Video_f32 &o_imFinal
+,	const nlbParams& p_params1
+,	const nlbParams& p_params2
 );
 
 /**
@@ -159,7 +180,7 @@ void processNlBayes(
 	Video_f32 const& i_imNoisy
 ,	Video_f32 &io_imBasic
 ,	Video_f32 &o_imFinal
-,	nlbParams &p_params
+,	nlbParams const& p_params
 );
 
 /**
@@ -265,7 +286,7 @@ void computeBayesEstimateStep1(
 	std::vector<std::vector<float> > &io_group3d
 ,	matParams &i_mat
 ,	unsigned &io_nInverseFailed
-,	nlbParams &p_params
+,	nlbParams const& p_params
 );
 
 /**
@@ -293,7 +314,7 @@ void computeBayesEstimateStep2(
 ,	matParams &i_mat
 ,	unsigned &io_nInverseFailed
 ,	const VideoSize &p_imSize
-,	nlbParams p_params
+,	nlbParams const& p_params
 ,	const unsigned p_nSimP
 );
 
@@ -315,7 +336,7 @@ void computeAggregationStep1(
 ,	std::vector<bool> &io_mask
 ,	std::vector<std::vector<float> > const& i_group3d
 ,	std::vector<unsigned> const& i_index
-,	const nlbParams &p_params
+,	const nlbParams& p_params
 );
 
 /**
@@ -337,7 +358,7 @@ void computeAggregationStep2(
 ,	std::vector<bool> &io_mask
 ,	std::vector<float> const& i_group3d
 ,	std::vector<unsigned> const& i_index
-,	const nlbParams &p_params
+,	const nlbParams& p_params
 ,	const unsigned p_nSimP
 );
 
