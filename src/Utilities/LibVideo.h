@@ -158,13 +158,13 @@ class Video_f32
 		float  getPixelSymmetric(int x, int y, int t, unsigned c = 0) const;
 		
 		//! I/O
-		int loadVideo(const std::string i_pathToFiles, 
-		              unsigned i_firstFrame, unsigned i_lastFrame, unsigned i_frameStep = 1);
-		int saveVideo(const std::string i_pathToFiles, 
-		              unsigned i_firstFrame, unsigned i_frameStep = 1,
-		              float i_pmin = 0, float i_pmax = 255) const;
-		int saveVideoAscii(const std::string i_prefix, 
-		                   unsigned i_firstFrame, unsigned i_frameStep = 1) const;
+		void loadVideo(const std::string i_pathToFiles, 
+		               unsigned i_firstFrame, unsigned i_lastFrame, unsigned i_frameStep = 1);
+		void saveVideo(const std::string i_pathToFiles, 
+		               unsigned i_firstFrame, unsigned i_frameStep = 1,
+		               float i_pmin = 0, float i_pmax = 255) const;
+		void saveVideoAscii(const std::string i_prefix, 
+		                    unsigned i_firstFrame, unsigned i_frameStep = 1) const;
 
 		//! Utilities
 		unsigned index(unsigned x, unsigned y, unsigned t, unsigned c) const;
@@ -296,18 +296,14 @@ namespace VideoUtils
 	 * @param i_vid2 : video 2;
 	 * @param o_psnr  : will contain the PSNR;
 	 * @param o_rmse  : will contain the RMSE;
-	 * @param p_videoName: name of the video;
-	 * @param p_verbose: if true, print values of PSNR and RMSE.
 	 *
-	 * @return EXIT_FAILURE if both videos haven't the same size.
+	 * @return none.
 	 **/
-	int computePSNR(
+	void computePSNR(
 	    Video_f32 const& i_vid1
 	,   Video_f32 const& i_vid2
 	,   float &o_psnr
 	,   float &o_rmse
-//	,   const char* p_videoName
-//	,   const bool p_verbose = false
 	);
 	
 	/**
@@ -320,9 +316,9 @@ namespace VideoUtils
 	 * @param p_min, p_max : range of data (usually [0, 255]);
 	 * @param p_verbose : if true, print some informations.
 	 *
-	 * @return EXIT_FAILURE if i_im1 and i_im2 don't have the same size.
+	 * @return none.
 	 **/
-	int computeDiff(
+	void computeDiff(
 	    Video_f32 const& i_vid1
 	,   Video_f32 const& i_vid2
 	,   Video_f32 &o_vidDiff
@@ -403,9 +399,9 @@ namespace VideoUtils
 	 * @param p_N : boundary around sub-videos;
 	 * @param p_nb : number of sub-videos wanted. Need to be a power of 2.
 	 *
-	 * @return EXIT_FAILURE in case of problems.
+	 * @return none.
 	 **/
-	int subDivide(
+	void subDivide(
 		Video_f32 const& i_vid
 	,	std::vector<Video_f32> &o_vidSub
 	,	const unsigned p_N
@@ -419,9 +415,9 @@ namespace VideoUtils
 	 * @param i_vidSub : will contain all sub-images;
 	 * @param p_N : boundary around sub-videos.
 	 *
-	 * @return EXIT_FAILURE in case of problems.
+	 * @return none.
 	 **/
-	int subBuild(
+	void subBuild(
 	 	std::vector<Video_f32> const& i_vidSub
 	,	Video_f32 &o_vid
 	,	const unsigned p_N

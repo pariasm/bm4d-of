@@ -24,6 +24,7 @@
 #include <cstdio> // sprintf
 #include <cstdlib> // EXIT_FAILURE/SUCCESS
 #include <omp.h>
+#include <stdexcept>
 
 Video_f32::Video_f32(void)
 	: width(0)
@@ -65,9 +66,7 @@ Video_f32::Video_f32(
 	, whf(0)
 	, data(0)
 {
-	int loaded_ok = loadVideo(i_pathToFiles,
-			                    i_firstFrame, i_lastFrame, i_frameStep);
-	// TODO what to do if not loaded_ok?
+	loadVideo(i_pathToFiles, i_firstFrame, i_lastFrame, i_frameStep);
 }
 
 Video_f32::Video_f32(
@@ -173,7 +172,7 @@ void Video_f32::resize(const VideoSize& i_size)
 }
 
 
-int Video_f32::loadVideo(
+void Video_f32::loadVideo(
     const std::string i_pathToFiles
 ,   unsigned i_firstFrame
 ,   unsigned i_lastFrame
@@ -190,7 +189,8 @@ int Video_f32::loadVideo(
 		ImageSize frameSize;
 		std::vector<float> frame;
 		if (loadImage(filename, frame, frameSize) == EXIT_FAILURE)
-			return EXIT_FAILURE;
+			throw std::runtime_error("Video_f32::loadVideo: loading of " + 
+					std::string(filename) + " failed");
 
 		//! set size
 		width    = frameSize.width;
@@ -218,30 +218,25 @@ int Video_f32::loadVideo(
 		ImageSize frameSize;
 		std::vector<float> frame;
 
+		loadImage(filename, frame, frameSize);
 		if (loadImage(filename, frame, frameSize) == EXIT_FAILURE)
-		{
-			std::cerr << "Error @ Video_f32::loadVideo: Frame "
-			          << f << " cannot be loaded" << std::endl;
-			return EXIT_FAILURE;
-		}
+			throw std::runtime_error("Video_f32::loadVideo: loading of " + 
+					std::string(filename) + " failed");
 
 		if (frameSize.width != width ||
 		    frameSize.height != height ||
 		    frameSize.nChannels != channels)
-		{
-			std::cerr << "Error @ Video_f32::loadVideo: Size of frame "
-			          << f << " does not match video size" << std::endl;
-			return EXIT_FAILURE;
-		}
+			throw std::runtime_error("Video_f32::loadVideo: size of " + 
+					std::string(filename) + " does not match video size");
 
 		//! copy data in first frame // FIXME: avoidable memcpy
 		p_data = std::copy(frame.begin(), frame.end(), p_data);
 	}
 
-	return EXIT_SUCCESS;
+	return;
 }
 
-int Video_f32::saveVideo(
+void Video_f32::saveVideo(
 	const std::string i_pathToFiles
 ,	unsigned i_firstFrame
 ,	unsigned i_frameStep
@@ -270,17 +265,14 @@ int Video_f32::saveVideo(
 		std::sprintf(filename, i_pathToFiles.c_str(), f);
 		
 		if (saveImage(filename, frame, frameSize, i_pmin, i_pmax) == EXIT_FAILURE)
-		{
-			std::cerr << "Error @ Video_f32::saveVideo: Frame "
-			          << f << " cannot be saved" << std::endl;
-			return EXIT_FAILURE;
-		}
+			throw std::runtime_error("Video_f32::saveVideo: writing of " + 
+					std::string(filename) + " failed");
 	}
 
-	return EXIT_SUCCESS;
+	return;
 }
 
-int Video_f32::saveVideoAscii(
+void Video_f32::saveVideoAscii(
 	const std::string i_prefix
 ,	unsigned i_firstFrame
 ,	unsigned i_frameStep
@@ -311,6 +303,6 @@ int Video_f32::saveVideoAscii(
 
 		std::fclose(nfile);
 	}
-	return EXIT_SUCCESS;
+	return;
 }
 

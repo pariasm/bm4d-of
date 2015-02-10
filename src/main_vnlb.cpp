@@ -35,9 +35,6 @@ using namespace std;
  * @author PABLO ARIAS  <pariasm@gmail.com>
  **/
 
-#define OK EXIT_SUCCESS
-#define FK EXIT_FAILURE
-
 int main(int argc, char **argv)
 {
 	clo_usage("Video NL-Bayes video denoising");
@@ -46,14 +43,14 @@ int main(int argc, char **argv)
 	//! Paths to input/output sequences
 	using std::string;
 	const string  input_path = clo_option("-i"    , ""                   , "< input sequence");
-	const string  noisy_path = clo_option("-nisy" , "/tmp/nisy_%03d.png" , "> noisy sequence");
-	const string  final_path = clo_option("-deno" , "/tmp/deno_%03d.png" , "> denoised sequence");
-	const string  basic_path = clo_option("-bsic" , "/tmp/bsic_%03d.png" , "> basic denoised sequence");
-	const string   diff_path = clo_option("-diff" , "/tmp/diff_%03d.png" , "> difference sequence");
+	const string  noisy_path = clo_option("-nisy" , "nisy_%03d.png" , "> noisy sequence");
+	const string  final_path = clo_option("-deno" , "deno_%03d.png" , "> denoised sequence");
+	const string  basic_path = clo_option("-bsic" , "bsic_%03d.png" , "> basic denoised sequence");
+	const string   diff_path = clo_option("-diff" , "diff_%03d.png" , "> difference sequence");
 	// TODO: this should be determined automatically from the other outputs.
-	const string   bias_path = clo_option("-bdeno", "/tmp/bdeno_%03d.png", "> bias sequence");
-	const string bbasic_path = clo_option("-bbsic", "/tmp/bbsic_%03d.png", "> bias basic sequence");
-	const string  bdiff_path = clo_option("-bdiff", "/tmp/bdiff_%03d.png", "> bias difference sequence");
+	const string   bias_path = clo_option("-bdeno", "bdeno_%03d.png", "> bias sequence");
+	const string bbasic_path = clo_option("-bbsic", "bbsic_%03d.png", "> bias basic sequence");
+	const string  bdiff_path = clo_option("-bdiff", "bdiff_%03d.png", "> bias difference sequence");
 
 	const unsigned firstFrame = clo_option("-f", 0, "first frame");
 	const unsigned lastFrame  = clo_option("-l", 0, "last frame");
@@ -75,15 +72,14 @@ int main(int argc, char **argv)
 	{
 		fprintf(stderr, "%s: no input sequence.\nTry `%s --help' for more information.\n",
 				argv[0], argv[0]);
-		return FK;
+		return EXIT_FAILURE;
 	}
 
 	//! Declarations
 	Video_f32 original, noisy, basic, final, diff;
 
 	//! Load original video
-	if (original.loadVideo(input_path, firstFrame, lastFrame, frameStep) != OK)
-		return FK;
+	original.loadVideo(input_path, firstFrame, lastFrame, frameStep);
 
 	//! Add noise
 	if (sigma)
@@ -100,8 +96,7 @@ int main(int argc, char **argv)
 	VideoNLB::nlbParams prms1, prms2;
 	VideoNLB::initializeNlbParameters(prms1, 1, sigma, noisy.size(), flat_area1, verbose, time_search_fwd, time_search_bwd);
 	VideoNLB::initializeNlbParameters(prms2, 2, sigma, noisy.size(), flat_area2, verbose, time_search_fwd, time_search_bwd);
-	if (VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2) != OK)
-		return FK;
+	VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2);
 
 	//! Compute PSNR and RMSE
 	float final_psnr, final_rmse, basic_psnr, basic_rmse;
@@ -119,15 +114,14 @@ int main(int argc, char **argv)
 	writingMeasures("measures.txt", sigma, final_psnr, final_rmse, false , "_final");
 
 	//! Compute Difference
-	if (VideoUtils::computeDiff(original, final, diff, sigma) != OK)
-		return FK;
+	VideoUtils::computeDiff(original, final, diff, sigma);
 
 	//! Save output sequences
 	if (verbose) printf("Saving output sequences\n");
 
-	if (final.saveVideo(final_path, firstFrame, frameStep) != OK) return FK;
-	if (basic.saveVideo(basic_path, firstFrame, frameStep) != OK) return FK;
-	if (diff .saveVideo( diff_path, firstFrame, frameStep) != OK) return FK;
+	final.saveVideo(final_path, firstFrame, frameStep);
+	basic.saveVideo(basic_path, firstFrame, frameStep);
+	diff .saveVideo( diff_path, firstFrame, frameStep);
 
 #if 0
 	//! Computing bias sequence
@@ -135,9 +129,7 @@ int main(int argc, char **argv)
 	if (do_bias) {
 		if (verbose) cout << "Applying NL-Bayes to the original image :" << endl;
 
-		if (runNlBayes(im, imBasicBias, imBias, imSize, flat_area1, flat_area2, sigma, verbose)
-				!= OK)
-			return FK;
+		runNlBayes(im, imBasicBias, imBias, imSize, flat_area1, flat_area2, sigma, verbose);
 
 		if (verbose) cout << endl;
 
@@ -150,17 +142,16 @@ int main(int argc, char **argv)
 		writingMeasures("measures.txt", sigma, psnrBias     , rmseBias     , false, "_bias      ");
 
 		
-		if (computeDiff(im, imBias, imDiffBias, sigma, 0.f, 255.f, verbose) != OK)
-			return FK;
+		computeDiff(im, imBias, imDiffBias, sigma, 0.f, 255.f, verbose);
 
-		if (saveImage(argv[7], imBias     , imSize, 0.f, 255.f) != OK) return FK;
-		if (saveImage(argv[8], imBasicBias, imSize, 0.f, 255.f) != OK) return FK;
-		if (saveImage(argv[9], imDiffBias , imSize, 0.f, 255.f) != OK) return FK;
+		saveImage(argv[7], imBias     , imSize, 0.f, 255.f);
+		saveImage(argv[8], imBasicBias, imSize, 0.f, 255.f);
+		saveImage(argv[9], imDiffBias , imSize, 0.f, 255.f);
 	}
 
 
 #endif
 
 	if (verbose) printf("Done\n");
-	return OK;
+	return EXIT_SUCCESS;
 }

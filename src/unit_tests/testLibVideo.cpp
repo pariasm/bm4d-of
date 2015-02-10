@@ -63,12 +63,7 @@ int main(int argc, char **argv)
 	vid1.saveVideo("/tmp/vid1_empty_%02d.png",i_firstFrame, i_frameStep);
 
 	//! Load a video through loadVideo 
-	if (vid1.loadVideo(i_video_path,
-			i_firstFrame, i_lastFrame, i_frameStep) == EXIT_FAILURE)
-	{
-		fprintf(stderr, "Exiting. Failed to load video.\n");
-		return EXIT_FAILURE;
-	}
+	vid1.loadVideo(i_video_path, i_firstFrame, i_lastFrame, i_frameStep);
 	print_video_size("loaded video1", vid1);
 
 

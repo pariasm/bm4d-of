@@ -184,12 +184,7 @@ int main(int argc, char **argv)
 	//! Load video
 	Video_f32 vid_ori;
 	{
-		if (vid_ori.loadVideo(i_video_path.c_str(), i_firstFrame, i_lastFrame, i_frameStep)
-				== EXIT_FAILURE)
-		{
-			fprintf(stderr, "Exiting. Failed to load video.\n");
-			return EXIT_FAILURE;
-		}
+		vid_ori.loadVideo(i_video_path.c_str(), i_firstFrame, i_lastFrame, i_frameStep);
 
 		print_video_size("loaded video1", vid_ori);
 	}

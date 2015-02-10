@@ -25,6 +25,7 @@
 #include <cstdio> // sprintf
 #include <cstdlib> // EXIT_FAILURE/SUCCESS
 #include <omp.h>
+#include <stdexcept>
 
 #include <math.h>
 #include "Utilities.h"
@@ -75,27 +76,17 @@ namespace VideoUtils
 	 * @param i_vid2 : video 2;
 	 * @param o_psnr  : will contain the PSNR;
 	 * @param o_rmse  : will contain the RMSE;
-	 * @param p_videoName: name of the video;
-	 * @param p_verbose: if true, print values of PSNR and RMSE.
 	 *
-	 * @return EXIT_FAILURE if both videos haven't the same size.
+	 * @return none
 	 **/
-	int computePSNR(
+	void computePSNR(
 	    Video_f32 const& i_vid1
 	,   Video_f32 const& i_vid2
 	,   float &o_psnr
 	,   float &o_rmse
-//	,   const char* p_videoName
-//	,   const bool p_verbose
 	){
 		if (i_vid1.size() != i_vid2.size())
-		{
-			fprintf(stderr, "Error @ LibVideo::computePsnr: "
-					          "videos have different sizes:\n");
-			fprintf(stderr, "\ti_vid1 %dx%dx%d - %d ch\n", i_vid1.width, i_vid1.height, i_vid1.frames, i_vid1.channels);
-			fprintf(stderr, "\ti_vid2 %dx%dx%d - %d ch\n", i_vid2.width, i_vid2.height, i_vid2.frames, i_vid2.channels);
-			return EXIT_FAILURE;
-		}
+			throw std::runtime_error("VideoUtils::computePSNR: videos have different sizes");
 
 		float sum = 0.f;
 		for (unsigned k = 0; k < i_vid1.whcf; k++)
@@ -104,15 +95,7 @@ namespace VideoUtils
 		o_rmse = sqrtf(sum / (float) i_vid1.whcf);
 		o_psnr = 20.f * log10f(255.f / o_rmse);
 
-//		if (p_verbose)
-//		{
-//			std::cout << p_imageName << endl;
-//			std::cout << "PSNR = " << o_psnr << endl;
-//			std::cout << "RMSE = " << o_rmse << endl;
-//		}
-
-		return EXIT_SUCCESS;
-
+		return;
 	}
 	
 	/**
@@ -125,9 +108,9 @@ namespace VideoUtils
 	 * @param p_min, p_max : range of data (usually [0, 255]);
 	 * @param p_verbose : if true, print some informations.
 	 *
-	 * @return EXIT_FAILURE if i_im1 and i_im2 don't have the same size.
+	 * @return none
 	 **/
-	int computeDiff(
+	void computeDiff(
 	    Video_f32 const& i_vid1
 	,   Video_f32 const& i_vid2
 	,   Video_f32 &o_vidDiff
@@ -136,13 +119,7 @@ namespace VideoUtils
 	,   const float p_max
 	){
 		if (i_vid1.size() != i_vid2.size())
-		{
-			fprintf(stderr, "Error @ VideoUtils::computeDiff: "
-			                "videos have different sizes\n");
-			fprintf(stderr, "\ti_vid1 %dx%dx%d - %d ch\n", i_vid1.width, i_vid1.height, i_vid1.frames, i_vid1.channels);
-			fprintf(stderr, "\ti_vid2 %dx%dx%d - %d ch\n", i_vid2.width, i_vid2.height, i_vid2.frames, i_vid2.channels);
-			return EXIT_FAILURE;
-		}
+			throw std::runtime_error("VideoUtils::computeDiff: videos have different sizes");
 
 		o_vidDiff.resize(i_vid1.size());
 		for (unsigned k = 0; k < i_vid1.whcf; k++)
@@ -151,7 +128,7 @@ namespace VideoUtils
 			o_vidDiff(k) = clip(value, p_min, p_max);
 		}
 
-		return EXIT_SUCCESS;
+		return;
 	}
 	
 	/**
@@ -370,10 +347,10 @@ namespace VideoUtils
 	 * @param p_N : boundary around sub-videos;
 	 * @param p_nb : number of sub-videos wanted. Need to be a power of 2.
 	 *
-	 * @return EXIT_FAILURE in case of problems.
+	 * @return none.
 	 **/
 	// TODO pending decision for video
-	int subDivide(
+	void subDivide(
 		Video_f32 const& i_im
 	,	std::vector<Video_f32> &o_imSub
 	,	const unsigned p_N
@@ -411,7 +388,8 @@ namespace VideoUtils
 			// Crop using symmetric boundary conditions
 			VideoUtils::crop(i_im, o_imSub[n], origin);
 		}
-		return EXIT_SUCCESS;
+
+		return;
 	}
 
 	/**
@@ -421,10 +399,10 @@ namespace VideoUtils
 	 * @param i_vidSub : will contain all sub-images;
 	 * @param p_N : boundary around sub-videos.
 	 *
-	 * @return EXIT_FAILURE in case of problems.
+	 * @return none.
 	 **/
 	// TODO pending decision for video
-	int subBuild(
+	void subBuild(
 	 	std::vector<Video_f32> const& i_vidSub
 	,	Video_f32 &o_vid
 	,	const unsigned p_N
@@ -477,6 +455,6 @@ namespace VideoUtils
 				o_vid(qx, qy, f, c) = i_vidSub[n](sx, sy, f, c);
 		}
 
-		return EXIT_SUCCESS;
+		return;
 	}
 }

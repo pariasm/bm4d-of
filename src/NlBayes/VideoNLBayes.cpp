@@ -19,6 +19,7 @@
  * @author Pablo Arias <pariasm@gmail.com>
  **/
 
+#include <stdexcept>
 #include <iostream>
 #include <stdlib.h>
 #include <algorithm>
@@ -133,7 +134,7 @@ void initializeNlbParameters(
 	o_params.isFirstStep = (p_step == 1);
 
 	//! Boost the paste trick
-	o_params.doPasteBoost = false;//true;
+	o_params.doPasteBoost = true;
 }
 
 /**
@@ -233,12 +234,10 @@ int runNlBayes(
 ,	const nlbParams& p_prms2
 ){
 	//! Only 1, 3 or 4-channels images can be processed.
-	const unsigned chnls = i_imNoisy.channels;
+//	const unsigned chnls = i_imNoisy.channels;
+	const unsigned chnls = 2;
 	if (! (chnls == 1 || chnls == 3 || chnls == 4))
-	{
-		fprintf(stderr,"Wrong number of channels. Must be 1, 3 or 4!!\n");
-		return EXIT_FAILURE;
-	}
+		throw std::runtime_error("VideoNLB::runNlBayes: Wrong number of channels. Must be 1, 3 or 4!!n");
 
 	//! Number of available cores
 	unsigned nThreads = 1;
@@ -270,9 +269,7 @@ int runNlBayes(
 		//! Divide the noisy image into sub-images in order to easier parallelize the process
 		// ASK MARC: any suggestion on the best way to split the space time cube
 		std::vector<Video_f32> imNoisySub(nParts);
-		if (VideoUtils::subDivide(imNoisy, imNoisySub, p_prms1.boundary, nParts)
-				!= EXIT_SUCCESS)
-			return EXIT_FAILURE;
+		VideoUtils::subDivide(imNoisy, imNoisySub, p_prms1.boundary, nParts);
 
 		//! Process all sub-images
 		std::vector<Video_f32> imBasicSub(nParts);
@@ -286,9 +283,7 @@ int runNlBayes(
 			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms1);
 
 		//! Get the basic estimate
-		if (VideoUtils::subBuild(imBasicSub, o_imBasic, p_prms1.boundary)
-				!= EXIT_SUCCESS)
-			return EXIT_FAILURE;
+		VideoUtils::subBuild(imBasicSub, o_imBasic, p_prms1.boundary);
 
 		//! YUV to RGB
 		VideoUtils::transformColorSpace(o_imBasic, false);
@@ -300,14 +295,10 @@ int runNlBayes(
 
 		//! Divide the noisy and basic images into sub-images in order to easier parallelize the process
 		std::vector<Video_f32> imNoisySub(nParts);
-		if (VideoUtils::subDivide(i_imNoisy, imNoisySub, p_prms2.boundary, nParts)
-				!= EXIT_SUCCESS)
-			return EXIT_FAILURE;
-
 		std::vector<Video_f32> imBasicSub(nParts);
-		if (VideoUtils::subDivide(o_imBasic, imBasicSub, p_prms2.boundary, nParts)
-				!= EXIT_SUCCESS)
-			return EXIT_FAILURE;
+
+		VideoUtils::subDivide(i_imNoisy, imNoisySub, p_prms2.boundary, nParts);
+		VideoUtils::subDivide(o_imBasic, imBasicSub, p_prms2.boundary, nParts);
 
 		//! Process all sub-images
 		std::vector<Video_f32> imFinalSub(nParts);
@@ -320,9 +311,7 @@ int runNlBayes(
 			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms2);
 
 		//! Get the final result
-		if (VideoUtils::subBuild(imFinalSub, o_imFinal, p_prms2.boundary)
-				!= EXIT_SUCCESS)
-			return EXIT_FAILURE;
+		VideoUtils::subBuild(imFinalSub, o_imFinal, p_prms2.boundary);
 	}
 
 	return EXIT_SUCCESS;
