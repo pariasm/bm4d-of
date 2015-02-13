@@ -234,10 +234,10 @@ int runNlBayes(
 ,	const nlbParams& p_prms2
 ){
 	//! Only 1, 3 or 4-channels images can be processed.
-//	const unsigned chnls = i_imNoisy.channels;
-	const unsigned chnls = 2;
+	const unsigned chnls = i_imNoisy.channels;
 	if (! (chnls == 1 || chnls == 3 || chnls == 4))
-		throw std::runtime_error("VideoNLB::runNlBayes: Wrong number of channels. Must be 1, 3 or 4!!n");
+		throw std::runtime_error("VideoNLB::runNlBayes: Wrong number of "
+				"channels. Must be 1, 3 or 4.");
 
 	//! Number of available cores
 	unsigned nThreads = 1;

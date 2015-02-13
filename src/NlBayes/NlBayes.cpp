@@ -46,8 +46,6 @@ using namespace std;
  *
  * @return none.
  **/
-//< TODO VIDEO initialize sizeSearchTimeRangeFwd
-//< TODO VIDEO initialize sizeSearchTimeRangeBwd
 void initializeNlbParameters(
 	nlbParams &o_paramStep1
 ,	nlbParams &o_paramStep2
@@ -73,8 +71,8 @@ void initializeNlbParameters(
 
 	//! Number of similar patches
 	if (p_imSize.nChannels == 1) {
-		o_paramStep1.nSimilarPatches = (p_sigma < 10.f ? 35 : (p_sigma < 30.f ? 45 : (p_sigma < 80.f ? 90 : 100))); // ASK MARC differs from manuscript
-		o_paramStep2.nSimilarPatches = (p_sigma < 20.f ? 15 : (p_sigma < 40.f ? 25 : (p_sigma < 80.f ? 30 :  45))); // ASK MARC differs from manuscript
+		o_paramStep1.nSimilarPatches = (p_sigma < 10.f ? 35 : (p_sigma < 30.f ? 45 : (p_sigma < 80.f ? 90 : 100)));
+		o_paramStep2.nSimilarPatches = (p_sigma < 20.f ? 15 : (p_sigma < 40.f ? 25 : (p_sigma < 80.f ? 30 :  45)));
 	}
 	else {
 		o_paramStep1.nSimilarPatches = o_paramStep1.sizePatch * o_paramStep1.sizePatch * 3;
@@ -90,8 +88,8 @@ void initializeNlbParameters(
 	o_paramStep2.useHomogeneousArea = p_useArea2;
 
 	//! Size of the search window around the reference patch (must be odd)
-	o_paramStep1.sizeSearchWindow = o_paramStep1.nSimilarPatches / 2; // ASK MARC and 7*sizePatch1 in IPOL manuscript
-	o_paramStep2.sizeSearchWindow = o_paramStep2.nSimilarPatches / 2; // ASK MARC and 7*sizePatch2 in IPOL manuscript
+	o_paramStep1.sizeSearchWindow = o_paramStep1.nSimilarPatches / 2;
+	o_paramStep2.sizeSearchWindow = o_paramStep2.nSimilarPatches / 2;
 	if (o_paramStep1.sizeSearchWindow % 2 == 0) o_paramStep1.sizeSearchWindow++;
 	if (o_paramStep2.sizeSearchWindow % 2 == 0) o_paramStep2.sizeSearchWindow++;
 
@@ -130,8 +128,8 @@ void initializeNlbParameters(
 	o_paramStep2.isFirstStep = false;
 
 	//! Boost the paste trick
-	o_paramStep1.doPasteBoost = true;
-	o_paramStep2.doPasteBoost = true;
+	o_paramStep1.doPasteBoost = false;
+	o_paramStep2.doPasteBoost = false;
 }
 
 /**
@@ -192,7 +190,6 @@ int runNlBayes(
 	//! RGB to YUV
 	vector<float> imNoisy = i_imNoisy;
 	transformColorSpace(imNoisy, p_imSize, true);
-	// TODO VIDEO extend to video
 
 	//! Divide the noisy image into sub-images in order to easier parallelize the process
 	const unsigned nbParts = 2 * nbThreads;
@@ -201,9 +198,6 @@ int runNlBayes(
 	if (subDivide(imNoisy, imNoisySub, p_imSize, imSizeSub, paramStep1.boundary, nbParts)
 			!= EXIT_SUCCESS)
 		return EXIT_FAILURE;
-	// TODO VIDEO extend to video
-	// ASK MARC: any suggestion on the best way to split the
-	//           space time cube
 
 	//! Process all sub-images
 #ifdef _OPENMP
@@ -218,7 +212,6 @@ int runNlBayes(
 	if (subBuild(o_imBasic, imBasicSub, p_imSize, imSizeSub, paramStep1.boundary)
 			!= EXIT_SUCCESS)
 		return EXIT_FAILURE;
-	// TODO VIDEO extend to video
 
 	//! YUV to RGB
 	transformColorSpace(o_imBasic, p_imSize, false);
@@ -274,9 +267,6 @@ void processNlBayes(
 ,	const ImageSize &p_imSize
 ,	nlbParams &p_params
 ){
-	// TODO VIDEO: minor changes some loops that go through images
-	//             should go throught videos
-
 	//! Parameters initialization
 	const unsigned sW = p_params.sizeSearchWindow;
 	const unsigned sP = p_params.sizePatch;
@@ -412,7 +402,6 @@ void estimateSimilarPatchesStep1(
 	const unsigned nSimP = p_params.nSimilarPatches;
 	vector<pair<float, unsigned> > distance(sW * sW);
 
-	//< TODO VIDEO search through spatio-temporal domain
 	//! Compute distance between patches
 	for (unsigned i = 0; i < sW; i++)
 	for (unsigned j = 0; j < sW; j++) {
@@ -481,7 +470,6 @@ unsigned estimateSimilarPatchesStep2(
 	const unsigned ind   = p_ij - (sW - 1) * (width + 1) / 2;
 	vector<pair<float, unsigned> > distance(sW * sW);
 
-	//< TODO VIDEO search through spatio-temporal domain
 	//! Compute distance between patches
 	for (unsigned i = 0; i < sW; i++)
 	for (unsigned j = 0; j < sW; j++)
@@ -768,7 +756,6 @@ void computeAggregationStep1(
 	const unsigned sP     = p_params.sizePatch;
 	const unsigned nSimP  = p_params.nSimilarPatches;
 
-	//< TODO VIDEO take into account indexing in the video array
 	//! Aggregate estimates
 	for (unsigned n = 0; n < nSimP; n++) {
 		const unsigned ind = i_index[n];
