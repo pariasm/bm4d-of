@@ -220,24 +220,24 @@ int main(int argc, char **argv)
 
 	//! Create empty video
 	Video<float> vid1;
-	print_video_size("empty video", vid1.size());
+	print_video_size("empty video", vid1.sz);
 
 	//! Save video / should do nothing!
 	vid1.saveVideo("/tmp/vid1_empty_%02d.png",i_firstFrame, i_frameStep);
 
 	//! Load a video through loadVideo 
 	vid1.loadVideo(i_video_path, i_firstFrame, i_lastFrame, i_frameStep);
-	print_video_size("loaded video1", vid1.size());
+	print_video_size("loaded video1", vid1.sz);
 
 
 	/*/! Accessing pixels through coordinates
-	for (int f =  0; f < vid1.frames; f += 2)
-	for (int y = 10; y < vid1.height - 10; y++)
-	for (int x = 10; x < vid1.width  - 10; x++)
+	for (int f =  0; f < vid1.sz.frames; f += 2)
+	for (int y = 10; y < vid1.sz.height - 10; y++)
+	for (int x = 10; x < vid1.sz.width  - 10; x++)
 		vid1(x,y,f,0) = 250;
 
 	//! Accessing pixels through indices
-	for (int i = 0; i < vid1.whcf; i += 17) vid1(i) = 0;//*/
+	for (int i = 0; i < vid1.sz.whcf; i += 17) vid1(i) = 0;//*/
 
 	/*/! Save video
 	vid1.saveVideo("/tmp/vid1_%02d.png", i_firstFrame, i_frameStep);
@@ -257,7 +257,7 @@ int main(int argc, char **argv)
 	}
 
 	//! Join again into large video, removing border
-	Video<float> vid3(vid1.size());
+	Video<float> vid3(vid1.sz);
 	VideoUtils::subBuild (subvids1, vid3, border); 
 
 	float psnr_13, rmse_13;
@@ -268,7 +268,7 @@ int main(int argc, char **argv)
 	/*/! Pad video by symmetry
 	Video<float> vid1_sym;
 	VideoUtils::addBorder(vid1, vid1_sym, 4, true);
-	print_video_size("video with border added by symmetrizing", vid1_sym.size());
+	print_video_size("video with border added by symmetrizing", vid1_sym.sz);
 	vid1_sym.saveVideo("/tmp/vid1_sym_%02d.png", i_firstFrame, i_frameStep);//*/
 
 	/*/! Change colorspace
@@ -277,7 +277,7 @@ int main(int argc, char **argv)
 
 	VideoUtils::transformColorSpace(vid1, false);//*/
 
-	/*/! Add noise
+	//! Add noise
 	Video<float> vid1_noise;
 	VideoUtils::addNoise(vid1, vid1_noise, i_sigma, true);
 
@@ -292,21 +292,21 @@ int main(int argc, char **argv)
 	/*/! Compute difference
 	Video<float> diff;
 	VideoUtils::computeDiff(vid1, vid1_noise, diff, i_sigma);
-	print_video_size("difference", diff.size());
+	print_video_size("difference", diff.sz);
 
 	//! Save difference video
 	diff.saveVideo("/tmp/diff_%02d.png",i_firstFrame, i_frameStep);//*/
 
-	//! Load a video through constructor
+	/*/! Load a video through constructor
 	Video<float> vid2(i_video_path, i_firstFrame, i_lastFrame, i_frameStep);
-	print_video_size("loaded video2", vid2.size());
+	print_video_size("loaded video2", vid2.sz);
 
 	//! Save video
 	vid2.saveVideo("/tmp/vid2_%02d.png",i_firstFrame, i_frameStep);
 
 	//! Create an empty copy
 	Video<float> vid3(vid1);
-	print_video_size("copied video3", vid3.size());
+	print_video_size("copied video3", vid3.sz);
 
 	//! Save
 	vid2.saveVideo("/tmp/vid3_%02d.png",i_firstFrame, i_frameStep);//*/

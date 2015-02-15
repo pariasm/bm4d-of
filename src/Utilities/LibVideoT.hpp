@@ -45,8 +45,21 @@ struct VideoSize
 	unsigned whcf;
 	unsigned whf;
 
-	//! Comparison operator
-	inline bool operator == (const VideoSize& sz)
+	//! Constuctros
+	VideoSize(void)
+		: width(0), height(0), frames(0), channels(0)
+	{
+		update_fields();
+	}
+
+	VideoSize(unsigned w, unsigned h, unsigned f, unsigned c)
+		: width(w), height(h), frames(f), channels(c)
+	{
+		update_fields();
+	}
+
+	//! Comparison operators
+	inline bool operator == (const VideoSize& sz) const
 	{
 		return (width    == sz.width     &&
 		        height   == sz.height    &&
@@ -54,7 +67,7 @@ struct VideoSize
 		        frames   == sz.frames    );
 	}
 
-	inline bool operator != (const VideoSize& sz)
+	inline bool operator != (const VideoSize& sz) const
 	{ 
 		return !operator==(sz);
 	}
@@ -69,7 +82,7 @@ struct VideoSize
 	}
 
 	//! Returns index
-	inline signed index(unsigned x, unsigned y, unsigned t, unsigned c) const
+	inline unsigned index(unsigned x, unsigned y, unsigned t, unsigned c) const
 	{
 		assert(x < width && y < height && t < frames && c < channels);
 		return t*whc + c*wh + y*width + x;
@@ -107,13 +120,7 @@ struct VideoSize
 /**
  * @brief A video class template with very basic functionalities.
  *
- * @param width    : width of the video;
- * @param height   : height of the video;
- * @param channels : number of channels in the video;
- * @param frames   : number of frames in the video;
- * @param wh       : equal to width * height. Provided for convenience;
- * @param whc      : equal to width * height * channels. Provided for convenience.
- * @param whcf     : equal to width * height * frames * channels. Provided for convenience.
+ * @param sz       : VideoSize structure with size of the video;
  * @param data     : pointer to an std::vector<T> containing the data
  **/
 template <class T>
@@ -122,14 +129,7 @@ class Video
 	public:
 
 		//! Size
-		unsigned width;
-		unsigned height;
-		unsigned frames;
-		unsigned channels;
-		unsigned wh;
-		unsigned whc;
-		unsigned whcf;
-		unsigned whf;
+		VideoSize sz;
 
 		//! Data
 		std::vector<T> data;
@@ -171,44 +171,18 @@ class Video
 		               T i_pmin = 0, T i_pmax = 255) const;
 		void saveVideoAscii(const std::string i_prefix, 
 		                    unsigned i_firstFrame, unsigned i_frameStep = 1) const;
-
-		//! Utilities
-		unsigned index(unsigned x, unsigned y, unsigned t, unsigned c) const;
-		void coords(unsigned index, unsigned& x, unsigned& y, unsigned& t, unsigned& c) const;
-
-		VideoSize size(void) const
-		{
-			VideoSize sz = {width, height, frames, channels, wh, whc, whcf, whf};
-			return sz; 
-		}
 };
 
 // Implementations
 
 template <class T> 
 Video<T>::Video(void)
-	: width(0)
-	, height(0)
-	, frames(0)
-	, channels(0)
-	, wh(0)
-	, whc(0)
-	, whcf(0)
-	, whf(0)
-	, data(0)
+	: sz(), data(0)
 { }
 	
 template <class T> 
 Video<T>::Video(const Video& i_in)
-	: width(i_in.width)
-	, height(i_in.height)
-	, frames(i_in.frames)
-	, channels(i_in.channels)
-	, wh(i_in.wh)
-	, whc(i_in.whc)
-	, whcf(i_in.whcf)
-	, whf(i_in.whf)
-	, data(i_in.data)
+	: sz(i_in.sz), data(i_in.data)
 { }
 
 template <class T> 
@@ -217,16 +191,7 @@ Video<T>::Video(
 ,	unsigned i_firstFrame
 ,	unsigned i_lastFrame
 ,	unsigned i_frameStep
-)
-	: width(0)
-	, height(0)
-	, frames(0)
-	, channels(0)
-	, wh(0)
-	, whc(0)
-	, whcf(0)
-	, whf(0)
-	, data(0)
+) : sz(), data(0)
 {
 	loadVideo(i_pathToFiles, i_firstFrame, i_lastFrame, i_frameStep);
 }
@@ -238,15 +203,8 @@ Video<T>::Video(
 ,	unsigned i_frames
 ,	unsigned i_channels
 )
-	: width(i_width)
-	, height(i_height)
-	, frames(i_frames)
-	, channels(i_channels)
-	, wh(width * height)
-	, whc(width * height * channels)
-	, whcf(width * height * channels * frames)
-	, whf(width * height * frames)
-	, data(whcf)
+	: sz(i_width, i_height, i_frames, i_channels)
+	, data(sz.whcf)
 { }
 
 template <class T> 
@@ -257,57 +215,44 @@ Video<T>::Video(
 ,	unsigned i_channels
 ,	T val
 )
-	: width(i_width)
-	, height(i_height)
-	, frames(i_frames)
-	, channels(i_channels)
-	, wh(width * height)
-	, whc(width * height * channels)
-	, whcf(width * height * channels * frames)
-	, whf(width * height * frames)
-	, data(whcf, val)
+	: sz(i_width, i_height, i_frames, i_channels)
+	, data(sz.whcf, val)
 { }
 	
 template <class T> 
 Video<T>::Video(const VideoSize& i_size, T val)
-	: width(i_size.width)
-	, height(i_size.height)
-	, frames(i_size.frames)
-	, channels(i_size.channels)
-	, wh(width * height)
-	, whc(width * height * channels)
-	, whcf(width * height * channels * frames)
-	, whf(width * height * frames)
-	, data(whcf, val)
+	: sz(i_size)
+	, data(sz.whcf, val)
 { }
 	
 template <class T> 
 Video<T>::Video(const VideoSize& i_size)
-	: width(i_size.width)
-	, height(i_size.height)
-	, frames(i_size.frames)
-	, channels(i_size.channels)
-	, wh(width * height)
-	, whc(width * height * channels)
-	, whcf(width * height * channels * frames)
-	, whf(width * height * frames)
-	, data(whcf)
+	: sz(i_size)
+	, data(sz.whcf)
 { }
 	
 template <class T> 
 void Video<T>::clear(void)
 {
-	width = 0;
-	height = 0;
-	frames = 0;
-	channels = 0;
-	wh = 0;
-	whc = 0;
-	whcf = 0;
-	whf = 0;
+	sz.width = 0;
+	sz.height = 0;
+	sz.frames = 0;
+	sz.channels = 0;
+	sz.update_fields();
 	data.clear();
 }
-	
+
+template <class T> 
+void Video<T>::resize(const VideoSize& i_size)
+{
+	if (sz != i_size)
+	{
+		clear();
+		sz = i_size;
+		data.resize(sz.whcf);
+	}
+}
+
 template <class T> 
 void Video<T>::resize(
 	unsigned i_width
@@ -315,31 +260,9 @@ void Video<T>::resize(
 ,	unsigned i_frames
 ,	unsigned i_channels
 ){
-	if (width != i_width ||
-	    height != i_height ||
-	    frames != i_frames ||
-	    channels != i_channels ) 
-	{
-		clear();
-
-		width = i_width;
-		height = i_height;
-		frames = i_frames;
-		channels = i_channels;
-		wh = width * height;
-		whc = wh * channels;
-		whcf = whc * frames;
-		whf = wh * frames;
-		data.resize(whcf);
-	}
+	resize(VideoSize(i_width, i_height, i_frames, i_channels));
 }
 	
-template <class T> 
-void Video<T>::resize(const VideoSize& i_size)
-{
-	resize(i_size.width, i_size.height, i_size.frames, i_size.channels);
-}
-
 template <class T> 
 void Video<T>::loadVideo(
     const std::string i_pathToFiles
@@ -373,17 +296,14 @@ void Video<float>::loadVideo(
 					std::string(filename) + " failed");
 
 		//! set size
-		width    = frameSize.width;
-		height   = frameSize.height;
-		channels = frameSize.nChannels;
-		frames   = (i_lastFrame - i_firstFrame + 1)/i_frameStep;
-		wh       = width * height;
-		whc      = width * height * channels;
-		whcf     = width * height * channels * frames;
-		whf      = width * height * frames;
+		sz.width    = frameSize.width;
+		sz.height   = frameSize.height;
+		sz.channels = frameSize.nChannels;
+		sz.frames   = (i_lastFrame - i_firstFrame + 1)/i_frameStep;
+		sz.update_fields();
 		
 		//! allocate
-		data.resize(whcf);
+		data.resize(sz.whcf);
 
 		//! copy data in first frame
 		p_data = std::copy(frame.begin(), frame.end(), data.begin());
@@ -403,9 +323,9 @@ void Video<float>::loadVideo(
 			throw std::runtime_error("Video<T>::loadVideo: loading of " + 
 					std::string(filename) + " failed");
 
-		if (frameSize.width != width ||
-		    frameSize.height != height ||
-		    frameSize.nChannels != channels)
+		if (frameSize.width != sz.width ||
+		    frameSize.height != sz.height ||
+		    frameSize.nChannels != sz.channels)
 			throw std::runtime_error("Video<T>::loadVideo: size of " + 
 					std::string(filename) + " does not match video size");
 
@@ -439,19 +359,19 @@ void Video<float>::saveVideo(
 
 	//! size structure for frames
 	ImageSize frameSize;
-	frameSize.width     = width;
-	frameSize.height    = height;
-	frameSize.nChannels = channels;
-	frameSize.wh        = width * height;
-	frameSize.whc       = width * height * channels;
+	frameSize.width     = sz.width;
+	frameSize.height    = sz.height;
+	frameSize.nChannels = sz.channels;
+	frameSize.wh        = sz.wh;
+	frameSize.whc       = sz.whc;
 
-	unsigned lastFrame = i_firstFrame + frames * i_frameStep;
-	std::vector<float> frame(whc);
+	unsigned lastFrame = i_firstFrame + sz.frames * i_frameStep;
+	std::vector<float> frame(sz.whc);
 	std::vector<float>::const_iterator p_data = data.begin();
-	for (unsigned f = i_firstFrame; f < lastFrame; f += i_frameStep, p_data += whc)
+	for (unsigned f = i_firstFrame; f < lastFrame; f += i_frameStep, p_data += sz.whc)
 	{
 		//! copy data to frame // FIXME: avoidable memcpy
-		std::copy(p_data, p_data + whc, frame.begin());
+		std::copy(p_data, p_data + sz.whc, frame.begin());
 
 		//! file name
 		char filename[1024];
@@ -481,12 +401,13 @@ void Video<float>::saveVideoAscii(
 ,	unsigned i_firstFrame
 ,	unsigned i_frameStep
 ) const {
+
 	char channel[32], frame[32];
 
-	int C = channels;
-	int F = frames;
-	int W = width;
-	int H = height;
+	int C = sz.channels;
+	int F = sz.frames;
+	int W = sz.width;
+	int H = sz.height;
 
 	for (size_t c = 0; c < C; ++c)
 	for (size_t f = 0; f < F; ++f)
@@ -497,7 +418,7 @@ void Video<float>::saveVideoAscii(
 		std::string filename = i_prefix + channel + frame + ".asc";
 		std::FILE *const nfile = std::fopen(filename.c_str(),"w");
 
-		unsigned idx = index(0,0,f,c);
+		unsigned idx = sz.index(0,0,f,c);
 		for (size_t y = 0; y < H; ++y)
 		{
 			for (size_t x = 0; x < W; ++x, ++idx)
@@ -513,7 +434,7 @@ void Video<float>::saveVideoAscii(
 template <class T>
 inline T& Video<T>::operator () (unsigned idx) 
 {
-	assert(idx < whcf);
+	assert(idx < sz.whcf);
 	return data[idx];
 }
 
@@ -524,7 +445,7 @@ inline T& Video<T>::operator() (
 ,	unsigned t
 ,	unsigned c
 ){
-	return data[index(x,y,t,c)];
+	return data[sz.index(x,y,t,c)];
 }
 
 template <class T>
@@ -541,7 +462,7 @@ inline T Video<T>::operator() (
 ,	unsigned t
 ,	unsigned c
 ) const {
-	return data[index(x,y,t,c)];
+	return data[sz.index(x,y,t,c)];
 }
 
 template <class T>
@@ -552,15 +473,15 @@ inline T& Video<T>::getPixelSymmetric(
 ,	unsigned c
 ) {
 	// NOTE: assumes that -width+1 < x < 2*(width -1)
-	assert(-(int)width   < x && x < 2*(int)width -1&&
-	       -(int)height  < y && y < 2*(int)height-1&&
-	       -(int)frames  < t && t < 2*(int)frames-1);
+	assert(-(int)sz.width   < x && x < 2*(int)sz.width -1&&
+	       -(int)sz.height  < y && y < 2*(int)sz.height-1&&
+	       -(int)sz.frames  < t && t < 2*(int)sz.frames-1);
 	// symmetrize
-	x = (x < 0) ? -x : (x >= (int)width  ) ? 2*(int)width  - 2 - x : x ;
-	y = (y < 0) ? -y : (y >= (int)height ) ? 2*(int)height - 2 - y : y ;
-	t = (t < 0) ? -t : (t >= (int)frames ) ? 2*(int)frames - 2 - t : t ;
+	x = (x < 0) ? -x : (x >= (int)sz.width  ) ? 2*(int)sz.width  - 2 - x : x ;
+	y = (y < 0) ? -y : (y >= (int)sz.height ) ? 2*(int)sz.height - 2 - y : y ;
+	t = (t < 0) ? -t : (t >= (int)sz.frames ) ? 2*(int)sz.frames - 2 - t : t ;
 
-	return data[index(x,y,t,c)];
+	return data[sz.index(x,y,t,c)];
 }
 
 template <class T>
@@ -571,44 +492,15 @@ inline T Video<T>::getPixelSymmetric(
 ,	unsigned c
 ) const {
 	// NOTE: assumes that -width+1 < x < 2*(width -1)
-	assert(-(int)width   < x && x < 2*(int)width  - 1 &&
-	       -(int)height  < y && y < 2*(int)height - 1 &&
-	       -(int)frames  < t && t < 2*(int)frames - 1 );
+	assert(-(int)sz.width   < x && x < 2*(int)sz.width  - 1 &&
+	       -(int)sz.height  < y && y < 2*(int)sz.height - 1 &&
+	       -(int)sz.frames  < t && t < 2*(int)sz.frames - 1 );
 	// symmetrize
-	x = (x < 0) ? -x : (x >= (int)width  ) ? 2*(int)width  - 2 - x : x ;
-	y = (y < 0) ? -y : (y >= (int)height ) ? 2*(int)height - 2 - y : y ;
-	t = (t < 0) ? -t : (t >= (int)frames ) ? 2*(int)frames - 2 - t : t ;
+	x = (x < 0) ? -x : (x >= (int)sz.width  ) ? 2*(int)sz.width  - 2 - x : x ;
+	y = (y < 0) ? -y : (y >= (int)sz.height ) ? 2*(int)sz.height - 2 - y : y ;
+	t = (t < 0) ? -t : (t >= (int)sz.frames ) ? 2*(int)sz.frames - 2 - t : t ;
 
-	return data[index(x,y,t,c)];
-}
-
-template <class T> inline
-unsigned Video<T>::index(
-	unsigned x
-,	unsigned y
-,	unsigned t
-,	unsigned c
-) const {
-	assert(x < width && y < height && t < frames && c < channels);
-	return t*whc + c*wh + y*width + x;
-}
-
-template <class T> inline
-void Video<T>::coords(
-	unsigned idx
-,	unsigned& x
-,	unsigned& y
-,	unsigned& t
-,	unsigned& c
-) const {
-	assert(idx < whcf);
-	t = (idx      ) / whc;
-	c = (idx % whc) / wh ;
-	y = (idx % wh ) / width;
-	x = (idx % width  );
-//	c = (idx - t*whc)  / wh;
-//	y = (idx - t*whc - c*wh)  / width;
-//	x = (idx - t*whc - c*wh - y*width) ;
+	return data[sz.index(x,y,t,c)];
 }
 
 //! Utilities for video
@@ -639,7 +531,7 @@ namespace VideoUtils
 		mt_init_genrand(0); printf("Warning: random generator seed is 0 ");
 
 		//! Add noise
-		for (unsigned k = 0; k < i_vid.whcf; k++)
+		for (unsigned k = 0; k < i_vid.sz.whcf; k++)
 		{
 			const double a = mt_genrand_res53();
 			const double b = mt_genrand_res53();
@@ -667,15 +559,15 @@ namespace VideoUtils
 	,   float &o_psnr
 	,   float &o_rmse
 	){
-		if (i_vid1.size() != i_vid2.size())
+		if (i_vid1.sz != i_vid2.sz)
 			throw std::runtime_error("VideoUtils::computePSNR: videos have different sizes");
 
 		float sum = 0.f;
-		for (unsigned k = 0; k < i_vid1.whcf; k++)
+		for (unsigned k = 0; k < i_vid1.sz.whcf; k++)
 			sum += ((float)i_vid1(k) - (float)i_vid2(k)) *
 			       ((float)i_vid1(k) - (float)i_vid2(k));
 
-		o_rmse = sqrtf(sum / (float) i_vid1.whcf);
+		o_rmse = sqrtf(sum / (float) i_vid1.sz.whcf);
 		o_psnr = 20.f * log10f(255.f / o_rmse);
 
 		return;
@@ -701,11 +593,11 @@ namespace VideoUtils
 	,   const T p_min = 0.f
 	,   const T p_max = 255.f
 	){
-		if (i_vid1.size() != i_vid2.size())
+		if (i_vid1.sz != i_vid2.sz)
 			throw std::runtime_error("VideoUtils::computeDiff: videos have different sizes");
 
-		o_vidDiff.resize(i_vid1.size());
-		for (unsigned k = 0; k < i_vid1.whcf; k++)
+		o_vidDiff.resize(i_vid1.sz);
+		for (unsigned k = 0; k < i_vid1.sz.whcf; k++)
 		{
 			float value =  ((float)i_vid1(k) - (float)i_vid2(k) + p_sigma) * p_max / (2.f * p_sigma);
 			o_vidDiff(k) = clip(value, p_min, p_max);
@@ -733,18 +625,18 @@ namespace VideoUtils
 	,	int p_origin_x = INT_MAX
 	,	int p_origin_y = INT_MAX
 	){
-		assert(o_vid2.channels == i_vid1.channels);
+		assert(o_vid2.sz.channels == i_vid1.sz.channels);
 
 		//! Redefine invalid origin coordinates to default (centered crop)
-		if (p_origin_t > (int)i_vid1.frames) p_origin_t = ((int)i_vid1.frames - (int)o_vid2.frames)/2;
-		if (p_origin_x > (int)i_vid1.width ) p_origin_x = ((int)i_vid1.width  - (int)o_vid2.width )/2;
-		if (p_origin_y > (int)i_vid1.height) p_origin_y = ((int)i_vid1.height - (int)o_vid2.height)/2;
+		if (p_origin_t > (int)i_vid1.sz.frames) p_origin_t = ((int)i_vid1.sz.frames - (int)o_vid2.sz.frames)/2;
+		if (p_origin_x > (int)i_vid1.sz.width ) p_origin_x = ((int)i_vid1.sz.width  - (int)o_vid2.sz.width )/2;
+		if (p_origin_y > (int)i_vid1.sz.height) p_origin_y = ((int)i_vid1.sz.height - (int)o_vid2.sz.height)/2;
 
 		// TODO: more efficient implementation
-		for (int      f = 0; f < o_vid2.frames  ; f++)
-		for (unsigned c = 0; c < o_vid2.channels; c++)
-		for (int      y = 0; y < o_vid2.height  ; y++)
-		for (int      x = 0; x < o_vid2.width   ; x++)
+		for (int      f = 0; f < o_vid2.sz.frames  ; f++)
+		for (unsigned c = 0; c < o_vid2.sz.channels; c++)
+		for (int      y = 0; y < o_vid2.sz.height  ; y++)
+		for (int      x = 0; x < o_vid2.sz.width   ; x++)
 			o_vid2(x,y,f,c) = 
 				i_vid1.getPixelSymmetric(x + p_origin_x, y + p_origin_y, f + p_origin_t, c);
 	}
@@ -786,10 +678,10 @@ namespace VideoUtils
 	,	const bool p_isForward
 	){
 		//! Sizes
-		const unsigned w2 = i_vid1.width  + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
-		const unsigned h2 = i_vid1.height + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
-		const unsigned f2 = i_vid1.frames + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
-		const unsigned ch = i_vid1.channels;
+		const unsigned w2 = i_vid1.sz.width  + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
+		const unsigned h2 = i_vid1.sz.height + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
+		const unsigned f2 = i_vid1.sz.frames + (p_isForward ? 2*p_borderSize : - 2*p_borderSize);
+		const unsigned ch = i_vid1.sz.channels;
 
 		//! Position of vid2 origin in vid1 coordinates
 		const int tx = p_isForward ? -p_borderSize : p_borderSize;
@@ -817,20 +709,20 @@ namespace VideoUtils
 	,	const bool p_isForward
 	){
 		//! If the image as only one channel, do nothing
-		if (io_vid.channels == 1) return;
+		if (io_vid.sz.channels == 1) return;
 
 		//! Initialization
-		const unsigned width  = io_vid.width;
-		const unsigned height = io_vid.height;
-		const unsigned chnls  = io_vid.channels;
-		const unsigned wh     = io_vid.wh;
+		const unsigned width  = io_vid.sz.width;
+		const unsigned height = io_vid.sz.height;
+		const unsigned chnls  = io_vid.sz.channels;
+		const unsigned wh     = io_vid.sz.wh;
 
-		for (int f = 0; f < io_vid.frames; f++)
+		for (int f = 0; f < io_vid.sz.frames; f++)
 			if (p_isForward) //< RGB to YUV
 			{
 				if (chnls == 3)
 				{
-					const unsigned red   = f * io_vid.whc;
+					const unsigned red   = f * io_vid.sz.whc;
 					const unsigned green = red + wh;
 					const unsigned blue  = green + wh;
 					const float a = 1.f / sqrtf(3.f);
@@ -852,7 +744,7 @@ namespace VideoUtils
 				}
 				else //< chnls == 4
 				{
-					const unsigned Gr = f * io_vid.whc;
+					const unsigned Gr = f * io_vid.sz.whc;
 					const unsigned R  = Gr + wh;
 					const unsigned B  = R  + wh;
 					const unsigned Gb = B  + wh;
@@ -879,7 +771,7 @@ namespace VideoUtils
 			{
 				if (chnls == 3)
 				{
-					const unsigned red   = f * io_vid.whc;
+					const unsigned red   = f * io_vid.sz.whc;
 					const unsigned green = red + wh;
 					const unsigned blue  = green + wh;
 					const float a = 1.f / sqrtf(3.f);
@@ -901,7 +793,7 @@ namespace VideoUtils
 				}
 				else //! chnls == 4
 				{
-					const unsigned Gr = f * io_vid.whc;
+					const unsigned Gr = f * io_vid.sz.whc;
 					const unsigned R  = Gr + wh;
 					const unsigned B  = R  + wh;
 					const unsigned Gb = B  + wh;
@@ -950,15 +842,15 @@ namespace VideoUtils
 		//! Determine number of sub-images
 		unsigned nW, nH;
 		determineFactor(p_nb, nW, nH);
-		const unsigned wTmp = ceil(float(i_vid.width ) / float(nW)); // sizes w/out 
-		const unsigned hTmp = ceil(float(i_vid.height) / float(nH)); //     borders
+		const unsigned wTmp = ceil(float(i_vid.sz.width ) / float(nW)); // sizes w/out 
+		const unsigned hTmp = ceil(float(i_vid.sz.height) / float(nH)); //     borders
 
 		//! Obtain sub-images
 		VideoSize imSubSize;
 		imSubSize.width    = wTmp + 2 * p_N; // each sub-image has border
 		imSubSize.height   = hTmp + 2 * p_N;
-		imSubSize.frames   = i_vid.frames; // NOTE: same frames as original
-		imSubSize.channels = i_vid.channels;
+		imSubSize.frames   = i_vid.sz.frames; // NOTE: same frames as original
+		imSubSize.channels = i_vid.sz.channels;
 		imSubSize.update_fields();
 
 		o_vidSub.resize(p_nb);
@@ -1000,16 +892,16 @@ namespace VideoUtils
 		 *       time. */
 
 		assert(i_vidSub.size());
-		assert(i_vidSub[0].whcf);
-		assert(o_vid.whcf);
-		assert(o_vid.frames   == i_vidSub[0].frames  );
-		assert(o_vid.channels == i_vidSub[0].channels);
+		assert(i_vidSub[0].sz.whcf);
+		assert(o_vid.sz.whcf);
+		assert(o_vid.sz.frames   == i_vidSub[0].sz.frames  );
+		assert(o_vid.sz.channels == i_vidSub[0].sz.channels);
 
 		//! Determine width and height composition
 		unsigned nW, nH;
 		determineFactor(i_vidSub.size(), nW, nH);
-		const unsigned hTmp = i_vidSub[0].height - 2 * p_N;
-		const unsigned wTmp = i_vidSub[0].width  - 2 * p_N;
+		const unsigned hTmp = i_vidSub[0].sz.height - 2 * p_N;
+		const unsigned wTmp = i_vidSub[0].sz.width  - 2 * p_N;
 
 		//! Obtain inner image (containing boundaries)
 		// TODO pending decision for video
@@ -1030,11 +922,11 @@ namespace VideoUtils
 			 *           [qx,qy] point on big image
 			 *           [sx,sy] corresponding point on sub-image
 			 */
-			unsigned wmax = std::min(wTmp, o_vid.width  - px) + p_N;
-			unsigned hmax = std::min(hTmp, o_vid.height - py) + p_N;
+			unsigned wmax = std::min(wTmp, o_vid.sz.width  - px) + p_N;
+			unsigned hmax = std::min(hTmp, o_vid.sz.height - py) + p_N;
 
-			for (unsigned f = 0; f < o_vid.frames  ; f++)
-			for (unsigned c = 0; c < o_vid.channels; c++)
+			for (unsigned f = 0; f < o_vid.sz.frames  ; f++)
+			for (unsigned c = 0; c < o_vid.sz.channels; c++)
 			for (unsigned sy = p_N, qy = py; sy < hmax; sy++, qy++)
 			for (unsigned sx = p_N, qx = px; sx < wmax; sx++, qx++)
 				o_vid(qx, qy, f, c) = i_vidSub[n](sx, sy, f, c);
