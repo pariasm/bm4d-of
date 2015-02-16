@@ -9,7 +9,6 @@ add_library(videoNlBayes SHARED
 	../Utilities/io_png.c
 	../Utilities/LibImages.cpp
 	../Utilities/LibVideo.cpp
-	../Utilities/LibVideoT.hpp
 	../Utilities/LibVideoUtils.cpp
 	../Utilities/mt19937ar.c
 	../Utilities/Utilities.cpp
