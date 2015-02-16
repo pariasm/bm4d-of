@@ -18,9 +18,13 @@
 #include <cassert>
 #include <climits>
 #include <stdexcept>
+#include <cstdio>
 
 #include <math.h>
+
+#include "LibImages.h"
 #include "mt19937ar.h"
+#include "Utilities.h"
 
 /**
  * @brief Structure containing size informations of a video.

@@ -13,7 +13,8 @@
 #ifndef VIDEO_NL_BAYES_H_INCLUDED
 #define VIDEO_NL_BAYES_H_INCLUDED
 
-#include "../Utilities/LibVideo.h"
+//#include "../Utilities/LibVideo.h"
+#include "../Utilities/LibVideoT.hpp"
 #include "../Utilities/Utilities.h"
 
 namespace VideoNLB
@@ -125,9 +126,9 @@ void printNlbParameters(
  * @return EXIT_FAILURE if something wrong happens during the whole process.
  **/
 int runNlBayes(
-	Video_f32 const& i_imNoisy
-,	Video_f32 &o_imBasic
-,	Video_f32 &o_imFinal
+	Video<float> const& i_imNoisy
+,	Video<float> &o_imBasic
+,	Video<float> &o_imFinal
 ,	const bool p_useArea1
 ,	const bool p_useArea2
 ,	const float p_sigma
@@ -148,9 +149,9 @@ int runNlBayes(
  * @return EXIT_FAILURE if something wrong happens during the whole process.
  **/
 int runNlBayes(
-	Video_f32 const& i_imNoisy
-,	Video_f32 &o_imBasic
-,	Video_f32 &o_imFinal
+	Video<float> const& i_imNoisy
+,	Video<float> &o_imBasic
+,	Video<float> &o_imFinal
 ,	const nlbParams& p_params1
 ,	const nlbParams& p_params2
 );
@@ -177,9 +178,9 @@ int runNlBayes(
  * @return none.
  **/
 void processNlBayes(
-	Video_f32 const& i_imNoisy
-,	Video_f32 &io_imBasic
-,	Video_f32 &o_imFinal
+	Video<float> const& i_imNoisy
+,	Video<float> &io_imBasic
+,	Video<float> &o_imFinal
 ,	nlbParams const& p_params
 );
 
@@ -195,7 +196,7 @@ void processNlBayes(
  * @return none.
  **/
 void estimateSimilarPatchesStep1(
-	Video_f32 const& i_im
+	Video<float> const& i_im
 ,	std::vector<std::vector<float> > &o_group3d
 ,	std::vector<unsigned> &o_index
 ,	const unsigned p_ij
@@ -216,8 +217,8 @@ void estimateSimilarPatchesStep1(
  * @return number of similar patches kept.
  **/
 unsigned estimateSimilarPatchesStep2(
-	Video_f32 const& i_imNoisy
-,	Video_f32 const& i_imBasic
+	Video<float> const& i_imNoisy
+,	Video<float> const& i_imBasic
 ,	std::vector<float> &o_group3dNoisy
 ,	std::vector<float> &o_group3dBasic
 ,	std::vector<unsigned> &o_index
@@ -331,8 +332,8 @@ void computeBayesEstimateStep2(
  * @return none.
  **/
 void computeAggregationStep1(
-	Video_f32 &io_im
-,	Video_f32 &io_weight
+	Video<float> &io_im
+,	Video<float> &io_weight
 ,	std::vector<bool> &io_mask
 ,	std::vector<std::vector<float> > const& i_group3d
 ,	std::vector<unsigned> const& i_index
@@ -353,8 +354,8 @@ void computeAggregationStep1(
  * @return none.
  **/
 void computeAggregationStep2(
-	Video_f32 &io_im
-,	Video_f32 &io_weight
+	Video<float> &io_im
+,	Video<float> &io_weight
 ,	std::vector<bool> &io_mask
 ,	std::vector<float> const& i_group3d
 ,	std::vector<unsigned> const& i_index
@@ -372,9 +373,9 @@ void computeAggregationStep2(
  * @return none.
  **/
 void computeWeightedAggregation(
-	Video_f32 const& i_im
-,	Video_f32 &io_im
-,	Video_f32 const& i_weight
+	Video<float> const& i_im
+,	Video<float> &io_im
+,	Video<float> const& i_weight
 );
 
 } // namespace

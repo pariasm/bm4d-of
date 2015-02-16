@@ -76,7 +76,7 @@ int main(int argc, char **argv)
 	}
 
 	//! Declarations
-	Video_f32 original, noisy, basic, final, diff;
+	Video<float> original, noisy, basic, final, diff;
 
 	//! Load original video
 	original.loadVideo(input_path, firstFrame, lastFrame, frameStep);
@@ -94,8 +94,8 @@ int main(int argc, char **argv)
 	//! Denoising
 	if (verbose) printf("Running Video NL-Bayes on the noisy video\n");
 	VideoNLB::nlbParams prms1, prms2;
-	VideoNLB::initializeNlbParameters(prms1, 1, sigma, noisy.size(), flat_area1, verbose, time_search_fwd, time_search_bwd);
-	VideoNLB::initializeNlbParameters(prms2, 2, sigma, noisy.size(), flat_area2, verbose, time_search_fwd, time_search_bwd);
+	VideoNLB::initializeNlbParameters(prms1, 1, sigma, noisy.sz, flat_area1, verbose, time_search_fwd, time_search_bwd);
+	VideoNLB::initializeNlbParameters(prms2, 2, sigma, noisy.sz, flat_area2, verbose, time_search_fwd, time_search_bwd);
 	VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2);
 
 	//! Compute PSNR and RMSE
@@ -125,7 +125,7 @@ int main(int argc, char **argv)
 
 #if 0
 	//! Computing bias sequence
-	Video_f32 bias, bias_basic, bias_diff;
+	Video<float> bias, bias_basic, bias_diff;
 	if (do_bias) {
 		if (verbose) cout << "Applying NL-Bayes to the original image :" << endl;
 

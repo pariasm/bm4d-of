@@ -187,16 +187,16 @@ void printNlbParameters(
  * @return EXIT_FAILURE if something wrong happens during the whole process.
  **/
 int runNlBayes(
-	Video_f32 const& i_noisy
-,	Video_f32 &o_basic
-,	Video_f32 &o_final
+	Video<float> const& i_noisy
+,	Video<float> &o_basic
+,	Video<float> &o_final
 ,	const bool p_useArea1
 ,	const bool p_useArea2
 ,	const float p_sigma
 ,	const bool p_verbose
 ){
 	//! Video size
-	VideoSize size = i_noisy.size();
+	VideoSize size = i_noisy.sz;
 
 	//! Parameters Initialization
 	nlbParams p_prms1, p_prms2;
@@ -227,14 +227,14 @@ int runNlBayes(
  * @return EXIT_FAILURE if something wrong happens during the whole process.
  **/
 int runNlBayes(
-	Video_f32 const& i_imNoisy
-,	Video_f32 &o_imBasic
-,	Video_f32 &o_imFinal
+	Video<float> const& i_imNoisy
+,	Video<float> &o_imBasic
+,	Video<float> &o_imFinal
 ,	const nlbParams& p_prms1
 ,	const nlbParams& p_prms2
 ){
 	//! Only 1, 3 or 4-channels images can be processed.
-	const unsigned chnls = i_imNoisy.channels;
+	const unsigned chnls = i_imNoisy.sz.channels;
 	if (! (chnls == 1 || chnls == 3 || chnls == 4))
 		throw std::runtime_error("VideoNLB::runNlBayes: Wrong number of "
 				"channels. Must be 1, 3 or 4.");
@@ -248,7 +248,7 @@ int runNlBayes(
 	const unsigned nParts = 2 * nThreads;
 
 	//! Video size
-	VideoSize imSize = i_imNoisy.size();
+	VideoSize imSize = i_imNoisy.sz;
 
 	//! Initialization
 	o_imBasic.resize(imSize);
@@ -263,17 +263,17 @@ int runNlBayes(
 		if (p_prms1.verbose) printf("1st Step\n");
 
 		//! RGB to YUV
-		Video_f32 imNoisy = i_imNoisy;
+		Video<float> imNoisy = i_imNoisy;
 		VideoUtils::transformColorSpace(imNoisy, true);
 
 		//! Divide the noisy image into sub-images in order to easier parallelize the process
 		// ASK MARC: any suggestion on the best way to split the space time cube
-		std::vector<Video_f32> imNoisySub(nParts);
+		std::vector<Video<float> > imNoisySub(nParts);
 		VideoUtils::subDivide(imNoisy, imNoisySub, p_prms1.boundary, nParts);
 
 		//! Process all sub-images
-		std::vector<Video_f32> imBasicSub(nParts);
-		std::vector<Video_f32> imFinalSub(nParts);
+		std::vector<Video<float> > imBasicSub(nParts);
+		std::vector<Video<float> > imFinalSub(nParts);
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic, nParts/nThreads) \
 		shared(imNoisySub, imBasicSub, imFinalSub, imSizeSub) \
@@ -294,14 +294,14 @@ int runNlBayes(
 		if (p_prms2.verbose) printf("2nd Step\n");
 
 		//! Divide the noisy and basic images into sub-images in order to easier parallelize the process
-		std::vector<Video_f32> imNoisySub(nParts);
-		std::vector<Video_f32> imBasicSub(nParts);
+		std::vector<Video<float> > imNoisySub(nParts);
+		std::vector<Video<float> > imBasicSub(nParts);
 
 		VideoUtils::subDivide(i_imNoisy, imNoisySub, p_prms2.boundary, nParts);
 		VideoUtils::subDivide(o_imBasic, imBasicSub, p_prms2.boundary, nParts);
 
 		//! Process all sub-images
-		std::vector<Video_f32> imFinalSub(nParts);
+		std::vector<Video<float> > imFinalSub(nParts);
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic, nParts/nThreads) \
 		shared(imNoisySub, imBasicSub, imFinalSub) \
@@ -328,9 +328,9 @@ int runNlBayes(
  * @return none.
  **/
 void processNlBayes(
-	Video_f32 const& i_imNoisy
-,	Video_f32 &io_imBasic
-,	Video_f32 &o_imFinal
+	Video<float> const& i_imNoisy
+,	Video<float> &io_imBasic
+,	Video<float> &o_imFinal
 ,	nlbParams const& p_params
 ){
 	using std::vector;
@@ -344,22 +344,22 @@ void processNlBayes(
 
 	unsigned nInverseFailed = 0;
 	const float threshold = p_params.sigma * p_params.sigma * p_params.gamma *
-	                       (p_params.isFirstStep ? i_imNoisy.channels : 1.f);
+	                       (p_params.isFirstStep ? i_imNoisy.sz.channels : 1.f);
 
 	//! Weight sum per pixel // FIXME: only one channel
-	Video_f32 weight(i_imNoisy.size(), 0.f);
+	Video<float> weight(i_imNoisy.sz, 0.f);
 
 	//! Mask: true for pixels that still need to be processed
-	vector<bool> mask(i_imNoisy.wh * i_imNoisy.frames, false);
+	vector<bool> mask(i_imNoisy.sz.wh * i_imNoisy.sz.frames, false);
 
 	//! Only pixels of the center of the image must be processed (not the boundaries)
-	for (unsigned f =   0; f < i_imNoisy.frames      ; f++)
-	for (unsigned i = sWx; i < i_imNoisy.height - sWx; i++)
-	for (unsigned j = sWx; j < i_imNoisy.width  - sWx; j++)
-		mask[f * i_imNoisy.wh + i * i_imNoisy.width + j] = true;
+	for (unsigned f =   0; f < i_imNoisy.sz.frames      ; f++)
+	for (unsigned i = sWx; i < i_imNoisy.sz.height - sWx; i++)
+	for (unsigned j = sWx; j < i_imNoisy.sz.width  - sWx; j++)
+		mask[f * i_imNoisy.sz.wh + i * i_imNoisy.sz.width + j] = true;
 
 	//! Used matrices during Bayes' estimate
-	const unsigned patch_dim = step1 ? sP * sP : sP * sP * i_imNoisy.channels;
+	const unsigned patch_dim = step1 ? sP * sP : sP * sP * i_imNoisy.sz.channels;
 	const unsigned patch_num = step1 ? p_params.nSimilarPatches : sWx * sWx * sWt;
 
 	//! Matrices used for Bayes' estimate
@@ -374,22 +374,22 @@ void processNlBayes(
 	if (step1)
 	{
 		//! Allocate Sizes
-		io_imBasic.resize(i_imNoisy.size());
+		io_imBasic.resize(i_imNoisy.sz);
 
 		//! Matrices used for Bayes' estimate
-		vector<vector<float> > group3d(i_imNoisy.channels,
+		vector<vector<float> > group3d(i_imNoisy.sz.channels,
 				                         vector<float>(patch_num * patch_dim));
 
-		for (unsigned ij = 0; ij < i_imNoisy.whf; ij += p_params.offSet)
+		for (unsigned ij = 0; ij < i_imNoisy.sz.whf; ij += p_params.offSet)
 			if (mask[ij]) //< Only non-seen patches are processed
 			{
 				if (p_params.verbose && (ij % 10000 == 0))
 				{
-					printf("\rprocessing step1 %05.1f", (float)ij/(float)(i_imNoisy.whf)*100.f);
+					printf("\rprocessing step1 %05.1f", (float)ij/(float)(i_imNoisy.sz.whf)*100.f);
 					std::cout << std::flush;
 				}
 
-				const unsigned ij3 = (ij / i_imNoisy.wh) * i_imNoisy.whc + ij % i_imNoisy.wh;
+				const unsigned ij3 = (ij / i_imNoisy.sz.wh) * i_imNoisy.sz.whc + ij % i_imNoisy.sz.wh;
 
 				//! Search for similar patches around the reference one
 				estimateSimilarPatchesStep1(i_imNoisy, group3d, index, ij3, p_params);
@@ -398,7 +398,7 @@ void processNlBayes(
 				bool doBayesEstimate = true;
 				if (p_params.useHomogeneousArea)
 					doBayesEstimate = !computeHomogeneousAreaStep1(group3d, sP, patch_num,
-							threshold, i_imNoisy.size());
+							threshold, i_imNoisy.sz);
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
@@ -416,22 +416,22 @@ void processNlBayes(
 	else
 	{
 		//! Allocate Sizes
-		o_imFinal.resize(i_imNoisy.size());
+		o_imFinal.resize(i_imNoisy.sz);
 
 		//! Matrices used for Bayes' estimate
 		vector<float> group3dNoisy(patch_num * patch_dim);
 		vector<float> group3dBasic(patch_num * patch_dim);
 
-		for (unsigned ij = 0; ij < i_imNoisy.whf; ij += p_params.offSet)
+		for (unsigned ij = 0; ij < i_imNoisy.sz.whf; ij += p_params.offSet)
 			if (mask[ij]) //< Only non-seen patches are processed
 			{
 				if (p_params.verbose && (ij % 10000 == 0))
 				{
-					printf("\rprocessing step2 %05.1f", (float)ij/(float)(i_imNoisy.whf)*100.f);
+					printf("\rprocessing step2 %05.1f", (float)ij/(float)(i_imNoisy.sz.whf)*100.f);
 					std::cout << std::flush;
 				}
 
-				const unsigned ij3 = (ij / i_imNoisy.wh) * i_imNoisy.whc + ij % i_imNoisy.wh;
+				const unsigned ij3 = (ij / i_imNoisy.sz.wh) * i_imNoisy.sz.whc + ij % i_imNoisy.sz.wh;
 
 				//! Search for similar patches around the reference one
 				unsigned nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic,
@@ -441,12 +441,12 @@ void processNlBayes(
 				bool doBayesEstimate = true;
 				if (p_params.useHomogeneousArea)
 					doBayesEstimate = !computeHomogeneousAreaStep2(group3dNoisy,
-							group3dBasic, sP, nSimP, threshold, i_imNoisy.size());
+							group3dBasic, sP, nSimP, threshold, i_imNoisy.sz);
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
 					computeBayesEstimateStep2(group3dNoisy, group3dBasic, mat,
-							nInverseFailed, i_imNoisy.size(), p_params, nSimP);
+							nInverseFailed, i_imNoisy.sz, p_params, nSimP);
 
 				//! Aggregation
 				computeAggregationStep2(o_imFinal, weight, mask, group3dBasic,
@@ -475,7 +475,7 @@ void processNlBayes(
  * @return none.
  **/
 void estimateSimilarPatchesStep1(
-	Video_f32 const& i_im
+	Video<float> const& i_im
 ,	std::vector<std::vector<float> > &o_group3d
 ,	std::vector<unsigned> &o_index
 ,	const unsigned pidx
@@ -490,12 +490,12 @@ void estimateSimilarPatchesStep1(
 
 	//! Coordinates of center of search box
 	unsigned px, py, pt, pc;
-	i_im.coords(pidx, px, py, pt, pc);
+	i_im.sz.coords(pidx, px, py, pt, pc);
 
 	const unsigned rangex[2] = {px - (sWx - 1)/2, px + (sWx - 1)/2};
 	const unsigned rangey[2] = {py - (sWx - 1)/2, py + (sWx - 1)/2};
 	const unsigned ranget[2] = {std::max((int)pt - (int)sWt_b, 0),
-	                            std::min((int)pt + (int)sWt_f, (int)i_im.frames-1)};
+	                            std::min((int)pt + (int)sWt_f, (int)i_im.sz.frames-1)};
 
 	std::vector<std::pair<float, unsigned> > distance(sWx * sWx * 
 	                                            (ranget[1] - ranget[0] + 1));
@@ -517,7 +517,7 @@ void estimateSimilarPatchesStep1(
 
 		//! Save distance and corresponding patch index
 		distance[dt * sWx*sWx + dy * sWx + dx] = 
-			std::make_pair(diff, i_im.index(qx, qy, qt, 0));
+			std::make_pair(diff, i_im.sz.index(qx, qy, qt, 0));
 	}
 
 	//! Keep only the N2 best similar patches
@@ -528,9 +528,9 @@ void estimateSimilarPatchesStep1(
 	for (unsigned n = 0; n < nSimP; n++) o_index[n] = distance[n].second;
 
 	//! Stack selected patches into the 3D group
-	const unsigned w  = i_im.width;
-	const unsigned wh = i_im.wh;
-	for (unsigned c  = 0; c < i_im.channels; c++)
+	const unsigned w  = i_im.sz.width;
+	const unsigned wh = i_im.sz.wh;
+	for (unsigned c  = 0; c < i_im.sz.channels; c++)
 	for (unsigned hy = 0, k = 0; hy < sP; hy++)
 	for (unsigned hx = 0;        hx < sP; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
@@ -558,8 +558,8 @@ void estimateSimilarPatchesStep1(
  * @return number of similar patches kept.
  **/
 unsigned estimateSimilarPatchesStep2(
-	Video_f32 const& i_imNoisy
-,	Video_f32 const& i_imBasic
+	Video<float> const& i_imNoisy
+,	Video<float> const& i_imBasic
 ,	std::vector<float> &o_group3dNoisy
 ,	std::vector<float> &o_group3dBasic
 ,	std::vector<unsigned> &o_index
@@ -567,9 +567,9 @@ unsigned estimateSimilarPatchesStep2(
 ,	const nlbParams &p_params
 ){
 	//! Initialization
-	const unsigned width = i_imNoisy.width;
-	const unsigned chnls = i_imNoisy.channels;
-	const unsigned wh    = width * i_imNoisy.height;
+	const unsigned width = i_imNoisy.sz.width;
+	const unsigned chnls = i_imNoisy.sz.channels;
+	const unsigned wh    = width * i_imNoisy.sz.height;
 	const unsigned sP    = p_params.sizePatch;
 	const unsigned sWx   = p_params.sizeSearchWindow;
 	const unsigned sWt_f = p_params.sizeSearchTimeRangeFwd;
@@ -577,12 +577,12 @@ unsigned estimateSimilarPatchesStep2(
 
 	//! Coordinates of center of search box
 	unsigned px, py, pt, pc;
-	i_imBasic.coords(pidx, px, py, pt, pc);
+	i_imBasic.sz.coords(pidx, px, py, pt, pc);
 
 	const unsigned rangex[2] = {px - (sWx - 1)/2, px + (sWx - 1)/2};
 	const unsigned rangey[2] = {py - (sWx - 1)/2, py + (sWx - 1)/2};
 	const unsigned ranget[2] = {std::max((int)pt - (int)sWt_b, 0),
-	                            std::min((int)pt + (int)sWt_f, (int)i_imNoisy.frames-1)};
+	                            std::min((int)pt + (int)sWt_f, (int)i_imNoisy.sz.frames-1)};
 
 	std::vector<std::pair<float, unsigned> > distance(sWx * sWx * 
 	                                            (ranget[1] - ranget[0] + 1));
@@ -605,7 +605,7 @@ unsigned estimateSimilarPatchesStep2(
 
 		//! Save distance and corresponding patch index
 		distance[dt * sWx*sWx + dy * sWx + dx] = 
-			std::make_pair(diff, i_imBasic.index(qx, qy, qt, 0));
+			std::make_pair(diff, i_imBasic.sz.index(qx, qy, qt, 0));
 	}
 
 	//! Keep only the nSimilarPatches best similar patches
@@ -856,17 +856,17 @@ void computeBayesEstimateStep2(
  * @return none.
  **/
 void computeAggregationStep1(
-	Video_f32 &io_im
-,	Video_f32 &io_weight
+	Video<float> &io_im
+,	Video<float> &io_weight
 ,	std::vector<bool> &io_mask
 ,	std::vector<std::vector<float> > const& i_group3d
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
 ){
 	//! Parameters initializations
-	const unsigned chnls  = io_im.channels;
-	const unsigned width  = io_im.width;
-	const unsigned height = io_im.height;
+	const unsigned chnls  = io_im.sz.channels;
+	const unsigned width  = io_im.sz.width;
+	const unsigned height = io_im.sz.height;
 	const unsigned sP     = p_params.sizePatch;
 	const unsigned nSimP  = p_params.nSimilarPatches;
 
@@ -886,7 +886,7 @@ void computeAggregationStep1(
 		}
 
 		//! Use Paste Trick
-		const unsigned ind1 = (ind / io_im.whc) * io_im.wh + ind % io_im.wh;
+		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
 		io_mask[ind1] = false;
 
 		if (p_params.doPasteBoost)
@@ -914,8 +914,8 @@ void computeAggregationStep1(
  * @return none.
  **/
 void computeAggregationStep2(
-	Video_f32 &io_im
-,	Video_f32 &io_weight
+	Video<float> &io_im
+,	Video<float> &io_weight
 ,	std::vector<bool> &io_mask
 ,	std::vector<float> const& i_group3d
 ,	std::vector<unsigned> const& i_index
@@ -923,9 +923,9 @@ void computeAggregationStep2(
 ,	const unsigned p_nSimP
 ){
 	//! Parameters initializations
-	const unsigned chnls = io_im.channels;
-	const unsigned width = io_im.width;
-	const unsigned wh    = width * io_im.height;
+	const unsigned chnls = io_im.sz.channels;
+	const unsigned width = io_im.sz.width;
+	const unsigned wh    = width * io_im.sz.height;
 	const unsigned sP    = p_params.sizePatch;
 
 	//! Aggregate estimates
@@ -944,7 +944,7 @@ void computeAggregationStep2(
 		}
 
 		//! Apply Paste Trick
-		const unsigned ind1 = (ind / io_im.whc) * io_im.wh + ind % io_im.wh;
+		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
 		io_mask[ind1] = false;
 
 		if (p_params.doPasteBoost)
@@ -967,11 +967,11 @@ void computeAggregationStep2(
  * @return : none.
  **/
 void computeWeightedAggregation(
-	Video_f32 const& i_im
-,	Video_f32 &io_im
-,	Video_f32 const& i_weight
+	Video<float> const& i_im
+,	Video<float> &io_im
+,	Video<float> const& i_weight
 ){
-	for (unsigned k = 0; k < i_im.whcf; k++)
+	for (unsigned k = 0; k < i_im.sz.whcf; k++)
 		//! To avoid weighting problem (particularly near boundaries of the image)
 		if (i_weight(k) > 0.f) io_im(k) /= i_weight(k);
 		else                   io_im(k) /= i_im(k);
