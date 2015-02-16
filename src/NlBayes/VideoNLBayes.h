@@ -334,7 +334,7 @@ void computeBayesEstimateStep2(
 void computeAggregationStep1(
 	Video<float> &io_im
 ,	Video<float> &io_weight
-,	std::vector<bool> &io_mask
+,	Video<char>  &io_mask
 ,	std::vector<std::vector<float> > const& i_group3d
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams& p_params
@@ -356,7 +356,7 @@ void computeAggregationStep1(
 void computeAggregationStep2(
 	Video<float> &io_im
 ,	Video<float> &io_weight
-,	std::vector<bool> &io_mask
+,	Video<char>  &io_mask
 ,	std::vector<float> const& i_group3d
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams& p_params

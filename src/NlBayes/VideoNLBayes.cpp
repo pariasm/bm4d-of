@@ -350,13 +350,13 @@ void processNlBayes(
 	Video<float> weight(i_imNoisy.sz, 0.f);
 
 	//! Mask: true for pixels that still need to be processed
-	vector<bool> mask(i_imNoisy.sz.wh * i_imNoisy.sz.frames, false);
+	Video<char> mask(i_imNoisy.sz.width, i_imNoisy.sz.height, i_imNoisy.sz.frames, 1, false);
 
 	//! Only pixels of the center of the image must be processed (not the boundaries)
 	for (unsigned f =   0; f < i_imNoisy.sz.frames      ; f++)
-	for (unsigned i = sWx; i < i_imNoisy.sz.height - sWx; i++)
-	for (unsigned j = sWx; j < i_imNoisy.sz.width  - sWx; j++)
-		mask[f * i_imNoisy.sz.wh + i * i_imNoisy.sz.width + j] = true;
+	for (unsigned y = sWx; y < i_imNoisy.sz.height - sWx; y++)
+	for (unsigned x = sWx; x < i_imNoisy.sz.width  - sWx; x++)
+		mask(x,y,f) = true;
 
 	//! Used matrices during Bayes' estimate
 	const unsigned patch_dim = step1 ? sP * sP : sP * sP * i_imNoisy.sz.channels;
@@ -381,7 +381,7 @@ void processNlBayes(
 				                         vector<float>(patch_num * patch_dim));
 
 		for (unsigned ij = 0; ij < i_imNoisy.sz.whf; ij += p_params.offSet)
-			if (mask[ij]) //< Only non-seen patches are processed
+			if (mask(ij)) //< Only non-seen patches are processed
 			{
 				if (p_params.verbose && (ij % 10000 == 0))
 				{
@@ -423,7 +423,7 @@ void processNlBayes(
 		vector<float> group3dBasic(patch_num * patch_dim);
 
 		for (unsigned ij = 0; ij < i_imNoisy.sz.whf; ij += p_params.offSet)
-			if (mask[ij]) //< Only non-seen patches are processed
+			if (mask(ij)) //< Only non-seen patches are processed
 			{
 				if (p_params.verbose && (ij % 10000 == 0))
 				{
@@ -858,7 +858,7 @@ void computeBayesEstimateStep2(
 void computeAggregationStep1(
 	Video<float> &io_im
 ,	Video<float> &io_weight
-,	std::vector<bool> &io_mask
+,	Video<char>  &io_mask
 ,	std::vector<std::vector<float> > const& i_group3d
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
@@ -887,14 +887,14 @@ void computeAggregationStep1(
 
 		//! Use Paste Trick
 		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
-		io_mask[ind1] = false;
+		io_mask(ind1) = false;
 
 		if (p_params.doPasteBoost)
 		{
-			io_mask[ind1 - width] = false;
-			io_mask[ind1 + width] = false;
-			io_mask[ind1 - 1    ] = false;
-			io_mask[ind1 + 1    ] = false;
+			io_mask(ind1 - width) = false;
+			io_mask(ind1 + width) = false;
+			io_mask(ind1 - 1    ) = false;
+			io_mask(ind1 + 1    ) = false;
 		}
 	}
 }
@@ -916,7 +916,7 @@ void computeAggregationStep1(
 void computeAggregationStep2(
 	Video<float> &io_im
 ,	Video<float> &io_weight
-,	std::vector<bool> &io_mask
+,	Video<char>  &io_mask
 ,	std::vector<float> const& i_group3d
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
@@ -945,14 +945,14 @@ void computeAggregationStep2(
 
 		//! Apply Paste Trick
 		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
-		io_mask[ind1] = false;
+		io_mask(ind1) = false;
 
 		if (p_params.doPasteBoost)
 		{
-			io_mask[ind1 - width ] = false;
-			io_mask[ind1 + width ] = false;
-			io_mask[ind1 - 1     ] = false;
-			io_mask[ind1 + 1     ] = false;
+			io_mask(ind1 - width) = false;
+			io_mask(ind1 + width) = false;
+			io_mask(ind1 - 1    ) = false;
+			io_mask(ind1 + 1    ) = false;
 		}
 	}
 }

@@ -124,6 +124,10 @@ struct VideoSize
 /**
  * @brief A video class template with very basic functionalities.
  *
+ * NOTE: should not be used with T = bool, since current implementation
+ * relies on std::vector, and std::vector<bool> cannot return a non-
+ * constant reference to an element of the array.
+ *
  * @param sz       : VideoSize structure with size of the video;
  * @param data     : pointer to an std::vector<T> containing the data
  **/
@@ -506,6 +510,7 @@ inline T Video<T>::getPixelSymmetric(
 
 	return data[sz.index(x,y,t,c)];
 }
+
 
 //! Utilities for video
 namespace VideoUtils
