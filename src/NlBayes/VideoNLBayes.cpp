@@ -347,7 +347,7 @@ void processNlBayes(
 	                       (p_params.isFirstStep ? i_imNoisy.sz.channels : 1.f);
 
 	//! Weight sum per pixel // FIXME: only one channel
-	Video<float> weight(i_imNoisy.sz, 0.f);
+	Video<float> weight(i_imNoisy.sz.width, i_imNoisy.sz.height, i_imNoisy.sz.frames, 1, 0.f);
 
 	//! Mask: true for pixels that still need to be processed
 	Video<char> mask(i_imNoisy.sz.width, i_imNoisy.sz.height, i_imNoisy.sz.frames, 1, false);
@@ -874,19 +874,19 @@ void computeAggregationStep1(
 	for (unsigned n = 0; n < nSimP; n++)
 	{
 		const unsigned ind = i_index[n];
-		for (unsigned c = 0; c < chnls; c++)
+		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
+		for (unsigned p = 0; p < sP; p++)
+		for (unsigned q = 0; q < sP; q++)
 		{
-			const unsigned ij = ind + c * width * height;
-			for (unsigned p = 0; p < sP; p++)
-			for (unsigned q = 0; q < sP; q++)
+			for (unsigned c = 0; c < chnls; c++)
 			{
-				io_im.data[ij + p * width + q] += i_group3d[c][(p * sP + q) * nSimP + n];
-				io_weight.data[ij + p * width + q]++;
+				const unsigned ij = ind  + c * width * height;
+				io_im(ij + p * width + q) += i_group3d[c][(p * sP + q) * nSimP + n];
 			}
+			io_weight(ind1 + p * width + q)++;
 		}
 
 		//! Use Paste Trick
-		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
 		io_mask(ind1) = false;
 
 		if (p_params.doPasteBoost)
@@ -931,20 +931,21 @@ void computeAggregationStep2(
 	//! Aggregate estimates
 	for (unsigned n = 0; n < p_nSimP; n++)
 	{
-		const unsigned ind = i_index[n];
+		const unsigned ind  = i_index[n];
 		for (unsigned c = 0, k = 0; c < chnls; c++)
 		{
 			const unsigned ij = ind + c * wh;
 			for (unsigned p = 0; p < sP; p++)
 			for (unsigned q = 0; q < sP; q++, k++)
-			{
-				io_im.data[ij + p * width + q] += i_group3d[k * p_nSimP + n];
-				io_weight.data[ij + p * width + q]++;
-			}
+				io_im(ij + p * width + q) += i_group3d[k * p_nSimP + n];
 		}
 
-		//! Apply Paste Trick
 		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
+		for (unsigned p = 0; p < sP; p++)
+		for (unsigned q = 0; q < sP; q++)
+			io_weight(ind1 + p * width + q)++;
+
+		//! Apply Paste Trick
 		io_mask(ind1) = false;
 
 		if (p_params.doPasteBoost)
@@ -971,10 +972,12 @@ void computeWeightedAggregation(
 ,	Video<float> &io_im
 ,	Video<float> const& i_weight
 ){
-	for (unsigned k = 0; k < i_im.sz.whcf; k++)
-		//! To avoid weighting problem (particularly near boundaries of the image)
-		if (i_weight(k) > 0.f) io_im(k) /= i_weight(k);
-		else                   io_im(k) /= i_im(k);
+	for (unsigned f = 0; f < i_im.sz.frames  ; f++)
+	for (unsigned c = 0; c < i_im.sz.channels; c++)
+	for (unsigned y = 0; y < i_im.sz.height  ; y++)
+	for (unsigned x = 0; x < i_im.sz.width   ; x++)
+		if (i_weight(x,y,f) > 0.f) io_im(x,y,f,c) /= i_weight(x,y,f);
+		else                       io_im(x,y,f,c) /= i_im(x,y,f,c);
 
 }
 
