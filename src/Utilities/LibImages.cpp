@@ -87,6 +87,8 @@ int loadImage(
 	for (unsigned k = 0; k < w * h * c; k++)
 		o_im[k] = imTmp[k];
 
+	free(imTmp);
+
 	return EXIT_SUCCESS;
 }
 
