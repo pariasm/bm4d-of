@@ -474,7 +474,7 @@ int main(int argc, char **argv)
 		//! Save video
 		basic.saveVideo("/tmp/basic_%02d.png", i_firstFrame, i_frameStep);
 
-		/*/! Run second step
+		//! Run second step
 		Video<float> final(vid.sz);
 		{
 			//! Divide in subvideos

@@ -436,7 +436,7 @@ void processNlBayes(
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
-					computeBayesEstimateStep2(group3dNoisy, group3dBasic, mat,
+					computeNlMeansEstimateStep2(group3dNoisy, group3dBasic, mat,
 							nInverseFailed, i_imNoisy.sz, p_params, nSimP);
 
 				//! Aggregation
@@ -753,7 +753,6 @@ void computeNlMeansEstimateStep1(
 	for (unsigned i = 0; i < nSimP; i++)
 	{
 		//! Accumulate contributions from other patches in group
-		float total_weight = 0.f;
 		for (unsigned j = i+1; j < nSimP; j++)
 		{
 			//! Compute distance between Y components of patches
@@ -856,44 +855,58 @@ void computeNlMeansEstimateStep1(
  *
  * @return none.
  **/
-void computeBayesEstimateStep2(
-	std::vector<float> &i_group3dNoisy
-,	std::vector<float> &io_group3dBasic
+void computeNlMeansEstimateStep2(
+	std::vector<float> &io_group3dNoisy
+,	std::vector<float>  &i_group3dBasic
 ,	matParams &i_mat
 ,	unsigned &io_nInverseFailed
 ,	const VideoSize &p_imSize
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
 ){
-	//! Parameters initialization
-	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
-	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch * p_imSize.channels;
+	//! Parameters
+	const unsigned sPC   = p_params.sizePatch * p_params.sizePatch * p_imSize.channels;
+	const float factor   = 1.f/(2.f*p_params.beta*p_params.beta);
 
-	//! Center 3D groups around their baricenter
-	centerData(io_group3dBasic, i_mat.baricenter, p_nSimP, sPC);
-	centerData(i_group3dNoisy, i_mat.baricenter, p_nSimP, sPC);
+	std::vector<float> tmp_group3d = io_group3dNoisy;
 
-	//! Compute the covariance matrix of the set of similar patches
-	covarianceMatrix(io_group3dBasic, i_mat.covMat, p_nSimP, sPC);
+	//! Vector of weight normalization factors
+	std::vector<float> total_weights(p_nSimP, 1.f);
+	//! We initialize with 1 since for the case j = i, weight = 1
 
-	//! Bayes' Filtering
-	for (unsigned k = 0; k < sPC; k++)
-		i_mat.covMat[k * sPC + k] += diagVal;
-
-	//! Compute the estimate
-	if (inverseMatrix(i_mat.covMat, sPC) == EXIT_SUCCESS)
+	//! For each patch in patch group
+	for (unsigned i = 0; i < p_nSimP; i++)
 	{
-		productMatrix(io_group3dBasic, i_mat.covMat, i_group3dNoisy, sPC, sPC, p_nSimP);
-		for (unsigned k = 0; k < sPC * p_nSimP; k++)
-			io_group3dBasic[k] = i_group3dNoisy[k] - diagVal * io_group3dBasic[k];
-	}
-	else 
-		io_nInverseFailed++;
+		//! Accumulate contributions from other patches in group
+		for (unsigned j = i+1; j < p_nSimP; j++)
+		{
+			//! Compute distance between Y components of patches
+			float dist = 0.f, dif;
+			for (unsigned h = 0; h < sPC; h++)
+				dist += (dif = i_group3dBasic[h*p_nSimP + i]
+				             - i_group3dBasic[h*p_nSimP + j]) * dif ;
 
-	//! Add baricenter
-	for (unsigned j = 0, k = 0; j < sPC; j++)
-		for (unsigned i = 0; i < p_nSimP; i++, k++)
-			io_group3dBasic[k] += i_mat.baricenter[j];
+			//! Unnormalized exponential weight
+			const float weight = exp(- factor * dist / (float)sPC );
+//			const float weight = 1;
+			total_weights[i] += weight;
+			total_weights[j] += weight;
+
+			//! Accumulate nl-mean
+			for (unsigned h = 0; h < sPC; h++)
+			{
+				tmp_group3d[h*p_nSimP + i] += weight * io_group3dNoisy[h*p_nSimP + j];
+				tmp_group3d[h*p_nSimP + j] += weight * io_group3dNoisy[h*p_nSimP + i];
+			}
+		}
+
+		//! Normalize nl-mean while copying to output stack
+		const float factor = 1.f/total_weights[i];
+		for (unsigned h = 0; h < sPC; h++)
+			io_group3dNoisy[h*p_nSimP + i] = tmp_group3d[h*p_nSimP + i] * factor;
+	}
+
+	io_nInverseFailed = 0;
 }
 
 /**

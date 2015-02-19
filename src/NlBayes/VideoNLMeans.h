@@ -286,8 +286,8 @@ int computeHomogeneousAreaStep2(
  **/
 void computeNlMeansEstimateStep1(
 	std::vector<std::vector<float> > &io_group3d
-,	matParams &i_mat
-,	unsigned &io_nInverseFailed
+,	matParams &i_mat // FIXME: NOT USED
+,	unsigned &io_nInverseFailed // FIXME: NOT USED
 ,	nlbParams const& p_params
 );
 
@@ -310,11 +310,11 @@ void computeNlMeansEstimateStep1(
  *
  * @return none.
  **/
-void computeBayesEstimateStep2(
-	std::vector<float> &i_group3dNoisy
-,	std::vector<float> &io_group3dBasic
-,	matParams &i_mat
-,	unsigned &io_nInverseFailed
+void computeNlMeansEstimateStep2(
+	std::vector<float> &io_group3dNoisy
+,	std::vector<float>  &i_group3dBasic
+,	matParams &i_mat // FIXME: NOT USED
+,	unsigned &io_nInverseFailed // FIXME: NOT USED
 ,	const VideoSize &p_imSize
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
