@@ -9,8 +9,10 @@ message("SOURCE_DIR " ${CMAKE_SOURCE_DIR})
 
 add_executable(nlbayes main.cpp)
 add_executable(vnlbayes main_vnlb.cpp)
+add_executable(vnlmeans main_vnlm.cpp)
 
 link_directories(${CMAKE_BINARY_DIR}/lib)
 target_link_libraries(nlbayes videoNlBayes png)
 target_link_libraries(vnlbayes videoNlBayes png)
+target_link_libraries(vnlmeans videoNlBayes png)
 
