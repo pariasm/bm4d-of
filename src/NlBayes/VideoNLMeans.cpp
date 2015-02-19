@@ -25,7 +25,7 @@
 #include <algorithm>
 #include <math.h>
 
-#include "VideoNLBayes.h"
+#include "VideoNLMeans.h"
 #include "LibMatrix.h"
 #include "../Utilities/Utilities.h"
 
@@ -33,7 +33,7 @@
 #include <omp.h>
 #endif
 
-namespace VideoNLB
+namespace VideoNLM
 {
 
 /**
@@ -110,16 +110,7 @@ void initializeNlbParameters(
 	o_params.gamma = 1.05f;
 
 	//! Parameter used to estimate the covariance matrix
-	if (p_size.channels == 1)
-	{
-		if(s1) o_params.beta = (p_sigma < 15.f ? 1.1f : (p_sigma < 70.f ? 1.f : 0.9f));
-		else   o_params.beta = (p_sigma < 15.f ? 1.1f : (p_sigma < 35.f ? 1.f : 0.9f));
-	}
-	else
-	{
-		if(s1) o_params.beta = 1.f;
-		else   o_params.beta = (p_sigma < 50.f ? 1.2f : 1.f);
-	}
+	o_params.beta = p_sigma;
 
 	//! Parameter used to determine similar patches
 	//  Differs from manuscript (tau = 4) because (1) this threshold is to be used 
@@ -402,7 +393,7 @@ void processNlBayes(
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
-					computeBayesEstimateStep1(group3d, mat, nInverseFailed, p_params);
+					computeNlMeansEstimateStep1(group3d, mat, nInverseFailed, p_params);
 
 				//! Aggregation
 				computeAggregationStep1(io_imBasic, weight, mask, group3d, index, p_params);
@@ -534,7 +525,7 @@ void estimateSimilarPatchesStep1(
 	for (unsigned hy = 0, k = 0; hy < sP; hy++)
 	for (unsigned hx = 0;        hx < sP; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
-		o_group3d[c][k] = i_im.data[o_index[n] + hy * w + hx + c * wh];
+		o_group3d[c][k] = i_im(o_index[n] + hy * w + hx + c * wh);
 
 	/* 00  pixels from all patches
 	 * 01  pixels from all patches
@@ -744,7 +735,8 @@ int computeHomogeneousAreaStep2(
  *
  * @return none.
  **/
-void computeBayesEstimateStep1(
+#if 1
+void computeNlMeansEstimateStep1(
 	std::vector<std::vector<float> > &io_group3d
 ,	matParams &i_mat
 ,	unsigned &io_nInverseFailed
@@ -754,34 +746,101 @@ void computeBayesEstimateStep1(
 	const unsigned chnls = io_group3d.size();
 	const unsigned nSimP = p_params.nSimilarPatches;
 	const unsigned sP2   = p_params.sizePatch * p_params.sizePatch;
-	const float valDiag  = p_params.beta * p_params.sigma * p_params.sigma;
+	const float factor   = 1.f/(2.f*p_params.beta*p_params.beta);
 
-	//! Bayes estimate
-	for (unsigned c = 0; c < chnls; c++)
+	std::vector<std::vector<float> > tmp_group3d = io_group3d; 
+
+	//! Vector of weight normalization factors
+	std::vector<float> total_weights(nSimP, 1.f);
+	//! We initialize with 1 since for the case j = i, weight = 1
+
+	//! For each patch in patch group
+	for (unsigned i = 0; i < nSimP; i++)
 	{
-		//! Center data around the baricenter
-		centerData(io_group3d[c], i_mat.baricenter, nSimP, sP2);
-
-		//! Compute the covariance matrix of the set of similar patches
-		covarianceMatrix(io_group3d[c], i_mat.covMat, nSimP, sP2);
-
-		//! Bayes' Filtering
-		if (inverseMatrix(i_mat.covMat, sP2) == EXIT_SUCCESS)
+		//! Accumulate contributions from other patches in group
+		float total_weight = 0.f;
+		for (unsigned j = i+1; j < nSimP; j++)
 		{
-			productMatrix(i_mat.group3dTranspose, i_mat.covMat, io_group3d[c],
-			              sP2, sP2, nSimP);
-			for (unsigned k = 0; k < sP2 * nSimP; k++)
-				io_group3d[c][k] -= valDiag * i_mat.group3dTranspose[k];
-		}
-		else 
-			io_nInverseFailed++;
+			//! Compute distance between Y components of patches
+			float dist = 0.f, dif;
+			for (unsigned h = 0; h < sP2; h++)
+				dist += (dif = io_group3d[0][h*nSimP + i] - io_group3d[0][h*nSimP + j]) * dif ;
 
-		//! Add baricenter
-		for (unsigned j = 0, k = 0; j < sP2; j++)
-			for (unsigned i = 0; i < nSimP; i++, k++)
-				io_group3d[c][k] += i_mat.baricenter[j];
+			//! Unnormalized exponential weight
+			const float weight = exp(- factor * dist / (float)sP2 );
+			total_weights[i] += weight;
+			total_weights[j] += weight;
+
+			//! Accumulate nl-mean
+			for (unsigned c = 0; c < chnls; c++)
+			for (unsigned h = 0; h < sP2  ; h++)
+			{
+				tmp_group3d[c][h*nSimP + i] += weight * io_group3d[c][h*nSimP + j];
+				tmp_group3d[c][h*nSimP + j] += weight * io_group3d[c][h*nSimP + i];
+			}
+		}
+
+		//! Normalize nl-mean while copying to output stack
+		const float factor = 1.f/total_weights[i];
+		for (unsigned c = 0; c < chnls; c++)
+		for (unsigned h = 0; h < sP2  ; h++)
+			io_group3d[c][h*nSimP + i] = tmp_group3d[c][h*nSimP + i] * factor;
 	}
+
+	io_nInverseFailed = 0;
 }
+#else
+void computeNlMeansEstimateStep1(
+	std::vector<std::vector<float> > &io_group3d
+,	matParams &i_mat
+,	unsigned &io_nInverseFailed
+,	nlbParams const& p_params
+){
+	//! Parameters
+	const unsigned chnls = io_group3d.size();
+	const unsigned nSimP = p_params.nSimilarPatches;
+	const unsigned sP2   = p_params.sizePatch * p_params.sizePatch;
+	const float factor   = 1.f/(2.f*p_params.beta*p_params.beta);
+
+	std::vector<std::vector<float> > tmp_group3d(io_group3d.size(),
+	                     std::vector<float>( io_group3d[0].size(), 0.f)); 
+
+	//! Vector of weight normalization factors
+	std::vector<float> total_weights(nSimP, 0.f);
+
+	//! For each patch in patch group
+	for (unsigned i = 0; i < nSimP; i++)
+	{
+		//! Accumulate contributions from other patches in group
+		for (unsigned j = 0; j < nSimP; j++)
+		{
+			//! Compute distance between Y components of patches
+			float dist = 0.f, dif;
+			for (unsigned h = 0; h < sP2; h++)
+				dist += (dif = io_group3d[0][h*nSimP + i] - io_group3d[0][h*nSimP + j]) * dif ;
+
+			//! Unnormalized exponential weight
+			const float weight = exp(- factor * dist / (float)sP2);
+			total_weights[i] += weight;
+
+			//! Accumulate nl-mean
+			for (unsigned c = 0; c < chnls; c++)
+			for (unsigned h = 0; h < sP2  ; h++)
+				tmp_group3d[c][h*nSimP + i] += weight * io_group3d[c][h*nSimP + j];
+		}
+	}
+
+	//! Normalize nl-mean while copying to output stack
+	for (unsigned i = 0; i < nSimP; i++)
+	{
+		const float factor = 1.f/total_weights[i];
+		for (unsigned c = 0; c < chnls; c++)
+		for (unsigned h = 0; h < sP2  ; h++)
+			io_group3d[c][h*nSimP + i] = tmp_group3d[c][h*nSimP + i] * factor;
+	}
+	io_nInverseFailed = 0;
+}
+#endif
 
 /**
  * @brief Compute the Bayes estimation.

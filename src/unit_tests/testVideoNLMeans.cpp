@@ -19,21 +19,68 @@
 #include <sstream>
 
 #include "Utilities.h"
-#include "VideoNLBayes.h"
+#include "VideoNLMeans.h"
 #include "cmd_option.h"
 
 #include <algorithm>
 
 /**
- * @file   testVideoNLBayes.cpp
- * @brief  Executable file to test VideoNLBayes
+ * @file   testVideoNLMeans.cpp
+ * @brief  Executable file to test VideoNLMeans
  *
  *
  *
  * @author PABLO ARIAS  <pariasm@gmail.com>
  **/
 
-namespace VideoNLB
+void print_patch_from_group(
+	std::vector<std::vector<float> > &group3d
+,	VideoNLM::nlbParams prms
+,	unsigned idx
+){
+	const unsigned sP    = prms.sizePatch;
+	const unsigned nSimP = prms.nSimilarPatches;
+
+	assert(idx < nSimP);
+
+
+	for (unsigned hy = 0, k = 0; hy < sP; hy++)
+	{
+		for (unsigned hx = 0; hx < sP; hx++, k++)
+		{
+			printf("% 3f,% 3f,% 3f   ", group3d[0][k*nSimP + idx], 
+			                            group3d[1][k*nSimP + idx],
+			                            group3d[2][k*nSimP + idx]);
+		}
+		printf("\n");
+	}
+}
+
+void compare_patch_groups(
+	std::vector<std::vector<float> > &group3d
+,	std::vector<std::pair<float, unsigned> > &patch_dists
+,	VideoNLM::nlbParams prms
+,	VideoSize sz
+,	unsigned idx
+){
+	assert(idx < patch_dists.size());
+
+	const unsigned w  = sz.width;
+	const unsigned wh = sz.wh;
+
+	unsigned px, py, pt, pc;
+	sz.coords(patch_dists[0].second, px, py, pt, pc);
+
+	printf("patch %d from stack, anchored at: [%d, %d, %d]:\n", 0, px, py, pt);
+	print_patch_from_group(group3d, prms, 0);
+
+	sz.coords(patch_dists[idx].second, px, py, pt, pc);
+	printf("patch %d from stack, anchored at: [%d, %d, %d]:\n", idx, px, py, pt);
+	print_patch_from_group(group3d, prms, idx);
+	printf("\ndistance between them: %f\n\n\n", patch_dists[idx].first);
+}
+
+namespace VideoNLM
 {
 	std::vector<std::pair<float, unsigned> > estimateSimilarPatchesStep1_debug(
 		Video<float> const& i_im
@@ -105,53 +152,147 @@ namespace VideoNLB
 		 * 0sp pixels from all patches
 		 */
 	}
-}
 
-void print_patch_group(
-	std::vector<std::vector<float> > &group3d
-,	std::vector<std::pair<float, unsigned> > &patch_dists
-,	VideoNLB::nlbParams prms
-,	VideoSize sz
-,	unsigned idx
-){
-	assert(idx < patch_dists.size());
+	void computeNlMeansEstimateStep1_debug(
+		std::vector<std::vector<float> > &io_group3d
+//	,	matParams &i_mat
+	,	unsigned &io_nInverseFailed
+	,	nlbParams const& p_params
+	){
+		//! Parameters
+		const unsigned chnls = io_group3d.size();
+		const unsigned nSimP = p_params.nSimilarPatches;
+		const unsigned sP2   = p_params.sizePatch * p_params.sizePatch;
+		const float factor   = 1.f/(2.f*p_params.beta*p_params.beta);
 
-	const unsigned sP    = prms.sizePatch;
-	const unsigned nSimP = prms.nSimilarPatches;
-	const unsigned w  = sz.width;
-	const unsigned wh = sz.wh;
+		std::vector<std::vector<float> > tmp_group3d = io_group3d; 
 
-	unsigned px, py, pt, pc;
-	sz.coords(patch_dists[0].second, px, py, pt, pc);
+//		const unsigned sP = p_params.sizePatch;
+//		for (unsigned i = nSimP -3; i < nSimP; i++)
+//		{
+//			for (unsigned hy = 0, k = 0; hy < sP; hy++)
+//			{
+//				for (unsigned hx = 0; hx < sP; hx++, k++)
+//					printf("% 3f   ", io_group3d[0][k*nSimP + i]); 
+//				printf("\n");
+//			}
+//			printf("\n");
+//		}
 
-	printf("patch %d from stack, anchored at: [%d, %d, %d]:\n", 0, px, py, pt);
-	for (unsigned hy = 0, k = 0; hy < sP; hy++)
-	{
-		for (unsigned hx = 0; hx < sP; hx++, k++)
+		//! Vector of weight normalization factors
+		std::vector<float> total_weights(nSimP, 1.f);
+		//! We initialize with 1 since for the case j = i, weight = 1
+
+		//! For each patch in patch group
+		for (unsigned i = 0; i < nSimP; i++)
 		{
-			printf("% 3f,% 3f,% 3f   ", group3d[0][k*nSimP + 0], 
-			                            group3d[1][k*nSimP + 0],
-			                            group3d[2][k*nSimP + 0]);
-		}
-		printf("\n");
-	}
-	printf("\n");
+			//! Accumulate contributions from other patches in group
+			for (unsigned j = 0; j < i+1; j++)
+				printf("%8.0f ", 0.f);
 
-	sz.coords(patch_dists[idx].second, px, py, pt, pc);
-	printf("patch %d from stack, anchored at: [%d, %d, %d]:\n", idx, px, py, pt);
-	for (unsigned hy = 0, k = 0; hy < sP; hy++)
-	{
-		for (unsigned hx = 0; hx < sP; hx++, k++)
+			//! Accumulate contributions from other patches in group
+			for (unsigned j = i+1; j < nSimP; j++)
+			{
+				//! Compute distance between Y components of patches
+				float dist = 0.f, dif;
+				for (unsigned h = 0; h < sP2; h++)
+					dist += (dif = io_group3d[0][h*nSimP + i] - io_group3d[0][h*nSimP + j]) * dif ;
+
+				//! Unnormalized exponential weight
+				const float weight = exp(- factor * dist / (float)sP2 );
+				total_weights[i] += weight;
+				total_weights[j] += weight;
+
+				//! Accumulate nl-mean
+				for (unsigned c = 0; c < chnls; c++)
+				for (unsigned h = 0; h < sP2  ; h++)
+				{
+					tmp_group3d[c][h*nSimP + i] += weight * io_group3d[c][h*nSimP + j];
+					tmp_group3d[c][h*nSimP + j] += weight * io_group3d[c][h*nSimP + i];
+				}
+
+				printf("%8.4f ", tmp_group3d[0][i]);
+			}
+
+			printf("%f \n", total_weights[i]);
+
+			//! Normalize nl-mean while copying to output stack
+			const float factor = 1.f/total_weights[i];
+			for (unsigned c = 0; c < chnls; c++)
+			for (unsigned h = 0; h < sP2  ; h++)
+				io_group3d[c][h*nSimP + i] = tmp_group3d[c][h*nSimP + i] * factor;
+		}
+		io_nInverseFailed = 0;
+	}
+
+	void computeNlMeansEstimateStep1_debug_ref(
+		std::vector<std::vector<float> > &io_group3d
+//	,	matParams &i_mat
+	,	unsigned &io_nInverseFailed
+	,	nlbParams const& p_params
+	){
+		//! Parameters
+		const unsigned chnls = io_group3d.size();
+		const unsigned nSimP = p_params.nSimilarPatches;
+		const unsigned sP2   = p_params.sizePatch * p_params.sizePatch;
+		const float factor   = 1.f/(2.f*p_params.beta*p_params.beta);
+
+		std::vector<std::vector<float> > tmp_group3d(io_group3d.size(),
+		                     std::vector<float>( io_group3d[0].size(), 0.f)); 
+
+//		const unsigned sP = p_params.sizePatch;
+//		for (unsigned i = nSimP -3; i < nSimP; i++)
+//		{
+//			for (unsigned hy = 0, k = 0; hy < sP; hy++)
+//			{
+//				for (unsigned hx = 0; hx < sP; hx++, k++)
+//					printf("% 3f   ", io_group3d[0][k*nSimP + i]); 
+//				printf("\n");
+//			}
+//			printf("\n");
+//		}
+
+		//! Vector of weight normalization factors
+		std::vector<float> total_weights(nSimP, 0.f);
+
+		//! For each patch in patch group
+		for (unsigned i = 0; i < nSimP; i++)
 		{
-			printf("% 3f,% 3f,% 3f   ", group3d[0][k*nSimP + idx], 
-			                            group3d[1][k*nSimP + idx],
-			                            group3d[2][k*nSimP + idx]);
-		}
-		printf("\n");
-	}
-	printf("\ndistance between them: %f\n\n\n", patch_dists[idx].first);
-}
+			//! Accumulate contributions from other patches in group
+			for (unsigned j = 0; j < nSimP; j++)
+			{
+				//! Compute distance between Y components of patches
+				float dist = 0.f, dif;
+				for (unsigned h = 0; h < sP2; h++)
+					dist += (dif = io_group3d[0][h*nSimP + i] - io_group3d[0][h*nSimP + j]) * dif ;
 
+				//! Unnormalized exponential weight
+				const float weight = exp(- factor * dist / (float)sP2);
+				total_weights[i] += weight;
+
+				//! Accumulate nl-mean
+				for (unsigned c = 0; c < chnls; c++)
+				for (unsigned h = 0; h < sP2  ; h++)
+					tmp_group3d[c][h*nSimP + i] += weight * io_group3d[c][h*nSimP + j];
+
+				printf("%8.4f ", tmp_group3d[0][i]);
+			}
+
+			printf("%f \n", total_weights[i]);
+		}
+
+		//! Normalize nl-mean while copying to output stack
+		for (unsigned i = 0; i < nSimP; i++)
+		{
+			const float factor = 1.f/total_weights[i];
+			for (unsigned c = 0; c < chnls; c++)
+			for (unsigned h = 0; h < sP2  ; h++)
+				io_group3d[c][h*nSimP + i] = tmp_group3d[c][h*nSimP + i] * factor;
+		}
+
+		io_nInverseFailed = 0;
+	}
+}
 
 
 void print_video_size(const std::string& name, const Video<float>& vid)
@@ -165,11 +306,6 @@ int main(int argc, char **argv)
 {
 	//! Check if there is the right call for the algorithm
 	clo_usage("Unit test for Video NL-Bayes methods");
-//	if (argc != 9 && argc != 6)
-//	{
-//		fprintf(stdout, "Usage: %s path-to-frames first-frame last-frame frame-step sigma [px py pt]\n", argv[0]);
-//		return EXIT_FAILURE;
-//	}
 
 	//! Get command line inputs
 	const string i_video_path = clo_option("-i", "", "Patch to input sequence (printf format)");
@@ -189,7 +325,7 @@ int main(int argc, char **argv)
 		print_video_size("loaded video1", vid_ori);
 	}
 
-	/*/! Test estimateSimilarPatchesStep1 and computeAggregationStep1 on a single pixel
+	/*/! Test computeNlMeansEstimateStep1
 	{
 		using std::vector;
 
@@ -198,11 +334,11 @@ int main(int argc, char **argv)
 		VideoUtils::transformColorSpace(vid, true);
 
 		//! Initialize parameter structures
-		VideoNLB::nlbParams prms1, prms2;
-		VideoNLB::initializeNlbParameters(prms1, 1, i_sigma, vid.sz, 0, 1);
-		VideoNLB::initializeNlbParameters(prms2, 2, i_sigma, vid.sz, 0, 1);
-		VideoNLB::printNlbParameters(prms1);
-		VideoNLB::printNlbParameters(prms2);
+		VideoNLM::nlbParams prms1, prms2;
+		VideoNLM::initializeNlbParameters(prms1, 1, i_sigma, vid.sz, 0, 1);
+		VideoNLM::initializeNlbParameters(prms2, 2, i_sigma, vid.sz, 0, 1);
+		VideoNLM::printNlbParameters(prms1);
+		VideoNLM::printNlbParameters(prms2);
 
 		//! Used matrices during Bayes' estimate
 		const unsigned patch_dim = prms1.sizePatch * prms1.sizePatch ;
@@ -213,20 +349,20 @@ int main(int argc, char **argv)
 		vector<vector<float> > patch_stack(vid.sz.channels,
 				                             vector<float>(patch_num * patch_dim));
 
+		//! Point
+		unsigned pind = vid.sz.index(px, py, pt, 0);
+
 		//! Compute stack of patches (detailed output)
 		{
 			printf("computing patch distances for point: [% 3d,% 3d,% 2d]\n\n",px,py,pt);
 
-			//! Point
-			unsigned pind = vid.sz.index(px, py, pt, 0);
-
 			//! Compute distances
 			vector<std::pair<float, unsigned> > patch_dists = 
-				VideoNLB::estimateSimilarPatchesStep1_debug(vid, patch_stack, patch_index, pind, prms1);
+				VideoNLM::estimateSimilarPatchesStep1_debug(vid, patch_stack, patch_index, pind, prms1);
 
-			//! Display seleted patches
-			for (int n = 0; n < prms1.nSimilarPatches; n++)
-				print_patch_group(patch_stack, patch_dists, prms1, vid.sz, n);
+//			//! Display seleted patches
+//			for (int n = 0; n < prms1.nSimilarPatches; n++)
+//				compare_patch_groups(patch_stack, patch_dists, prms1, vid.sz, n);
 
 			//! Show distances in new image
 			Video<float> dist(vid.sz.width, vid.sz.height, vid.sz.frames, 1, -1);
@@ -251,94 +387,44 @@ int main(int argc, char **argv)
 			vid.saveVideoAscii("/tmp/vid_yuv", i_firstFrame, i_frameStep);
 		}
 
+		//! Compute nlmeans estimate
+		{
+			std::vector<std::vector<float> > patch_stack1 = patch_stack;
+			std::vector<std::vector<float> > patch_stack2 = patch_stack;
+
+			unsigned n_failed = 0;
+			computeNlMeansEstimateStep1_debug    (patch_stack1, n_failed, prms1);
+			computeNlMeansEstimateStep1_debug_ref(patch_stack2, n_failed, prms1);
+
+			for (int n = 0; n < prms1.nSimilarPatches; n++)
+			{
+				printf("\nOriginal patch stack:\n");
+				print_patch_from_group(patch_stack, prms1, n);
+
+				printf("\nOptimized implementation:\n");
+				print_patch_from_group(patch_stack1, prms1, n);
+
+				printf("\nReference (non-optimized) implementation:\n");
+				print_patch_from_group(patch_stack2, prms1, n);
+			}
+		}
+
 		//! Aggregate 
 		Video<float> basic(vid.sz);
 		Video<float> weight(vid.sz, 0.f);
-		std::vector<bool> mask(vid.sz.whf, true);
-		VideoNLB::computeAggregationStep1(basic, weight, mask, patch_stack, patch_index, prms1);
+		Video<char > mask(vid.sz.width, vid.sz.height, vid.sz.frames, 1, true);
+		VideoNLM::computeAggregationStep1(basic, weight, mask, patch_stack, patch_index, prms1);
 
 		//! Save outputs to disk
 		basic .saveVideoAscii("/tmp/basic" , i_firstFrame, i_frameStep);
 		weight.saveVideoAscii("/tmp/weight", i_firstFrame, i_frameStep);
 		
 		Video<float> mask_out(vid.sz.width, vid.sz.height, vid.sz.frames);
-		for (unsigned i = 0; i < mask.size(); i++)
-			mask_out(i) = 255.*(float)mask[i];
+		for (unsigned i = 0; i < mask.sz.whcf; i++)
+			mask_out(i) = 255.*(float)mask(i);
 		mask_out.saveVideo("/tmp/mask_%02d.png", i_firstFrame, i_frameStep);
 
-	}//*/
-
-	/*/! Test estimateSimilarPatchesStep1 and computeAggregationStep1 on all video
-	{
-		using std::vector;
-
-		//! RGB to YUV
-		Video<float> vid(vid_ori);
-		VideoUtils::transformColorSpace(vid, true);
-
-		//! Initialize parameter structures
-		VideoNLB::nlbParams prms1, prms2;
-		VideoNLB::initializeNlbParameters(prms1, 1, i_sigma, vid.sz, 0, 1);
-		VideoNLB::initializeNlbParameters(prms2, 2, i_sigma, vid.sz, 0, 1);
-		VideoNLB::printNlbParameters(prms1);
-		VideoNLB::printNlbParameters(prms2);
-
-		//! Used matrices during Bayes' estimate
-		const unsigned patch_dim = prms1.sizePatch * prms1.sizePatch ;
-		const unsigned patch_num = prms1.nSimilarPatches ;
-
-		//! Matrices used for Bayes' estimate
-		vector<unsigned> patch_index(patch_num);
-		vector<vector<float> > patch_stack(vid.sz.channels,
-				                             vector<float>(patch_num * patch_dim));
-
-		Video<float> basic(vid.sz);
-		Video<float> weight(vid.sz, 0.f);
-		std::vector<bool> mask(vid.sz.whf, false);
-
-		//! Only pixels of the center of the image must be processed (not the boundaries)
-		unsigned sWx = prms1.sizeSearchWindow;
-		for (unsigned f =   0; f < vid.sz.frames      ; f++)
-		for (unsigned i = sWx; i < vid.sz.height - sWx; i++)
-		for (unsigned j = sWx; j < vid.sz.width  - sWx; j++)
-			mask[f * vid.sz.wh + i * vid.sz.width + j] = true;
-
-
-		//! Aggregate
-		for (int pt = 0; pt < vid.sz.frames; pt++)
-		for (int py = 0; py < vid.sz.height; py++)
-		for (int px = 0; px < vid.sz.width ; px++)
-		if  (mask[pt * vid.sz.wh + py * vid.sz.width + px])
-		{
-			//! Point
-			unsigned pind = vid.sz.index(px, py, pt, 0);
-
-			//! Compute stack of patches
-			VideoNLB::estimateSimilarPatchesStep1(vid, patch_stack, patch_index, pind, prms1);
-
-			//! Aggregate 
-			VideoNLB::computeAggregationStep1(basic, weight, mask, patch_stack, patch_index, prms1);
-		}
-
-		//! Normalize
-		for (int pt = 0; pt < vid.sz.frames  ; pt++)
-		for (int pc = 0; pc < vid.sz.channels; pc++)
-		for (int py = 0; py < vid.sz.height  ; py++)
-		for (int px = 0; px < vid.sz.width   ; px++)
-			if (weight(px,py,pt,pc))
-				basic(px,py,pt,pc) /= weight(px,py,pt,pc);
-
-		//! YUV to RGB
-		VideoUtils::transformColorSpace(basic, false);
-
-		//! Save outputs to disk
-		basic .saveVideo("/tmp/basic_%02d.png" , i_firstFrame, i_frameStep);
-		weight.saveVideoAscii("/tmp/weight", i_firstFrame, i_frameStep);
-		
-		Video<float> mask_out(vid.sz.width, vid.sz.height, vid.sz.frames);
-		for (unsigned i = 0; i < mask.size(); i++)
-			mask_out(i) = 255.*(float)mask[i];
-		mask_out.saveVideo("/tmp/mask_%02d.png", i_firstFrame, i_frameStep);
+		return EXIT_SUCCESS;
 
 	}//*/
 
@@ -352,11 +438,11 @@ int main(int argc, char **argv)
 		vid.saveVideo("/tmp/vid_%02d.png", i_firstFrame, i_frameStep);
 
 		//! Initialize parameter structures
-		VideoNLB::nlbParams prms1, prms2;
-		VideoNLB::initializeNlbParameters(prms1, 1, i_sigma, vid.sz, 0, 1);
-		VideoNLB::initializeNlbParameters(prms2, 2, i_sigma, vid.sz, 0, 1);
-		VideoNLB::printNlbParameters(prms1);
-		VideoNLB::printNlbParameters(prms2);
+		VideoNLM::nlbParams prms1, prms2;
+		VideoNLM::initializeNlbParameters(prms1, 1, i_sigma, vid.sz, 0, 1);
+		VideoNLM::initializeNlbParameters(prms2, 2, i_sigma, vid.sz, 0, 1);
+		VideoNLM::printNlbParameters(prms1);
+		VideoNLM::printNlbParameters(prms2);
 
 		//! Parallelization: number of subvideos in which video is divided
 		const unsigned nParts = 2;
@@ -375,7 +461,7 @@ int main(int argc, char **argv)
 			std::vector<Video<float> > parts_basic(nParts);
 			std::vector<Video<float> > parts_final(nParts);
 			for (int n = 0; n < (int)nParts; n++)
-				processNlBayes(parts_vid[n], parts_basic[n], parts_final[n], prms1);
+				VideoNLM::processNlBayes(parts_vid[n], parts_basic[n], parts_final[n], prms1);
 
 			//! Get the basic estimate
 			VideoUtils::subBuild(parts_basic, basic, prms1.boundary);
@@ -385,7 +471,10 @@ int main(int argc, char **argv)
 			VideoUtils::transformColorSpace(basic, false);
 		}
 
-		//! Run second step
+		//! Save video
+		basic.saveVideo("/tmp/basic_%02d.png", i_firstFrame, i_frameStep);
+
+		/*/! Run second step
 		Video<float> final(vid.sz);
 		{
 			//! Divide in subvideos
@@ -397,38 +486,17 @@ int main(int argc, char **argv)
 			//! Process all sub-videos
 			std::vector<Video<float> > parts_final(nParts);
 			for (int n = 0; n < (int)nParts; n++)
-				processNlBayes(parts_vid[n], parts_basic[n], parts_final[n], prms2);
+				VideoNLM::processNlBayes(parts_vid[n], parts_basic[n], parts_final[n], prms2);
 
 			//! Get the basic estimate
 			VideoUtils::subBuild(parts_final, final, prms2.boundary);
 		}
 
 		//! Save video
-		basic.saveVideo("/tmp/basic_%02d.png", i_firstFrame, i_frameStep);
 		final.saveVideo("/tmp/final_%02d.png", i_firstFrame, i_frameStep);
+		//*/
 
 		return EXIT_SUCCESS;
-	}//*/
-
-	/*/! Test indexing operations
-	{
-		VideoSize size3 = vid_ori.sz;
-		VideoSize size1(size3);
-		size1.channels = 1;
-		size1.update_fields();
-
-		//! Index for a 3 channel video
-		unsigned idx3 = size3.index(px, py, pt, 0);
-
-		//! Index for a 1 channel video
-		unsigned idx1 = size1.index(px, py, pt);
-
-		//! Conversion formulas
-		unsigned idx1_from_idx3 = (idx3 / size3.whc) * size1.wh  + idx3 % size3.wh ;
-		unsigned idx3_from_idx1 = (idx1 / size1.wh ) * size3.whc + idx3 % size1.wh ;
-
-		printf("idx3           = %d - idx1           = %d\n", idx3, idx1);
-		printf("idx3 from idx1 = %d - idx1 from idx3 = %d\n", idx3_from_idx1, idx1_from_idx3);
 	}//*/
 
 }

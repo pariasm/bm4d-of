@@ -10,14 +10,14 @@
  * version. You should have received a copy of this license along
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef VIDEO_NL_BAYES_H_INCLUDED
-#define VIDEO_NL_BAYES_H_INCLUDED
+#ifndef VIDEO_NL_MEANS_H_INCLUDED
+#define VIDEO_NL_MEANS_H_INCLUDED
 
 //#include "../Utilities/LibVideo.h"
 #include "../Utilities/LibVideoT.hpp"
 #include "../Utilities/Utilities.h"
 
-namespace VideoNLB
+namespace VideoNLM
 {
 
 /**
@@ -283,7 +283,7 @@ int computeHomogeneousAreaStep2(
  *
  * @return none.
  **/
-void computeBayesEstimateStep1(
+void computeNlMeansEstimateStep1(
 	std::vector<std::vector<float> > &io_group3d
 ,	matParams &i_mat
 ,	unsigned &io_nInverseFailed
@@ -380,4 +380,4 @@ void computeWeightedAggregation(
 
 } // namespace
 
-#endif // VIDEO_NL_BAYES_H_INCLUDED
+#endif // VIDEO_NL_MEANS_H_INCLUDED

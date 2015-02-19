@@ -6,12 +6,14 @@ include_directories(../NlBayes)   # test VideoNLBayes
 
 message("SOURCE_DIR " ${CMAKE_SOURCE_DIR})
 
-add_executable(testlibvideo testLibVideo.cpp)
-add_executable(testlibvideoT testLibVideoT.cpp)
-add_executable(testvideonlb testVideoNLBayes.cpp)
+add_executable(test_libvideo testLibVideo.cpp)
+add_executable(test_libvideoT testLibVideoT.cpp)
+add_executable(test_videonlb testVideoNLBayes.cpp)
+add_executable(test_videonlm testVideoNLMeans.cpp)
 
 link_directories(${CMAKE_BINARY_DIR}/lib)
-target_link_libraries(testlibvideo videoNlBayes png)
-target_link_libraries(testlibvideoT videoNlBayes png)
-target_link_libraries(testvideonlb videoNlBayes png)
+target_link_libraries(test_libvideo videoNlBayes png)
+target_link_libraries(test_libvideoT videoNlBayes png)
+target_link_libraries(test_videonlb videoNlBayes png)
+target_link_libraries(test_videonlm videoNlBayes png)
 
