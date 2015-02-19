@@ -440,7 +440,7 @@ void processNlBayes(
 							nInverseFailed, i_imNoisy.sz, p_params, nSimP);
 
 				//! Aggregation
-				computeAggregationStep2(o_imFinal, weight, mask, group3dBasic,
+				computeAggregationStep2(o_imFinal, weight, mask, group3dNoisy,
 						index, p_params, nSimP);
 			}
 
@@ -497,18 +497,15 @@ void estimateSimilarPatchesStep1(
 	for (unsigned qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
 	{
 		//! Squared L2 distance
-		float diff = 0.f;
+		float dist = 0.f, dif;
 		for (unsigned hy = 0; hy < sP; hy++)
 		for (unsigned hx = 0; hx < sP; hx++)
-		{
-			const float tmp = i_im(px + hx, py + hy, pt)
-			                - i_im(qx + hx, qy + hy, qt);
-			diff += tmp * tmp;
-		}
+			dist += (dif = i_im(px + hx, py + hy, pt)
+			             - i_im(qx + hx, qy + hy, qt)) * dif;
 
 		//! Save distance and corresponding patch index
 		distance[dt * sWx*sWx + dy * sWx + dx] = 
-			std::make_pair(diff, i_im.sz.index(qx, qy, qt, 0));
+			std::make_pair(dist, i_im.sz.index(qx, qy, qt, 0));
 	}
 
 	//! Keep only the N2 best similar patches
@@ -525,7 +522,7 @@ void estimateSimilarPatchesStep1(
 	for (unsigned hy = 0, k = 0; hy < sP; hy++)
 	for (unsigned hx = 0;        hx < sP; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
-		o_group3d[c][k] = i_im(o_index[n] + hy * w + hx + c * wh);
+		o_group3d[c][k] = i_im(c * wh + o_index[n] + hy * w + hx);
 
 	/* 00  pixels from all patches
 	 * 01  pixels from all patches
@@ -583,20 +580,17 @@ unsigned estimateSimilarPatchesStep2(
 	for (unsigned qy = rangey[0], dy = 0; qy <= rangey[1]; qy++, dy++)
 	for (unsigned qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
 	{
-		//! Squared L2 distance
-		float diff = 0.f;
+		//! Squared L2 distance between color patches of basic image
+		float dist = 0.f, dif;
 		for (unsigned c = 0; c < chnls; c++)
 		for (unsigned hy = 0; hy < sP; hy++)
 		for (unsigned hx = 0; hx < sP; hx++)
-		{
-			const float tmp = i_imBasic(px + hx, py + hy, pt, c)
-			                - i_imBasic(qx + hx, qy + hy, qt, c);
-			diff += tmp * tmp;
-		}
+			dist += (dif = i_imBasic(px + hx, py + hy, pt, c)
+			             - i_imBasic(qx + hx, qy + hy, qt, c) ) * dif;
 
 		//! Save distance and corresponding patch index
 		distance[dt * sWx*sWx + dy * sWx + dx] = 
-			std::make_pair(diff, i_imBasic.sz.index(qx, qy, qt, 0));
+			std::make_pair(dist, i_imBasic.sz.index(qx, qy, qt, 0));
 	}
 
 	//! Keep only the nSimilarPatches best similar patches
@@ -619,8 +613,8 @@ unsigned estimateSimilarPatchesStep2(
 	for (unsigned hx = 0; hx < sP; hx++)
 	for (unsigned n = 0; n < nSimP; n++, k++)
 	{
-		o_group3dNoisy[k] = i_imNoisy.data[c * wh + o_index[n] + hy * width + hx];
-		o_group3dBasic[k] = i_imBasic.data[c * wh + o_index[n] + hy * width + hx];
+		o_group3dNoisy[k] = i_imNoisy(c * wh + o_index[n] + hy * width + hx);
+		o_group3dBasic[k] = i_imBasic(c * wh + o_index[n] + hy * width + hx);
 	}
 
 	return nSimP;
@@ -674,19 +668,20 @@ int computeHomogeneousAreaStep1(
 /**
  * @brief Detect if we are in an homogeneous area. In this case, compute the mean.
  *
- * @param io_group3dNoisy: contains values of similar patches for the noisy image;
- * @param io_group3dBasic: contains values of similar patches for the basic image. If an homogeneous
- *		area is detected, will contain the average of all pixels in similar patches;
+ * @param io_group3dNoisy: inputs values of similar patches for the noisy video;
+ *                         if the area is classified as homogeneous, outputs the
+ *                         average of all pixels in all patches.
+ * @param i_group3dBasic: contains values of similar patches for the basic video.
  * @param p_sP2: size of each patch (sP x sP);
  * @param p_nSimP: number of similar patches;
  * @param p_threshold: threshold below which an area is declared homogeneous;
- * @param p_imSize: size of the image.
+ * @param p_imSize: size of the video.
  *
  * @return 1 if an homogeneous area is detected, 0 otherwise.
  **/
 int computeHomogeneousAreaStep2(
-	std::vector<float> const& i_group3dNoisy
-,	std::vector<float> &io_group3dBasic
+	std::vector<float> &io_group3dNoisy
+,	std::vector<float> const &i_group3dBasic
 ,	const unsigned p_sP
 ,	const unsigned p_nSimP
 ,	const float p_threshold
@@ -697,7 +692,7 @@ int computeHomogeneousAreaStep2(
 	const unsigned sPC = sP2 * p_imSize.channels;
 
 	//! Compute the standard deviation of the set of patches
-	const float stdDev = computeStdDeviation(i_group3dNoisy, sP2, p_nSimP, p_imSize.channels);
+	const float stdDev = computeStdDeviation(io_group3dNoisy, sP2, p_nSimP, p_imSize.channels);
 
 	//! If we are in an homogeneous area
 	if (stdDev < p_threshold)
@@ -707,13 +702,13 @@ int computeHomogeneousAreaStep2(
 				float mean = 0.f;
 				for (unsigned n = 0; n < p_nSimP; n++)
 				for (unsigned k = 0; k < sP2; k++)
-					mean += io_group3dBasic[n * sPC + c * sP2 + k];
+					mean += i_group3dBasic[n * sPC + c * sP2 + k];
 
 				mean /= float(sP2 * p_nSimP);
 
 				for (unsigned n = 0; n < p_nSimP; n++)
 				for (unsigned k = 0; k < sP2; k++)
-					io_group3dBasic[n * sPC + c * sP2 + k] = mean;
+					io_group3dNoisy[n * sPC + c * sP2 + k] = mean;
 		}
 		return 1;
 	}

@@ -249,9 +249,10 @@ int computeHomogeneousAreaStep1(
 /**
  * @brief Detect if we are in an homogeneous area. In this case, compute the mean.
  *
- * @param io_group3dNoisy: contains values of similar patches for the noisy video;
- * @param io_group3dBasic: contains values of similar patches for the basic video. If an homogeneous
- *		area is detected, will contain the average of all pixels in similar patches;
+ * @param io_group3dNoisy: inputs values of similar patches for the noisy video;
+ *                         if the area is classified as homogeneous, outputs the
+ *                         average of all pixels in all patches.
+ * @param i_group3dBasic: contains values of similar patches for the basic video.
  * @param p_sP2: size of each patch (sP x sP);
  * @param p_nSimP: number of similar patches;
  * @param p_threshold: threshold below which an area is declared homogeneous;
@@ -260,8 +261,8 @@ int computeHomogeneousAreaStep1(
  * @return 1 if an homogeneous area is detected, 0 otherwise.
  **/
 int computeHomogeneousAreaStep2(
-	std::vector<float> const& i_group3dNoisy
-,	std::vector<float> &io_group3dBasic
+	std::vector<float> & io_group3dNoisy
+,	std::vector<float> const &i_group3dBasic
 ,	const unsigned p_sP
 ,	const unsigned p_nSimP
 ,	const float p_threshold
