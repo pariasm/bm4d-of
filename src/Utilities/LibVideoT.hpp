@@ -343,7 +343,7 @@ inline T& Video<T>::operator() (
 template <class T>
 inline T Video<T>::operator () (unsigned idx) const
 {
-	assert(idx < whcf);
+	assert(idx < sz.whcf);
 	return data[idx];
 }
 
