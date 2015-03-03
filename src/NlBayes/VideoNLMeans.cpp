@@ -33,6 +33,8 @@
 #include <omp.h>
 #endif
 
+#define IPOL_WEIGHTS
+
 namespace VideoNLM
 {
 
@@ -65,19 +67,26 @@ void initializeNlbParameters(
 	//! Standard deviation of the noise
 	o_params.sigma = p_sigma;
 
-	//! Size of patches
+	//! Size of patches - adapted from IPOL pub of nl-means for images
+	//  TODO the 1.5 for the second step is arbitrary
 	if (p_size.channels == 1)
 	{
-		if(s1) o_params.sizePatch = (p_sigma < 30.f ? 5 : 7);
-		else   o_params.sizePatch = 5;
+		float sigma = (s1) ? p_sigma : p_sigma/1.5;
+		o_params.sizePatch = (sigma <= 15.f) ?  3 :
+		                     (sigma <= 30.f) ?  5 :
+		                     (sigma <= 45.f) ?  7 :
+		                     (sigma <= 75.f) ?  9 :
+		                                       11 ;
 	}
 	else
 	{
-		if(s1) o_params.sizePatch = (p_sigma < 20.f ? 3 : (p_sigma < 50.f ? 5 : 7));
-		else   o_params.sizePatch = (p_sigma < 50.f ? 3 : (p_sigma < 70.f ? 5 : 7));
+		float sigma = (s1) ? p_sigma/sqrt(3) : p_sigma/1.5;
+		o_params.sizePatch = (p_sigma <= 25.f) ? 3 :
+		                     (p_sigma <= 55.f) ? 5 :
+		                                         7 ;
 	}
 
-	//! Number of similar patches
+	//! Number of similar patches - this is from nlbayes algorithm
 	if (p_size.channels == 1)
 	{
 		if(s1) o_params.nSimilarPatches = (p_sigma < 10.f ? 35 : (p_sigma < 30.f ? 45 : (p_sigma < 80.f ? 90 : 100))); // ASK MARC differs from manuscript
@@ -99,7 +108,7 @@ void initializeNlbParameters(
 	//! Search window, temporal search radii
 	o_params.sizeSearchTimeRangeFwd = timeSearchRangeFwd;
 	o_params.sizeSearchTimeRangeBwd = timeSearchRangeBwd;
-	o_params.nSimilarPatches *= timeSearchRangeFwd + timeSearchRangeBwd + 1; // FIXME: this is just a test
+	o_params.nSimilarPatches *= (timeSearchRangeFwd + timeSearchRangeBwd + 1); // FIXME: this is just a test
 
 	//! Size of boundaries used during the sub division
 	o_params.boundary = int(1.5f * float(o_params.sizeSearchWindow));
@@ -110,7 +119,16 @@ void initializeNlbParameters(
 	o_params.gamma = 1.05f;
 
 	//! Parameter used to estimate the covariance matrix
-	o_params.beta = p_sigma;
+#ifdef IPOL_WEIGHTS
+	//! After the YUV decomp, sigma in Y channel is divided by sqrt(3)
+	float sigma = (s1) ? p_sigma/sqrt(3) : p_sigma*2;
+	o_params.beta = (sigma <= 25) ? 0.55 * sigma : 
+	                (sigma <= 55) ? 0.40 * sigma :
+						                 0.35 * sigma ;
+#else
+	o_params.beta = (s1) ? 12*p_sigma/sqrtf(3) : p_sigma/2;
+#endif
+
 
 	//! Parameter used to determine similar patches
 	//  Differs from manuscript (tau = 4) because (1) this threshold is to be used 
@@ -146,17 +164,17 @@ void printNlbParameters(
 	printf("\tPatch search:\n");
 	printf("\t\tPatch size                 = %d\n"       , i_prms.sizePatch);
 	printf("\t\tNumber of patches          = %d\n"       , i_prms.nSimilarPatches);
-	if (!i_prms.isFirstStep) printf("\t\tDistance threshold (tau)    = %g\n"       , i_prms.tau);
-	else                     printf("\t\tDistance threshold (tau)    = N/A\n"      );
+	if (!i_prms.isFirstStep) printf("\t\tDistance threshold (tau)   = %g\n"       , i_prms.tau);
+	else                     printf("\t\tDistance threshold (tau)   = N/A\n"      );
 	printf("\t\tSpatial search window      = %dx%d\n"    , i_prms.sizeSearchWindow, i_prms.sizeSearchWindow);
 	printf("\t\tTemporal search range      = [-%d,%d]\n" , i_prms.sizeSearchTimeRangeBwd, i_prms.sizeSearchTimeRangeBwd);
 	printf("\t\tSpatial border added       = %d\n"       , i_prms.boundary);
 	printf("\tGroup filtering:\n");
 	printf("\t\tWeights decay              = %g\n"       , i_prms.beta);
 	if (i_prms.useHomogeneousArea)
-		printf("\t\tFlat area trick with gamma  = %g\n"       , i_prms.gamma);
+		printf("\t\tFlat area trick with gamma = %g\n"       , i_prms.gamma);
 	else
-		printf("\t\tFlat area trick             = inactive\n");
+		printf("\t\tFlat area trick            = inactive\n");
 	printf("\tSpeed-ups:\n");
 	printf("\t\tOffset                     = %d\n"       , i_prms.offSet);
 	printf("\t\tPasteBoost                 = %s\n\n"     , i_prms.doPasteBoost ? "active" : "inactive");
@@ -741,7 +759,8 @@ void computeNlMeansEstimateStep1(
 	const unsigned chnls = io_group3d.size();
 	const unsigned nSimP = p_params.nSimilarPatches;
 	const unsigned sP2   = p_params.sizePatch * p_params.sizePatch;
-	const float factor   = 1.f/(2.f*p_params.beta*p_params.beta);
+	const float factor   = 1.f/(p_params.beta*p_params.beta);
+	const float sigma2   = p_params.sigma*p_params.sigma;
 
 	std::vector<std::vector<float> > tmp_group3d = io_group3d; 
 
@@ -760,8 +779,15 @@ void computeNlMeansEstimateStep1(
 			for (unsigned h = 0; h < sP2; h++)
 				dist += (dif = io_group3d[0][h*nSimP + i] - io_group3d[0][h*nSimP + j]) * dif ;
 
+			//! normalize by the number of elements in patch
+			dist /= (float)sP2;
+
 			//! Unnormalized exponential weight
-			const float weight = exp(- factor * dist / (float)sP2 );
+#ifdef IPOL_WEIGHTS
+			const float weight = exp(- factor * std::max(dist - 2*sigma2, 0.f));
+#else
+			const float weight = exp(- factor * dist);
+#endif
 			total_weights[i] += weight;
 			total_weights[j] += weight;
 
@@ -866,7 +892,8 @@ void computeNlMeansEstimateStep2(
 ){
 	//! Parameters
 	const unsigned sPC   = p_params.sizePatch * p_params.sizePatch * p_imSize.channels;
-	const float factor   = 1.f/(2.f*p_params.beta*p_params.beta);
+	const float factor   = 1.f/(p_params.beta*p_params.beta);
+	const float sigma2   = p_params.sigma*p_params.sigma; 
 
 	std::vector<float> tmp_group3d = io_group3dNoisy;
 
@@ -886,8 +913,15 @@ void computeNlMeansEstimateStep2(
 				dist += (dif = i_group3dBasic[h*p_nSimP + i]
 				             - i_group3dBasic[h*p_nSimP + j]) * dif ;
 
+			//! normalize by the number of elements in patch
+			dist /= (float)sPC;
+
 			//! Unnormalized exponential weight
-			const float weight = exp(- factor * dist / (float)sPC );
+#ifdef IPOL_WEIGHTS
+			const float weight = exp(- factor * std::max(dist - 2*sigma2/10, 0.f));//XXX NOTE the factor 10!
+#else
+			const float weight = exp(- factor * dist);
+#endif
 //			const float weight = 1;
 			total_weights[i] += weight;
 			total_weights[j] += weight;
