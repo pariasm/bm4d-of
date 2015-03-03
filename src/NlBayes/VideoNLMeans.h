@@ -152,8 +152,8 @@ int runNlBayes(
 	Video<float> const& i_imNoisy
 ,	Video<float> &o_imBasic
 ,	Video<float> &o_imFinal
-,	const nlbParams& p_params1
-,	const nlbParams& p_params2
+,	const nlbParams p_params1
+,	const nlbParams p_params2
 );
 
 /**

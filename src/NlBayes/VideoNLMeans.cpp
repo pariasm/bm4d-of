@@ -209,11 +209,8 @@ int runNlBayes(
  * @param i_imNoisy: contains the noisy image;
  * @param o_imBasic: will contain the basic estimate image after the first step;
  * @param o_imFinal: will contain the final denoised image after the second step;
- * @param p_imSize: size of the image;
- * @param p_useArea1 : if true, use the homogeneous area trick for the first step;
- * @param p_useArea2 : if true, use the homogeneous area trick for the second step;
- * @param p_sigma : standard deviation of the noise;
- * @param p_verbose : if true, print some informations.
+ * @param p_prms1  : parameters for step 1;
+ * @param p_prms2  : parameters for step 2;
  *
  * @return EXIT_FAILURE if something wrong happens during the whole process.
  **/
@@ -221,8 +218,8 @@ int runNlBayes(
 	Video<float> const& i_imNoisy
 ,	Video<float> &o_imBasic
 ,	Video<float> &o_imFinal
-,	const nlbParams& p_prms1
-,	const nlbParams& p_prms2
+,	const nlbParams p_prms1
+,	const nlbParams p_prms2
 ){
 	//! Only 1, 3 or 4-channels images can be processed.
 	const unsigned chnls = i_imNoisy.sz.channels;
@@ -234,7 +231,7 @@ int runNlBayes(
 	unsigned nThreads = 1;
 #ifdef _OPENMP
 	nThreads = omp_get_max_threads();
-	if (p_verbose) printf("OpenMP is using %d threads\n", nThreads);
+	if (p_prms1.verbose) printf("OpenMP is using %d threads\n", nThreads);
 #endif
 	const unsigned nParts = 2 * nThreads;
 
@@ -267,7 +264,7 @@ int runNlBayes(
 		std::vector<Video<float> > imFinalSub(nParts);
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic, nParts/nThreads) \
-		shared(imNoisySub, imBasicSub, imFinalSub, imSizeSub) \
+		shared(imNoisySub, imBasicSub, imFinalSub) \
 		firstprivate (p_prms1)
 #endif
 		for (int n = 0; n < (int)nParts; n++)
