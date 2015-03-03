@@ -284,9 +284,12 @@ int runNlBayes(
 		std::vector<Video<float> > imBasicSub(nParts);
 		std::vector<Video<float> > imFinalSub(nParts);
 #ifdef _OPENMP
+		// we make a copy of prms structure because, since it is constant,
+		// it causes a compilation error with OpenMP (only on IPOL server)
+		nlbParams prms1(p_prms1);
 #pragma omp parallel for schedule(dynamic, nParts/nThreads) \
 		shared(imNoisySub, imBasicSub, imFinalSub) \
-		firstprivate (p_prms1)
+		firstprivate (prms1)
 #endif
 		for (int n = 0; n < (int)nParts; n++)
 			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms1);
@@ -312,9 +315,12 @@ int runNlBayes(
 		//! Process all sub-images
 		std::vector<Video<float> > imFinalSub(nParts);
 #ifdef _OPENMP
+		// we make a copy of prms structure because, since it is constant,
+		// it causes a compilation error with OpenMP (only on IPOL server)
+		nlbParams prms2(p_prms2);
 #pragma omp parallel for schedule(dynamic, nParts/nThreads) \
 		shared(imNoisySub, imBasicSub, imFinalSub) \
-		firstprivate (p_prms2)
+		firstprivate (prms2)
 #endif
 		for (int n = 0; n < (int) nParts; n++)
 			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms2);
