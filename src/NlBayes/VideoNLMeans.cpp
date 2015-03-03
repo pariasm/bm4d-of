@@ -146,17 +146,20 @@ void printNlbParameters(
 	printf("\tPatch search:\n");
 	printf("\t\tPatch size                 = %d\n"       , i_prms.sizePatch);
 	printf("\t\tNumber of patches          = %d\n"       , i_prms.nSimilarPatches);
-	if (!i_prms.isFirstStep) printf("\t\tDistance threshold (tau)   = %f\n"       , i_prms.tau);
+	if (!i_prms.isFirstStep) printf("\t\tDistance threshold (tau)    = %g\n"       , i_prms.tau);
+	else                     printf("\t\tDistance threshold (tau)    = N/A\n"      );
 	printf("\t\tSpatial search window      = %dx%d\n"    , i_prms.sizeSearchWindow, i_prms.sizeSearchWindow);
 	printf("\t\tTemporal search range      = [-%d,%d]\n" , i_prms.sizeSearchTimeRangeBwd, i_prms.sizeSearchTimeRangeBwd);
-	printf("\tPatch stack filtering: beta        = %f\n" , i_prms.beta);
-	printf("\tSpatial border                     = %d\n" , i_prms.boundary);
+	printf("\t\tSpatial border added       = %d\n"       , i_prms.boundary);
+	printf("\tGroup filtering:\n");
+	printf("\t\tWeights decay              = %g\n"       , i_prms.beta);
+	if (i_prms.useHomogeneousArea)
+		printf("\t\tFlat area trick with gamma  = %g\n"       , i_prms.gamma);
+	else
+		printf("\t\tFlat area trick             = inactive\n");
 	printf("\tSpeed-ups:\n");
 	printf("\t\tOffset                     = %d\n"       , i_prms.offSet);
-	if (i_prms.useHomogeneousArea)
-	printf("\t\tFlat area trick with gamma = %f\n"       , i_prms.gamma);
-	if (i_prms.doPasteBoost)
-		printf("\t\tPasteBoost (TM) active!\n\n");
+	printf("\t\tPasteBoost                 = %s\n\n"     , i_prms.doPasteBoost ? "active" : "inactive");
 }
 
 /**
