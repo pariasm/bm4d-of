@@ -34,6 +34,7 @@
 #endif
 
 #define IPOL_WEIGHTS
+#define STEP1_ONECHANNEL
 
 namespace VideoNLM
 {
@@ -69,6 +70,24 @@ void initializeNlbParameters(
 
 	//! Size of patches - adapted from IPOL pub of nl-means for images
 	//  TODO the 1.5 for the second step is arbitrary
+#ifdef STEP1_ONECHANNEL
+	if (s1 || p_size.channels == 1)
+	{
+		float sigma = (p_size.channels == 3) ? p_sigma/sqrt(3.f) : p_sigma;
+		o_params.sizePatch = (sigma <= 15.f) ?  3 :
+		                     (sigma <= 30.f) ?  5 :
+		                     (sigma <= 45.f) ?  7 :
+		                     (sigma <= 75.f) ?  9 :
+		                                       11 ;
+	}
+	else
+	{
+		float sigma = p_sigma/1.5;
+		o_params.sizePatch = (p_sigma <= 25.f) ? 3 :
+		                     (p_sigma <= 55.f) ? 5 :
+		                                         7 ;
+	}
+#else
 	if (p_size.channels == 1)
 	{
 		float sigma = (s1) ? p_sigma : p_sigma/1.5;
@@ -85,6 +104,7 @@ void initializeNlbParameters(
 		                     (p_sigma <= 55.f) ? 5 :
 		                                         7 ;
 	}
+#endif
 
 	//! Number of similar patches - this is from nlbayes algorithm
 	if (p_size.channels == 1)
@@ -118,13 +138,29 @@ void initializeNlbParameters(
 	//! Parameter used to determine if an area is homogeneous
 	o_params.gamma = 1.05f;
 
-	//! Parameter used to estimate the covariance matrix
+	//! Weights decay parameter
 #ifdef IPOL_WEIGHTS
-	//! After the YUV decomp, sigma in Y channel is divided by sqrt(3)
+#ifdef STEP1_ONECHANNEL
+	if (s1 || p_size.channels == 3)
+	{
+		float sigma = (s1) ? p_sigma/sqrt(3) : p_sigma*2;
+		o_params.beta = (sigma <= 30) ? 0.40 * sigma : 
+							 (sigma <= 75) ? 0.35 * sigma :
+												  0.30 * sigma ;
+	}
+	else
+	{
+		float sigma = p_sigma*2;
+		o_params.beta = (sigma <= 25) ? 0.55 * sigma : 
+							 (sigma <= 55) ? 0.40 * sigma :
+												  0.35 * sigma ;
+	}
+#else
 	float sigma = (s1) ? p_sigma/sqrt(3) : p_sigma*2;
 	o_params.beta = (sigma <= 25) ? 0.55 * sigma : 
 	                (sigma <= 55) ? 0.40 * sigma :
 						                 0.35 * sigma ;
+#endif
 #else
 	o_params.beta = (s1) ? 12*p_sigma/sqrtf(3) : p_sigma/2;
 #endif

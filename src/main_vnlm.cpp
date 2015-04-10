@@ -92,7 +92,7 @@ int main(int argc, char **argv)
 	}
 
 	//! Denoising
-	if (verbose) printf("Running Video NL-Bayes on the noisy video\n");
+	if (verbose) printf("Running Video NL-Means on the noisy video\n");
 	VideoNLM::nlbParams prms1, prms2;
 	VideoNLM::initializeNlbParameters(prms1, 1, sigma, noisy.sz, flat_area1, verbose, time_search_fwd, time_search_bwd);
 	VideoNLM::initializeNlbParameters(prms2, 2, sigma, noisy.sz, flat_area2, verbose, time_search_fwd, time_search_bwd);
