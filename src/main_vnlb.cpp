@@ -60,12 +60,37 @@ int main(int argc, char **argv)
 	const float sigma = clo_option("-sigma", 0, "Add noise of standard deviation sigma");
 	const bool do_bias  = (bool) clo_option("-compute-bias", false, "> compute bias outputs");
 	const bool verbose  = (bool) clo_option("-verbose"     , true , "> verbose output");
+	const unsigned print_prms = (unsigned) clo_option("-print-prms", 0, "> prints parameters for given channels");
 
 	//! Video NLB parameters
-	const bool flat_area1 = (bool) clo_option("-flat-area1", true , "> use flat area trick (step 1)");
-	const bool flat_area2 = (bool) clo_option("-flat-area2", true , "> use flat area trick (step 2)");
-	const unsigned time_search_fwd = clo_option("-Wt-fwd", 2, "> Search window, forward  time range");
-	const unsigned time_search_bwd = clo_option("-Wt-bwd", 2, "> Search window, backward time range");
+	const bool flat_area1 = (bool) clo_option("-flat-area1", true , "> use flat area trick, step 1");
+	const bool flat_area2 = (bool) clo_option("-flat-area2", true , "> use flat area trick, step 2");
+	const int time_search1  = clo_option("-wt1", 2, "> Search window temporal radius, step 1");
+	const int time_search2  = clo_option("-wt2", 2, "> Search window temporal radius, step 2");
+	const int space_search1 = clo_option("-wx1",-1, "> Search window spatial radius, step 1");
+	const int space_search2 = clo_option("-wx2",-1, "> Search window spatial radius, step 2");
+	const int patch_size1   = clo_option("-ps1",-1, "> Patch size, step 1");
+	const int patch_size2   = clo_option("-ps2",-1, "> Patch size, step 2");
+	const int num_patches1  = clo_option("-np1",-1, "> Number of similar patches, step 1");
+	const int num_patches2  = clo_option("-np2",-1, "> Number of similar patches, step 2");
+	
+	//! Only print parameters
+	if (print_prms)
+	{
+		VideoSize tmp;
+		tmp.channels = print_prms;
+
+		//! Compute denoising default parameters
+		VideoNLB::nlbParams prms1, prms2;
+		VideoNLB::initializeNlbParameters(prms1, 1, sigma, tmp, flat_area1, verbose, time_search1, time_search1);
+		VideoNLB::initializeNlbParameters(prms2, 2, sigma, tmp, flat_area2, verbose, time_search2, time_search2);
+
+		VideoNLB::printNlbParameters(prms1);
+		VideoNLB::printNlbParameters(prms2);	
+
+		return EXIT_FAILURE;
+	}
+
 
 	//! Check inputs
 	if (input_path == "")
@@ -81,6 +106,7 @@ int main(int argc, char **argv)
 	//! Load original video
 	original.loadVideo(input_path, firstFrame, lastFrame, frameStep);
 
+
 	//! Add noise
 	if (sigma)
 	{
@@ -93,9 +119,25 @@ int main(int argc, char **argv)
 
 	//! Denoising
 	if (verbose) printf("Running Video NL-Bayes on the noisy video\n");
+
+	//! Compute denoising default parameters
 	VideoNLB::nlbParams prms1, prms2;
-	VideoNLB::initializeNlbParameters(prms1, 1, sigma, noisy.sz, flat_area1, verbose, time_search_fwd, time_search_bwd);
-	VideoNLB::initializeNlbParameters(prms2, 2, sigma, noisy.sz, flat_area2, verbose, time_search_fwd, time_search_bwd);
+	VideoNLB::initializeNlbParameters(prms1, 1, sigma, noisy.sz, flat_area1, verbose, time_search1, time_search1);
+	VideoNLB::initializeNlbParameters(prms2, 2, sigma, noisy.sz, flat_area2, verbose, time_search2, time_search2);
+
+	//! Override with command line parameters
+	if (space_search1 >= 0) prms1.sizeSearchWindow = (unsigned)space_search1;
+	if (space_search2 >= 0) prms2.sizeSearchWindow = (unsigned)space_search2;
+	if (space_search1 >= 0) prms1.boundary = (int)(1.5f * (float)space_search1);
+	if (space_search2 >= 0) prms2.boundary = (int)(1.5f * (float)space_search2);
+	if (patch_size1   >= 0) prms1.sizePatch = (unsigned)patch_size1;
+	if (patch_size2   >= 0) prms2.sizePatch = (unsigned)patch_size2;
+	if (patch_size1   >= 0) prms1.offSet = (unsigned)patch_size1/2;
+	if (patch_size2   >= 0) prms2.offSet = (unsigned)patch_size2/2;
+	if (num_patches1  >= 0) prms1.nSimilarPatches = (unsigned)num_patches1;
+	if (num_patches2  >= 0) prms2.nSimilarPatches = (unsigned)num_patches2;
+
+	//! Run denoising algorithm
 	VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2);
 
 	//! Compute PSNR and RMSE

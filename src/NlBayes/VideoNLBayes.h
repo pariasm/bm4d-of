@@ -42,17 +42,17 @@ namespace VideoNLB
 struct nlbParams
 {
 	float sigma;
-	unsigned sizePatch;
-	unsigned nSimilarPatches;
-	unsigned sizeSearchWindow;
+	unsigned sizePatch;        // depends on sigma
+	unsigned nSimilarPatches;  // depends on sigma, sizeSearchTimeRange (1 channel) or sizePatch (3 channels)
+	unsigned sizeSearchWindow; // depends on nSimilarPatches
 	unsigned sizeSearchTimeRangeFwd; //< VIDEO how many forward  frames in search cube
 	unsigned sizeSearchTimeRangeBwd; //< VIDEO how many backward frames in search cube
-	unsigned boundary;
-	unsigned offSet; //< ASK MARC any experiment quantifying implact of this parameter
+	unsigned boundary;         // depends on sizeSearchWindow
+	unsigned offSet;           // depends on sizePatch
 	bool useHomogeneousArea;
 	float gamma;
-	float beta;
-	float tau;
+	float beta;                // depends on sigma
+	float tau;                 // depends on sizePatch
 	bool isFirstStep;
 	bool doPasteBoost;
 	bool verbose;

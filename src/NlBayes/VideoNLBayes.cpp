@@ -80,8 +80,14 @@ void initializeNlbParameters(
 	//! Number of similar patches
 	if (p_size.channels == 1)
 	{
-		if(s1) o_params.nSimilarPatches = (p_sigma < 10.f ? 35 : (p_sigma < 30.f ? 45 : (p_sigma < 80.f ? 90 : 100))); // ASK MARC differs from manuscript
-		else   o_params.nSimilarPatches = (p_sigma < 20.f ? 15 : (p_sigma < 40.f ? 25 : (p_sigma < 80.f ? 30 :  45))); // ASK MARC differs from manuscript
+		if(s1) o_params.nSimilarPatches = (p_sigma < 10.f ?  35 : 
+		                                  (p_sigma < 30.f ?  45 : 
+		                                  (p_sigma < 80.f ?  90 : 
+		                                                    100))); // ASK MARC differs from manuscript
+		else   o_params.nSimilarPatches = (p_sigma < 20.f ?  15 : 
+		                                  (p_sigma < 40.f ?  25 :
+		                                  (p_sigma < 80.f ?  30 :
+		                                                     45))); // ASK MARC differs from manuscript
 	}
 	else
 		o_params.nSimilarPatches = o_params.sizePatch * o_params.sizePatch * 3;
