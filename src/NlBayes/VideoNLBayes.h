@@ -418,6 +418,62 @@ void computeAggregationStep2(
 );
 
 /**
+ * @brief Aggregate estimates of all similar patches contained in the 3D
+ * group. This version is for a test: in the original version, all patches
+ * in the group are marked as processed, and cannot be origins of a patch
+ * group. In this version we only mark as processed the patches of the 
+ * group which are nearby frames to the group origin.
+ *
+ * @param io_im: update the image with estimate values;
+ * @param io_weight: update corresponding weight, used later in the weighted aggregation;
+ * @param io_mask: update values of mask: set to true the index of an used patch;
+ * @param i_group3d: contains estimated values of all similar patches in the 3D group;
+ * @param i_index: contains index of all similar patches contained in i_group3d;
+ * @param p_imSize: size of io_im;
+ * @param p_params: see processStep1 for more explanation.
+ * @param p_nSimP: number of similar patches.
+ *
+ * @return none.
+ **/
+void computeTemporalAggregationStep1(
+	Video<float> &io_im
+,	Video<float> &io_weight
+,	Video<char>  &io_mask
+,	std::vector<std::vector<float> > const& i_group3d
+,	std::vector<unsigned> const& i_index
+,	const nlbParams &p_params
+,	const unsigned p_nSimP
+);
+
+/**
+ * @brief Aggregate estimates of all similar patches contained in the 3D
+ * group. This version is for a test: in the original version, all patches
+ * in the group are marked as processed, and cannot be origins of a patch
+ * group. In this version we only mark as processed the patches of the 
+ * group which are nearby frames to the group origin.
+ *
+ * @param io_im: update the image with estimate values;
+ * @param io_weight: update corresponding weight, used later in the weighted aggregation;
+ * @param io_mask: update values of mask: set to true the index of an used patch;
+ * @param i_group3d: contains estimated values of all similar patches in the 3D group;
+ * @param i_index: contains index of all similar patches contained in i_group3d;
+ * @param p_imSize: size of io_im;
+ * @param p_params: see processStep2 for more explanation;
+ * @param p_nSimP: number of similar patches.
+ *
+ * @return none.
+ **/
+void computeTemporalAggregationStep2(
+	Video<float> &io_im
+,	Video<float> &io_weight
+,	Video<char>  &io_mask
+,	std::vector<float> const& i_group3d
+,	std::vector<unsigned> const& i_index
+,	const nlbParams &p_params
+,	const unsigned p_nSimP
+);
+
+/**
  * @brief Compute the final weighted aggregation.
  *
  * i_imReference: video of reference, when the weight if null;

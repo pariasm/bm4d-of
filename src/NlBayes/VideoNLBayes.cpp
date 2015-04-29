@@ -505,6 +505,8 @@ void processNlBayes(
 
 				//! Aggregation
 				computeAggregationStep1(io_imBasic, weight, mask, group3d, index, p_params, nSimP);
+//				//! TEST: 'temporal' aggregation
+//				computeTemporalAggregationStep1(io_imBasic, weight, mask, group3d, index, p_params, nSimP);
 			}
 
 		if (p_params.verbose) printf("\n");
@@ -550,6 +552,9 @@ void processNlBayes(
 				//! Aggregation
 				computeAggregationStep2(o_imFinal, weight, mask, group3dNoisy,
 						index, p_params, nSimP);
+				//! TEST: 'temporal' aggregation
+//				computeTemporalAggregationStep2(o_imFinal, weight, mask, group3dNoisy,
+//						index, p_params, nSimP);
 			}
 
 		if (p_params.verbose) printf("\n");
@@ -1152,6 +1157,197 @@ void computeAggregationStep2(
 			io_mask(ind1 + width) = false;
 			io_mask(ind1 - 1    ) = false;
 			io_mask(ind1 + 1    ) = false;
+		}
+	}
+}
+
+/**
+ * @brief Aggregate estimates of all similar patches contained in the 3D
+ * group. This version is for a test: in the original version, all patches
+ * in the group are marked as processed, and cannot be origins of a patch
+ * group. In this version we only mark as processed the patches of the 
+ * group which are nearby frames to the group origin.
+ *
+ * @param io_im: update the image with estimate values;
+ * @param io_weight: update corresponding weight, used later in the weighted aggregation;
+ * @param io_mask: update values of mask: set to true the index of an used patch;
+ * @param i_group3d: contains estimated values of all similar patches in the 3D group;
+ * @param i_index: contains index of all similar patches contained in i_group3d;
+ * @param p_imSize: size of io_im;
+ * @param p_params: see processStep1 for more explanation.
+ * @param p_nSimP: number of similar patches.
+ *
+ * @return none.
+ **/
+void computeTemporalAggregationStep1(
+	Video<float> &io_im
+,	Video<float> &io_weight
+,	Video<char>  &io_mask
+,	std::vector<std::vector<float> > const& i_group3d
+,	std::vector<unsigned> const& i_index
+,	const nlbParams &p_params
+,	const unsigned p_nSimP
+){
+	//! Parameters initializations
+	const unsigned chnls  = io_im.sz.channels;
+	const unsigned width  = io_im.sz.width;
+	const unsigned height = io_im.sz.height;
+	const unsigned sP     = p_params.sizePatch;
+
+	//! Compute coordinates of group origin
+	int FRAME_STEP = 2;
+	unsigned ox, oy, ot, oc;
+	io_im.sz.coords(i_index[0], ox, oy, ot, oc);
+	
+#ifndef DEBUG_SHOW_PATCH_GROUPS
+	//! Aggregate estimates
+	for (unsigned n = 0; n < p_nSimP; n++)
+	{
+		const unsigned ind = i_index[n];
+		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
+		for (unsigned p = 0; p < sP; p++)
+		for (unsigned q = 0; q < sP; q++)
+		{
+			for (unsigned c = 0; c < chnls; c++)
+			{
+				const unsigned ij = ind  + c * width * height;
+				io_im(ij + p * width + q) += i_group3d[c][(p * sP + q) * p_nSimP + n];
+			}
+			io_weight(ind1 + p * width + q)++;
+		}
+
+		// compute coordinates of current pixel
+		unsigned px, py, pt, pc;
+		io_im.sz.coords(ind, px, py, pt, pc);
+
+		if (abs((int)pt - (int)ot) < FRAME_STEP)
+		{
+			//! Use Paste Trick
+			io_mask(ind1) = false;
+
+			if (p_params.doPasteBoost)
+			{
+				io_mask(ind1 - width) = false;
+				io_mask(ind1 + width) = false;
+				io_mask(ind1 - 1    ) = false;
+				io_mask(ind1 + 1    ) = false;
+			}
+		}
+	}
+#else
+	for (unsigned n = 0; n < 1; n++)
+	{
+		const unsigned ind = i_index[n];
+		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
+		for (unsigned p = 0; p < 1; p++)
+		for (unsigned q = 0; q < 1; q++)
+		{
+			for (unsigned c = 0; c < chnls; c++)
+			{
+				const unsigned ij = ind  + c * width * height;
+				io_im(ij + p * width + q) += i_group3d[c][(p * sP + q) * p_nSimP + n];
+			}
+			io_weight(ind1 + p * width + q)++;
+		}
+	}
+
+	for (unsigned n = 0; n < p_nSimP; n++)
+	{
+		const unsigned ind = i_index[n];
+		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
+
+		// compute coordinates of current pixel
+		unsigned px, py, pt, pc;
+		io_im.sz.coords(ind, px, py, pt, pc);
+
+		if (abs((int)pt - (int)ot) < FRAME_STEP)
+		{
+			//! Use Paste Trick
+			io_mask(ind1) = false;
+
+			if (p_params.doPasteBoost)
+			{
+				io_mask(ind1 - width) = false;
+				io_mask(ind1 + width) = false;
+				io_mask(ind1 - 1    ) = false;
+				io_mask(ind1 + 1    ) = false;
+			}
+		}
+	}
+#endif
+}
+
+/**
+ * @brief Aggregate estimates of all similar patches contained in the 3D
+ * group. This version is for a test: in the original version, all patches
+ * in the group are marked as processed, and cannot be origins of a patch
+ * group. In this version we only mark as processed the patches of the 
+ * group which are nearby frames to the group origin.
+ *
+ * @param io_im: update the image with estimate values;
+ * @param io_weight: update corresponding weight, used later in the weighted aggregation;
+ * @param io_mask: update values of mask: set to true the index of an used patch;
+ * @param i_group3d: contains estimated values of all similar patches in the 3D group;
+ * @param i_index: contains index of all similar patches contained in i_group3d;
+ * @param p_imSize: size of io_im;
+ * @param p_params: see processStep2 for more explanation;
+ * @param p_nSimP: number of similar patches.
+ *
+ * @return none.
+ **/
+void computeTemporalAggregationStep2(
+	Video<float> &io_im
+,	Video<float> &io_weight
+,	Video<char>  &io_mask
+,	std::vector<float> const& i_group3d
+,	std::vector<unsigned> const& i_index
+,	const nlbParams &p_params
+,	const unsigned p_nSimP
+){
+	//! Parameters initializations
+	const unsigned chnls = io_im.sz.channels;
+	const unsigned width = io_im.sz.width;
+	const unsigned wh    = width * io_im.sz.height;
+	const unsigned sP    = p_params.sizePatch;
+
+	//! Compute coordinates of group origin
+	int FRAME_STEP = 2;
+	unsigned ox, oy, ot, oc;
+	io_im.sz.coords(i_index[0], ox, oy, ot, oc);
+	
+	//! Aggregate estimates
+	for (unsigned n = 0; n < p_nSimP; n++)
+	{
+		const unsigned ind  = i_index[n];
+		for (unsigned c = 0, k = 0; c < chnls; c++)
+		{
+			const unsigned ij = ind + c * wh;
+			for (unsigned p = 0; p < sP; p++)
+			for (unsigned q = 0; q < sP; q++, k++)
+				io_im(ij + p * width + q) += i_group3d[k * p_nSimP + n];
+		}
+
+		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
+		for (unsigned p = 0; p < sP; p++)
+		for (unsigned q = 0; q < sP; q++)
+			io_weight(ind1 + p * width + q)++;
+
+		// compute coordinates of current pixel
+		unsigned px, py, pt, pc;
+		io_im.sz.coords(ind, px, py, pt, pc);
+
+		if (abs((int)pt - (int)ot) < FRAME_STEP)
+		{
+			//! Apply Paste Trick
+			io_mask(ind1) = false;
+
+			if (p_params.doPasteBoost)
+			{
+				io_mask(ind1 - width) = false;
+				io_mask(ind1 + width) = false;
+				io_mask(ind1 - 1    ) = false;
+				io_mask(ind1 + 1    ) = false;
+			}
 		}
 	}
 }
