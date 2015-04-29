@@ -73,7 +73,7 @@ int main(int argc, char **argv)
 	const int patch_size2   = clo_option("-ps2",-1, "> Patch size, step 2");
 	const int num_patches1  = clo_option("-np1",-1, "> Number of similar patches, step 1");
 	const int num_patches2  = clo_option("-np2",-1, "> Number of similar patches, step 2");
-	
+
 	//! Only print parameters
 	if (print_prms)
 	{
@@ -84,6 +84,14 @@ int main(int argc, char **argv)
 		VideoNLB::nlbParams prms1, prms2;
 		VideoNLB::initializeNlbParameters(prms1, 1, sigma, tmp, flat_area1, verbose, time_search1, time_search1);
 		VideoNLB::initializeNlbParameters(prms2, 2, sigma, tmp, flat_area2, verbose, time_search2, time_search2);
+
+		//! Override with command line parameters
+		if (space_search1 >= 0) VideoNLB::setSizeSearchWindow(prms1, (unsigned)space_search1);
+		if (space_search2 >= 0) VideoNLB::setSizeSearchWindow(prms2, (unsigned)space_search2);
+		if (patch_size1   >= 0) VideoNLB::setSizePatch(prms1, tmp, (unsigned)patch_size1);;
+		if (patch_size2   >= 0) VideoNLB::setSizePatch(prms2, tmp, (unsigned)patch_size2);;
+		if (num_patches1  >= 0) VideoNLB::setNSimilarPatches(prms1, (unsigned)num_patches1);
+		if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
 
 		VideoNLB::printNlbParameters(prms1);
 		VideoNLB::printNlbParameters(prms2);	
@@ -126,16 +134,12 @@ int main(int argc, char **argv)
 	VideoNLB::initializeNlbParameters(prms2, 2, sigma, noisy.sz, flat_area2, verbose, time_search2, time_search2);
 
 	//! Override with command line parameters
-	if (space_search1 >= 0) prms1.sizeSearchWindow = (unsigned)space_search1;
-	if (space_search2 >= 0) prms2.sizeSearchWindow = (unsigned)space_search2;
-	if (space_search1 >= 0) prms1.boundary = (int)(1.5f * (float)space_search1);
-	if (space_search2 >= 0) prms2.boundary = (int)(1.5f * (float)space_search2);
-	if (patch_size1   >= 0) prms1.sizePatch = (unsigned)patch_size1;
-	if (patch_size2   >= 0) prms2.sizePatch = (unsigned)patch_size2;
-	if (patch_size1   >= 0) prms1.offSet = (unsigned)patch_size1/2;
-	if (patch_size2   >= 0) prms2.offSet = (unsigned)patch_size2/2;
-	if (num_patches1  >= 0) prms1.nSimilarPatches = (unsigned)num_patches1;
-	if (num_patches2  >= 0) prms2.nSimilarPatches = (unsigned)num_patches2;
+	if (space_search1 >= 0) VideoNLB::setSizeSearchWindow(prms1, (unsigned)space_search1);
+	if (space_search2 >= 0) VideoNLB::setSizeSearchWindow(prms2, (unsigned)space_search2);
+	if (patch_size1   >= 0) VideoNLB::setSizePatch(prms1, noisy.sz, (unsigned)patch_size1);;
+	if (patch_size2   >= 0) VideoNLB::setSizePatch(prms2, noisy.sz, (unsigned)patch_size2);;
+	if (num_patches1  >= 0) VideoNLB::setNSimilarPatches(prms1, (unsigned)num_patches1);
+	if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
 
 	//! Run denoising algorithm
 	VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2);

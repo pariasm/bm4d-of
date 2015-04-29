@@ -101,6 +101,54 @@ void initializeNlbParameters(
 ,	const unsigned timeSearchRangeBwd = 0
 );
 
+
+/**
+ * @brief Sets size of spatial search window. It sets the border width accordingly,
+ * and also ensures that the number of similar patches is not larger that the 
+ * total number of available patches.
+ *
+ * @param prms             : nlbParams for first or second step of the algorithm;
+ * @param sizeSearchWindow : size of search window;
+ *
+ * @return none.
+ **/
+void setSizeSearchWindow(
+	nlbParams& prms
+,	unsigned sizeSearchWindow
+);
+
+
+/**
+ * @brief Sets size of the patch. It sets the pixel offset as half the patch
+ * size (this is BM3D speed-up).
+ *
+ * @param prms      : nlbParams for first or second step of the algorithm;
+ * @param sizePatch : size of the patch;
+ *
+ * @return none.
+ **/
+void setSizePatch(
+	nlbParams& prms
+,	const VideoSize &p_size
+,	unsigned sizePatch
+);
+
+
+/**
+ * @brief Sets number of similar patches, ensuring that the number of similar
+ * patches is not larger that the total number of available patches.
+ *
+ * @param prms            : nlbParams for first or second step of the algorithm;
+ * @param nSimilarPatches : number of similar patches;
+ *
+ * @return none.
+ **/
+void setNSimilarPatches(
+	nlbParams& prms
+, unsigned nSimilarPatches
+);
+
+
 /**
  * @brief Display parameters of the NL-Bayes algorithm.
  *

@@ -108,7 +108,7 @@ void initializeNlbParameters(
 	o_params.nSimilarPatches *= timeSearchRangeFwd + timeSearchRangeBwd + 1; // FIXME: this is just a test
 
 	//! Size of boundaries used during the sub division
-	o_params.boundary = int(1.5f * float(o_params.sizeSearchWindow));
+	o_params.boundary = o_params.sizeSearchWindow/2 + (o_params.sizePatch - 1);
 
 	// TODO VIDEO: do we need to specify temporal boundary?
 
@@ -141,6 +141,89 @@ void initializeNlbParameters(
 
 	//! Boost the paste trick
 	o_params.doPasteBoost = true;
+}
+
+//	depend on sigma:
+//		  sizePatch
+//		  nSimilarPatches
+//		  beta
+//
+// depend on sizePatch:
+//		  nSimilarPatches (if channels == 3)
+//		  sizeSearchWindow
+//		  offSet
+//		  tau
+//
+// depend on nSimilarPatches
+//		  sizeSearchWindow
+//
+// depend on sizeSearchWindow
+//		  boundary
+//		  nSimilarPatches (cannot be more than total number of searchable patches)
+//
+// depend on sizeSearchTimeRangeFwd/Bwd
+//		  nSimilarPatches
+
+/**
+ * @brief Sets size of spatial search window. It sets the border width accordingly,
+ * and also ensures that the number of similar patches is not larger that the 
+ * total number of available patches.
+ *
+ * @param prms             : nlbParams for first or second step of the algorithm;
+ * @param sizeSearchWindow : size of search window;
+ *
+ * @return none.
+ **/
+void setSizeSearchWindow(nlbParams& prms, unsigned sizeSearchWindow)
+{
+	prms.sizeSearchWindow = sizeSearchWindow;
+	prms.boundary = sizeSearchWindow/2 + (prms.sizePatch - 1);
+	prms.nSimilarPatches = std::min(prms.nSimilarPatches, sizeSearchWindow *
+	                                                      sizeSearchWindow *
+	                                                     (prms.sizeSearchTimeRangeFwd +
+	                                                      prms.sizeSearchTimeRangeBwd + 1));
+}
+
+/**
+ * @brief Sets size of the patch. It sets the pixel offset as half the patch
+ * size (this is BM3D speed-up).
+ *
+ * @param prms      : nlbParams for first or second step of the algorithm;
+ * @param sizePatch : size of the patch;
+ *
+ * @return none.
+ **/
+void setSizePatch(nlbParams& prms, const VideoSize &size, unsigned sizePatch)
+{
+	prms.sizePatch = sizePatch;
+	prms.boundary = prms.sizeSearchWindow/2 + (prms.sizePatch - 1);
+	prms.offSet = sizePatch/2;
+
+	//! Update number of similar patches, only if it is less than recommended value
+	if (size.channels == 3)
+//		prms.nSimilarPatches = std::max(prms.sizePatch * prms.sizePatch * 3, prms.nSimilarPatches);
+		prms.nSimilarPatches = prms.sizePatch * prms.sizePatch * 3 * 
+		                      (prms.sizeSearchTimeRangeFwd + 
+		                       prms.sizeSearchTimeRangeBwd + 1);
+	
+}
+
+/**
+ * @brief Sets number of similar patches, ensuring that the number of similar
+ * patches is not larger that the total number of available patches.
+ *
+ * @param prms            : nlbParams for first or second step of the algorithm;
+ * @param nSimilarPatches : number of similar patches;
+ *
+ * @return none.
+ **/
+void setNSimilarPatches(nlbParams& prms, unsigned nSimilarPatches)
+{
+	prms.nSimilarPatches = nSimilarPatches;
+	prms.nSimilarPatches = std::min(nSimilarPatches, prms.sizeSearchWindow *
+	                                                 prms.sizeSearchWindow *
+	                                                (prms.sizeSearchTimeRangeFwd +
+	                                                 prms.sizeSearchTimeRangeBwd + 1));
 }
 
 /**
@@ -366,8 +449,8 @@ void processNlBayes(
 
 	//! Only pixels of the center of the image must be processed (not the boundaries)
 	for (unsigned f =   0; f < i_imNoisy.sz.frames      ; f++)
-	for (unsigned y = sWx; y < i_imNoisy.sz.height - sWx; y++)
-	for (unsigned x = sWx; x < i_imNoisy.sz.width  - sWx; x++)
+	for (unsigned y = sP-1 + sWx/2; y < i_imNoisy.sz.height - sP+1 - sWx/2; y++)
+	for (unsigned x = sP-1 + sWx/2; x < i_imNoisy.sz.width  - sP+1 - sWx/2; x++)
 		mask(x,y,f) = true;
 
 	//! Used matrices during Bayes' estimate
