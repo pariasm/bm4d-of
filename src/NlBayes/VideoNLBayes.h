@@ -241,9 +241,9 @@ void processNlBayes(
  * @param p_ij: index of the reference patch;
  * @param p_params: see processStep1 for more explanation.
  *
- * @return none.
+ * @return number of similar patches kept.
  **/
-void estimateSimilarPatchesStep1(
+unsigned estimateSimilarPatchesStep1(
 	Video<float> const& i_im
 ,	std::vector<std::vector<float> > &o_group3d
 ,	std::vector<unsigned> &o_index
@@ -329,6 +329,7 @@ int computeHomogeneousAreaStep2(
  *		- tmpMat: allocated memory. Used to process the Bayes estimate;
  * @param io_nInverseFailed: update the number of failed matrix inversion;
  * @param p_params: see processStep1 for more explanation.
+ * @param p_nSimP: number of similar patches.
  *
  * @return none.
  **/
@@ -337,6 +338,7 @@ void computeBayesEstimateStep1(
 ,	matParams &i_mat
 ,	unsigned &io_nInverseFailed
 ,	nlbParams const& p_params
+,	const unsigned p_nSimP
 );
 
 /**
@@ -377,6 +379,7 @@ void computeBayesEstimateStep2(
  * @param i_group3d: contains estimated values of all similar patches in the 3D group;
  * @param i_index: contains index of all similar patches contained in i_group3d;
  * @param p_params: see processStep1 for more explanation.
+ * @param p_nSimP: number of similar patches.
  *
  * @return none.
  **/
@@ -387,6 +390,7 @@ void computeAggregationStep1(
 ,	std::vector<std::vector<float> > const& i_group3d
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams& p_params
+,	const unsigned p_nSimP
 );
 
 /**

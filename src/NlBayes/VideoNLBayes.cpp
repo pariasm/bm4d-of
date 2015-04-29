@@ -33,6 +33,8 @@
 #include <omp.h>
 #endif
 
+//#define DEBUG_SHOW_PATCH_GROUPS
+
 namespace VideoNLB
 {
 
@@ -487,7 +489,7 @@ void processNlBayes(
 				const unsigned ij3 = (ij / i_imNoisy.sz.wh) * i_imNoisy.sz.whc + ij % i_imNoisy.sz.wh;
 
 				//! Search for similar patches around the reference one
-				estimateSimilarPatchesStep1(i_imNoisy, group3d, index, ij3, p_params);
+				unsigned nSimP = estimateSimilarPatchesStep1(i_imNoisy, group3d, index, ij3, p_params);
 
 				//! If we use the homogeneous area trick
 				bool doBayesEstimate = true;
@@ -497,10 +499,10 @@ void processNlBayes(
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
-					computeBayesEstimateStep1(group3d, mat, nInverseFailed, p_params);
+					computeBayesEstimateStep1(group3d, mat, nInverseFailed, p_params, nSimP);
 
 				//! Aggregation
-				computeAggregationStep1(io_imBasic, weight, mask, group3d, index, p_params);
+				computeAggregationStep1(io_imBasic, weight, mask, group3d, index, p_params, nSimP);
 			}
 
 		if (p_params.verbose) printf("\n");
@@ -569,7 +571,7 @@ void processNlBayes(
  *
  * @return none.
  **/
-void estimateSimilarPatchesStep1(
+unsigned estimateSimilarPatchesStep1(
 	Video<float> const& i_im
 ,	std::vector<std::vector<float> > &o_group3d
 ,	std::vector<unsigned> &o_index
@@ -581,7 +583,6 @@ void estimateSimilarPatchesStep1(
 	const unsigned sWt_f = p_params.sizeSearchTimeRangeFwd;
 	const unsigned sWt_b = p_params.sizeSearchTimeRangeBwd;
 	const unsigned sP    = p_params.sizePatch;
-	const unsigned nSimP = p_params.nSimilarPatches;
 
 	//! Coordinates of center of search box
 	unsigned px, py, pt, pc;
@@ -613,6 +614,9 @@ void estimateSimilarPatchesStep1(
 	}
 
 	//! Keep only the N2 best similar patches
+	const unsigned nSimP = std::min(p_params.nSimilarPatches, (rangex[1] - rangex[0] + 1) *
+	                                                          (rangey[1] - rangey[0] + 1) *
+	                                                          (ranget[1] - ranget[0] + 1));
 	std::partial_sort(distance.begin(), distance.begin() + nSimP,
 	                  distance.end(), comparaisonFirst);
 
@@ -633,6 +637,8 @@ void estimateSimilarPatchesStep1(
 	 * ...
 	 * 0sp pixels from all patches
 	 */
+
+	return nSimP;
 }
 
 /**
@@ -698,13 +704,16 @@ unsigned estimateSimilarPatchesStep2(
 	}
 
 	//! Keep only the nSimilarPatches best similar patches
-	std::partial_sort(distance.begin(), distance.begin() + p_params.nSimilarPatches,
+	unsigned nSimP = std::min(p_params.nSimilarPatches, (rangex[1] - rangex[0] + 1) *
+	                                                    (rangey[1] - rangey[0] + 1) *
+	                                                    (ranget[1] - ranget[0] + 1));
+	std::partial_sort(distance.begin(), distance.begin() + nSimP,
 	                  distance.end(), comparaisonFirst);
 
 	//! Save index of similar patches
 	const float threshold = (p_params.tau > distance[p_params.nSimilarPatches - 1].first ?
 	                         p_params.tau : distance[p_params.nSimilarPatches - 1].first);
-	unsigned nSimP = 0;
+	nSimP = 0;
 
 	//! Register position of similar patches
 	for (unsigned n = 0; n < distance.size(); n++)
@@ -831,6 +840,7 @@ int computeHomogeneousAreaStep2(
  *    - tmpMat: allocated memory. Used to process the Bayes estimate;
  * @param io_nInverseFailed: update the number of failed matrix inversion;
  * @param p_params: see processStep1 for more explanation.
+ * @param p_nSimP: number of similar patches.
  *
  * @return none.
  **/
@@ -839,38 +849,90 @@ void computeBayesEstimateStep1(
 ,	matParams &i_mat
 ,	unsigned &io_nInverseFailed
 ,	nlbParams const& p_params
+,	const unsigned p_nSimP
 ){
 	//! Parameters
 	const unsigned chnls = io_group3d.size();
-	const unsigned nSimP = p_params.nSimilarPatches;
 	const unsigned sP2   = p_params.sizePatch * p_params.sizePatch;
 	const float valDiag  = p_params.beta * p_params.sigma * p_params.sigma;
 
+#ifndef DEBUG_SHOW_PATCH_GROUPS
 	//! Bayes estimate
-	for (unsigned c = 0; c < chnls; c++)
+	if (p_nSimP >= sP2)
 	{
-		//! Center data around the baricenter
-		centerData(io_group3d[c], i_mat.baricenter, nSimP, sP2);
-
-		//! Compute the covariance matrix of the set of similar patches
-		covarianceMatrix(io_group3d[c], i_mat.covMat, nSimP, sP2);
-
-		//! Bayes' Filtering
-		if (inverseMatrix(i_mat.covMat, sP2) == EXIT_SUCCESS)
+		for (unsigned c = 0; c < chnls; c++)
 		{
-			productMatrix(i_mat.group3dTranspose, i_mat.covMat, io_group3d[c],
-			              sP2, sP2, nSimP);
-			for (unsigned k = 0; k < sP2 * nSimP; k++)
-				io_group3d[c][k] -= valDiag * i_mat.group3dTranspose[k];
-		}
-		else 
-			io_nInverseFailed++;
+			//! Center data around the baricenter
+			centerData(io_group3d[c], i_mat.baricenter, p_nSimP, sP2);
 
-		//! Add baricenter
-		for (unsigned j = 0, k = 0; j < sP2; j++)
-			for (unsigned i = 0; i < nSimP; i++, k++)
-				io_group3d[c][k] += i_mat.baricenter[j];
+			//! Compute the covariance matrix of the set of similar patches
+			covarianceMatrix(io_group3d[c], i_mat.covMat, p_nSimP, sP2);
+
+			//! Bayes' Filtering
+			if (inverseMatrix(i_mat.covMat, sP2) == EXIT_SUCCESS)
+			{
+				productMatrix(i_mat.group3dTranspose, i_mat.covMat, io_group3d[c],
+								  sP2, sP2, p_nSimP);
+				for (unsigned k = 0; k < sP2 * p_nSimP; k++)
+					io_group3d[c][k] -= valDiag * i_mat.group3dTranspose[k];
+			}
+			else io_nInverseFailed++;
+
+			//! Add baricenter
+			for (unsigned j = 0, k = 0; j < sP2; j++)
+				for (unsigned i = 0; i < p_nSimP; i++, k++)
+					io_group3d[c][k] += i_mat.baricenter[j];
+		}
 	}
+	else io_nInverseFailed++;
+#else
+	//! Show color-code representing patch status
+	if (p_nSimP >= sP2)
+	{
+		float color[3];
+		// green
+		color[0] =  147.2243f;
+		color[1] =  0;
+		color[2] = -208.2066f;
+
+		for (unsigned c = 0; c < chnls; c++)
+		{
+			//! Center data around the baricenter
+			centerData(io_group3d[c], i_mat.baricenter, p_nSimP, sP2);
+
+			//! Compute the covariance matrix of the set of similar patches
+			covarianceMatrix(io_group3d[c], i_mat.covMat, p_nSimP, sP2);
+
+			//! Bayes' Filtering
+			if (inverseMatrix(i_mat.covMat, sP2) == EXIT_FAILURE)
+			{
+				io_nInverseFailed++;
+				// blue
+				color[0] =  147.2243f;
+				color[1] = -180.3122f;
+				color[2] =  104.1033f;
+			}
+		}
+
+		for (unsigned k = 0; k < sP2 * p_nSimP; k++)
+		{
+			io_group3d[0][k] =  color[0];
+			io_group3d[1][k] =  color[1];
+			io_group3d[2][k] =  color[2];
+		}
+	}
+	else
+	{
+		io_nInverseFailed++;
+		for (unsigned k = 0; k < sP2 * p_nSimP; k++)
+		{
+			// red
+			io_group3d[0][k] = 147.2243f;
+			io_group3d[1][k] = 180.3122f;
+			io_group3d[2][k] = 104.1033f;
+		}
+	}
+#endif
 }
 
 /**
@@ -942,6 +1004,7 @@ void computeBayesEstimateStep2(
  * @param i_index: contains index of all similar patches contained in i_group3d;
  * @param p_imSize: size of io_im;
  * @param p_params: see processStep1 for more explanation.
+ * @param p_nSimP: number of similar patches.
  *
  * @return none.
  **/
@@ -952,16 +1015,17 @@ void computeAggregationStep1(
 ,	std::vector<std::vector<float> > const& i_group3d
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
+,	const unsigned p_nSimP
 ){
 	//! Parameters initializations
 	const unsigned chnls  = io_im.sz.channels;
 	const unsigned width  = io_im.sz.width;
 	const unsigned height = io_im.sz.height;
 	const unsigned sP     = p_params.sizePatch;
-	const unsigned nSimP  = p_params.nSimilarPatches;
 
+#ifndef DEBUG_SHOW_PATCH_GROUPS
 	//! Aggregate estimates
-	for (unsigned n = 0; n < nSimP; n++)
+	for (unsigned n = 0; n < p_nSimP; n++)
 	{
 		const unsigned ind = i_index[n];
 		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
@@ -971,7 +1035,7 @@ void computeAggregationStep1(
 			for (unsigned c = 0; c < chnls; c++)
 			{
 				const unsigned ij = ind  + c * width * height;
-				io_im(ij + p * width + q) += i_group3d[c][(p * sP + q) * nSimP + n];
+				io_im(ij + p * width + q) += i_group3d[c][(p * sP + q) * p_nSimP + n];
 			}
 			io_weight(ind1 + p * width + q)++;
 		}
@@ -987,6 +1051,40 @@ void computeAggregationStep1(
 			io_mask(ind1 + 1    ) = false;
 		}
 	}
+#else
+	for (unsigned n = 0; n < 1; n++)
+	{
+		const unsigned ind = i_index[n];
+		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
+		for (unsigned p = 0; p < 1; p++)
+		for (unsigned q = 0; q < 1; q++)
+		{
+			for (unsigned c = 0; c < chnls; c++)
+			{
+				const unsigned ij = ind  + c * width * height;
+				io_im(ij + p * width + q) += i_group3d[c][(p * sP + q) * p_nSimP + n];
+			}
+			io_weight(ind1 + p * width + q)++;
+		}
+	}
+
+	for (unsigned n = 0; n < p_nSimP; n++)
+	{
+		const unsigned ind = i_index[n];
+		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
+
+		//! Use Paste Trick
+		io_mask(ind1) = false;
+
+		if (p_params.doPasteBoost)
+		{
+			io_mask(ind1 - width) = false;
+			io_mask(ind1 + width) = false;
+			io_mask(ind1 - 1    ) = false;
+			io_mask(ind1 + 1    ) = false;
+		}
+	}
+#endif
 }
 
 /**
