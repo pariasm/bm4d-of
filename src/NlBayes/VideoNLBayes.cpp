@@ -34,6 +34,7 @@
 #endif
 
 //#define DEBUG_SHOW_PATCH_GROUPS
+//#define DEBUG_SHOW_WEIGHT
 
 namespace VideoNLB
 {
@@ -374,7 +375,7 @@ int runNlBayes(
 		firstprivate (prms1)
 #endif
 		for (int n = 0; n < (int)nParts; n++)
-			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms1);
+			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms1, n);
 
 		//! Get the basic estimate
 		VideoUtils::subBuild(imBasicSub, o_imBasic, p_prms1.boundary);
@@ -405,7 +406,7 @@ int runNlBayes(
 		firstprivate (prms2)
 #endif
 		for (int n = 0; n < (int) nParts; n++)
-			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms2);
+			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms2, n);
 
 		//! Get the final result
 		VideoUtils::subBuild(imFinalSub, o_imFinal, p_prms2.boundary);
@@ -429,6 +430,7 @@ void processNlBayes(
 ,	Video<float> &io_imBasic
 ,	Video<float> &o_imFinal
 ,	nlbParams const& p_params
+,	unsigned part
 ){
 	using std::vector;
 
@@ -558,6 +560,14 @@ void processNlBayes(
 
 	if (nInverseFailed > 0 && p_params.verbose)
 		std::cout << "nInverseFailed = " << nInverseFailed << std::endl;
+
+#ifdef DEBUG_SHOW_WEIGHT
+	{
+		char name[1024];
+		sprintf(name, "weight_step%d_part%d_%%03d.png", step1 ? 1 : 2, part);
+		weight.saveVideo(name, 1, 1);
+	}
+#endif
 }
 
 /**

@@ -230,6 +230,7 @@ void processNlBayes(
 ,	Video<float> &io_imBasic
 ,	Video<float> &o_imFinal
 ,	nlbParams const& p_params
+,	unsigned part = 0
 );
 
 /**
