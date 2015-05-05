@@ -1,18 +1,18 @@
-% NL-Bayes image denoising.
+% NL-Bayes video denoising.
 
 # ABOUT
 
-* Author    : Marc Lebrun <marc.lebrun.ik@gmail.com>
-* Copyright : (C) 2013 IPOL Image Processing On Line http://www.ipol.im/
+* Author    : Pablo Arias <pariasm@gmail.com>
+* Copyright : (C) 2015 IPOL Image Processing On Line http://www.ipol.im/
 * Licence   : GPL v3+, see GPLv3.txt
 
 # OVERVIEW
 
-This source code provides an implementation of the NL-Bayes image denoising.
+This source code provides an implementation of the NL-Bayes video denoising.
 
 # UNIX/LINUX/MAC USER GUIDE
 
-The code is compilable on Unix/Linux and Mac OS. 
+The code is compilable on Unix/Linux and Mac OS (not tested!). 
 
 - Compilation. 
 Automated compilation requires the make program.
@@ -27,32 +27,27 @@ Only the PNG format is supported.
 Usage:
 1. Download the code package and extract it. Go to that directory. 
 
-2. Compile the source code (on Unix/Linux/Mac OS). 
-There are two ways to compile the code. 
-(1) RECOMMENDED, with Open Multi-Processing multithread parallelization 
-(http://openmp.org/). Roughly speaking, it accelerates the program using the 
-multiple processors in the computer. Run
-make OMP=1
+2. Configure and compile the source code using cmake and make. 
+It is recommended that you create a folder for building:
 
-OR
-(2) If the compiler does not support OpenMp, run
-make
+$ mkdir build; cd build
+$ cmake ..
+$ make
 
-3. Run NL_Bayes image denoising.
-./NL_Bayes
-You can decide to use the "Homogeneous Criteria" in the first, second or both steps, 
-by using UseArea1 = true and/or UseArea2 = true.
-You can also wanted to see the bias (result of the algorithm applied
-to the original image), in this case use compute_bias = true.
- 
-Example, run
-./NL_Bayes input.png 10 ImNoisy.png ImDenoised.png ImBasic.png ImDiff.png ImBias.png ImBiasBasic ImDiffBias.png 1 0 1
+Binaries will be created in build/bin folder.
+
+NOTE: By default, the code is compiled with OpenMP multithreaded
+parallelization enabled (if your system supports it). It can 
+be disabled by editing the root CMakeLists.txt file.
+
+3. Run NL-Bayes video denoising. 
+Type bin/vnlbayes --help for usage instructions.
 
 4. Results are available in the file "measures.txt".
 
 # ABOUT THIS FILE
 
-Copyright 2013 IPOL Image Processing On Line http://www.ipol.im/
+Copyright 2015 IPOL Image Processing On Line http://www.ipol.im/
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright
