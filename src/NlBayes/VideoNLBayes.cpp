@@ -362,9 +362,9 @@ int runNlBayes(
 		VideoUtils::transformColorSpace(imNoisy, true);
 
 		//! Divide the noisy image into sub-images in order to easier parallelize the process
-		// ASK MARC: any suggestion on the best way to split the space time cube
 		std::vector<Video<float> > imNoisySub(nParts);
-		VideoUtils::subDivide(imNoisy, imNoisySub, p_prms1.boundary, nParts);
+		std::vector<VideoUtils::CropPosition > imCrops(nParts);
+		VideoUtils::subDivideTight(imNoisy, imNoisySub, imCrops, p_prms1.boundary, nParts);
 
 		//! Process all sub-images
 		std::vector<Video<float> > imBasicSub(nParts);
@@ -378,10 +378,10 @@ int runNlBayes(
 		firstprivate (prms1)
 #endif
 		for (int n = 0; n < (int)nParts; n++)
-			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms1, n);
+			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms1, imCrops[n]);
 
 		//! Get the basic estimate
-		VideoUtils::subBuild(imBasicSub, o_imBasic, p_prms1.boundary);
+		VideoUtils::subBuildTight(imBasicSub, o_imBasic, p_prms1.boundary);
 
 		//! YUV to RGB
 		VideoUtils::transformColorSpace(o_imBasic, false);
@@ -394,9 +394,10 @@ int runNlBayes(
 		//! Divide the noisy and basic images into sub-images in order to easier parallelize the process
 		std::vector<Video<float> > imNoisySub(nParts);
 		std::vector<Video<float> > imBasicSub(nParts);
+		std::vector<VideoUtils::CropPosition > imCrops(nParts);
 
-		VideoUtils::subDivide(i_imNoisy, imNoisySub, p_prms2.boundary, nParts);
-		VideoUtils::subDivide(o_imBasic, imBasicSub, p_prms2.boundary, nParts);
+		VideoUtils::subDivideTight(i_imNoisy, imNoisySub, imCrops, p_prms2.boundary, nParts);
+		VideoUtils::subDivideTight(o_imBasic, imBasicSub, imCrops, p_prms2.boundary, nParts);
 
 		//! Process all sub-images
 		std::vector<Video<float> > imFinalSub(nParts);
@@ -409,10 +410,10 @@ int runNlBayes(
 		firstprivate (prms2)
 #endif
 		for (int n = 0; n < (int) nParts; n++)
-			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms2, n);
+			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms2, imCrops[n]);
 
 		//! Get the final result
-		VideoUtils::subBuild(imFinalSub, o_imFinal, p_prms2.boundary);
+		VideoUtils::subBuildTight(imFinalSub, o_imFinal, p_prms2.boundary);
 	}
 
 	return EXIT_SUCCESS;
@@ -433,7 +434,7 @@ void processNlBayes(
 ,	Video<float> &io_imBasic
 ,	Video<float> &o_imFinal
 ,	nlbParams const& p_params
-,	unsigned part
+,	VideoUtils::CropPosition p_crop
 ){
 	using std::vector;
 
@@ -442,7 +443,8 @@ void processNlBayes(
 	const unsigned sWx = p_params.sizeSearchWindow;
 	const unsigned sWt = p_params.sizeSearchTimeRangeFwd +
 	                     p_params.sizeSearchTimeRangeBwd + 1;// VIDEO
-	const unsigned sP  = p_params.sizePatch;
+	const unsigned sPx = p_params.sizePatch;
+	const unsigned sPt = p_params.sizePatchTime;
 
 	unsigned nInverseFailed = 0;
 	const float threshold = p_params.sigma * p_params.sigma * p_params.gamma *
@@ -455,13 +457,19 @@ void processNlBayes(
 	Video<char> mask(i_imNoisy.sz.width, i_imNoisy.sz.height, i_imNoisy.sz.frames, 1, false);
 
 	//! Only pixels of the center of the image must be processed (not the boundaries)
-	for (unsigned f =   0; f < i_imNoisy.sz.frames      ; f++)
-	for (unsigned y = sP-1 + sWx/2; y < i_imNoisy.sz.height - sP+1 - sWx/2; y++)
-	for (unsigned x = sP-1 + sWx/2; x < i_imNoisy.sz.width  - sP+1 - sWx/2; x++)
+	int ori_x =                                  (p_crop.origin_x > 0                      ) ? sPx-1 + sWx/2 : 0 ; 
+	int ori_y =                                  (p_crop.origin_y > 0                      ) ? sPx-1 + sWx/2 : 0 ; 
+	int ori_f =                                  (p_crop.origin_t > 0                      ) ? sPt-1 + sWt/2 : 0 ; 
+	int end_x = (int)i_imNoisy.sz.width  - (int)((p_crop.ending_x < p_crop.source_sz.width ) ? sPx-1 + sWx/2 : sPx-1); 
+	int end_y = (int)i_imNoisy.sz.height - (int)((p_crop.ending_y < p_crop.source_sz.height) ? sPx-1 + sWx/2 : sPx-1); 
+	int end_f = (int)i_imNoisy.sz.frames - (int)((p_crop.ending_t < p_crop.source_sz.frames) ? sPt-1 + sWt/2 : sPt-1); 
+	for (int f = ori_f; f < end_f; f++)
+	for (int y = ori_y; y < end_y; y++)
+	for (int x = ori_x; x < end_x; x++)
 		mask(x,y,f) = true;
 
 	//! Used matrices during Bayes' estimate
-	const unsigned patch_dim = step1 ? sP * sP : sP * sP * i_imNoisy.sz.channels;
+	const unsigned patch_dim = step1 ? sPx * sPx * sPt : sPx * sPx * sPt * i_imNoisy.sz.channels;
 	const unsigned patch_num = step1 ? p_params.nSimilarPatches : sWx * sWx * sWt;
 
 	//! Matrices used for Bayes' estimate
@@ -499,7 +507,7 @@ void processNlBayes(
 				//! If we use the homogeneous area trick
 				bool doBayesEstimate = true;
 				if (p_params.useHomogeneousArea)
-					doBayesEstimate = !computeHomogeneousAreaStep1(group3d, sP, patch_num,
+					doBayesEstimate = !computeHomogeneousAreaStep1(group3d, sPx, patch_num,
 							threshold, i_imNoisy.sz);
 
 				//! Else, use Bayes' estimate
@@ -545,7 +553,7 @@ void processNlBayes(
 				bool doBayesEstimate = true;
 				if (p_params.useHomogeneousArea)
 					doBayesEstimate = !computeHomogeneousAreaStep2(group3dNoisy,
-							group3dBasic, sP, nSimP, threshold, i_imNoisy.sz);
+							group3dBasic, sPx, nSimP, threshold, i_imNoisy.sz);
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
@@ -571,8 +579,11 @@ void processNlBayes(
 
 #ifdef DEBUG_SHOW_WEIGHT
 	{
+		int part_x = p_crop.origin_x;
+		int part_y = p_crop.origin_y;
+		int part_t = p_crop.origin_t;
 		char name[1024];
-		sprintf(name, "weight_step%d_part%d_%%03d.png", step1 ? 1 : 2, part);
+		sprintf(name, "weight_step%d_partx%dy%dt%d_%%03d.png", step1 ? 1 : 2, part_x, part_y, part_t);
 		weight.saveVideo(name, 1, 1);
 	}
 #endif
@@ -597,22 +608,43 @@ unsigned estimateSimilarPatchesStep1(
 ,	const nlbParams &p_params
 ){
 	//! Initialization
-	const unsigned sWx   = p_params.sizeSearchWindow;
-	const unsigned sWt_f = p_params.sizeSearchTimeRangeFwd;
-	const unsigned sWt_b = p_params.sizeSearchTimeRangeBwd;
-	const unsigned sP    = p_params.sizePatch;
+	int sWx   = p_params.sizeSearchWindow;
+	int sWy   = p_params.sizeSearchWindow;
+	const int sWt_f = p_params.sizeSearchTimeRangeFwd;
+	const int sWt_b = p_params.sizeSearchTimeRangeBwd;
+	const int sPx   = p_params.sizePatch;
+	const int sPt   = p_params.sizePatchTime;
 
 	//! Coordinates of center of search box
 	unsigned px, py, pt, pc;
 	i_im.sz.coords(pidx, px, py, pt, pc);
 
-	const unsigned rangex[2] = {px - (sWx - 1)/2, px + (sWx - 1)/2};
-	const unsigned rangey[2] = {py - (sWx - 1)/2, py + (sWx - 1)/2};
-	const unsigned ranget[2] = {std::max((int)pt - (int)sWt_b, 0),
-	                            std::min((int)pt + (int)sWt_f, (int)i_im.sz.frames-1)};
+	unsigned rangex[2];
+	unsigned rangey[2];
+	unsigned ranget[2];
 
-	std::vector<std::pair<float, unsigned> > distance(sWx * sWx * 
-	                                            (ranget[1] - ranget[0] + 1));
+	rangex[0] = std::max(0, (int)px - (sWx-1)/2);
+	rangey[0] = std::max(0, (int)py - (sWy-1)/2);
+	ranget[0] = std::max(0, (int)pt -  sWt_b   );
+
+	rangex[1] = std::min((int)i_im.sz.width  - sPx, (int)px + (sWx-1)/2);
+	rangey[1] = std::min((int)i_im.sz.height - sPx, (int)py + (sWy-1)/2);
+	ranget[1] = std::min((int)i_im.sz.frames - sPt, (int)pt +  sWt_f   );
+
+	rangex[0] = std::max(0, (int)px - (sWx-1)/2);
+	rangey[0] = std::max(0, (int)py - (sWx-1)/2);
+	ranget[0] = std::max(0, (int)pt -  sWt_b   );
+
+	rangex[1] = std::min((int)i_imNoisy.sz.width  - sPx, (int)px + (sWx-1)/2);
+	rangey[1] = std::min((int)i_imNoisy.sz.height - sPx, (int)py + (sWx-1)/2);
+	ranget[1] = std::min((int)i_imNoisy.sz.frames - sPt, (int)pt +  sWt_f   );
+
+	//! Redefine size of search range
+	sWx = rangex[1] - rangex[0] + 1;
+	sWy = rangey[1] - rangey[0] + 1;
+	int sWt = ranget[1] - ranget[0] + 1;
+
+	std::vector<std::pair<float, unsigned> > distance(sWx * sWy * sWt);
 
 	//! Compute distance between patches in search range
 	for (unsigned qt = ranget[0], dt = 0; qt <= ranget[1]; qt++, dt++)
@@ -621,39 +653,58 @@ unsigned estimateSimilarPatchesStep1(
 	{
 		//! Squared L2 distance
 		float dist = 0.f, dif;
-		for (unsigned hy = 0; hy < sP; hy++)
-		for (unsigned hx = 0; hx < sP; hx++)
-			dist += (dif = i_im(px + hx, py + hy, pt)
-			             - i_im(qx + hx, qy + hy, qt)) * dif;
+		for (unsigned ht = 0; ht < sPt; ht++)
+		for (unsigned hy = 0; hy < sPx; hy++)
+		for (unsigned hx = 0; hx < sPx; hx++)
+			dist += (dif = i_im(px + hx, py + hy, pt + ht)
+			             - i_im(qx + hx, qy + hy, qt + ht)) * dif;
 
 		//! Save distance and corresponding patch index
 		distance[dt * sWx*sWx + dy * sWx + dx] = 
 			std::make_pair(dist, i_im.sz.index(qx, qy, qt, 0));
 	}
 
+//	printf("distance.size() = %d", distance.size());
+//	for (int i = 0; i < distance.size(); i++)
+//	{
+//		unsigned cx, cy, ct, cc;
+//		i_im.sz.coords(distance[i].second, cx, cy, ct, cc);
+//		printf("d[%03d] = %g - p = [%02d,%02d,%02d,%2d]\n", i, distance[i].first,
+//				cx, cy, ct, cc);
+//	}
+
 	//! Keep only the N2 best similar patches
-	const unsigned nSimP = std::min(p_params.nSimilarPatches, (rangex[1] - rangex[0] + 1) *
-	                                                          (rangey[1] - rangey[0] + 1) *
-	                                                          (ranget[1] - ranget[0] + 1));
+	const unsigned nSimP = std::min(p_params.nSimilarPatches, (unsigned)distance.size());
 	std::partial_sort(distance.begin(), distance.begin() + nSimP,
 	                  distance.end(), comparaisonFirst);
+
+//	for (int i = 0; i < nSimP; i++)
+//	{
+//		unsigned cx, cy, ct, cc;
+//		i_im.sz.coords(distance[i].second, cx, cy, ct, cc);
+//		printf("d[%03d] = %g - p = [%02d,%02d,%02d,%2d]\n", i, distance[i].first,
+//				cx, cy, ct, cc);
+//	}
+
 
 	//! Register position of patches
 	for (unsigned n = 0; n < nSimP; n++) o_index[n] = distance[n].second;
 
 	//! Stack selected patches into the 3D group
-	const unsigned w  = i_im.sz.width;
-	const unsigned wh = i_im.sz.wh;
+	const unsigned w   = i_im.sz.width;
+	const unsigned wh  = i_im.sz.wh;
+	const unsigned whc = i_im.sz.whc;
 	for (unsigned c  = 0; c < i_im.sz.channels; c++)
-	for (unsigned hy = 0, k = 0; hy < sP; hy++)
-	for (unsigned hx = 0;        hx < sP; hx++)
+	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
+	for (unsigned hy = 0;        hy < sPx; hy++)
+	for (unsigned hx = 0;        hx < sPx; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
-		o_group3d[c][k] = i_im(c * wh + o_index[n] + hy * w + hx);
+		o_group3d[c][k] = i_im(c * wh + o_index[n] + ht * whc + hy * w + hx);
 
-	/* 00  pixels from all patches
-	 * 01  pixels from all patches
+	/* 000  pixels from all patches
+	 * 001  pixels from all patches
 	 * ...
-	 * 0sp pixels from all patches
+	 * spt,spx,spx pixels from all patches
 	 */
 
 	return nSimP;
@@ -683,25 +734,29 @@ unsigned estimateSimilarPatchesStep2(
 ,	const nlbParams &p_params
 ){
 	//! Initialization
-	const unsigned width = i_imNoisy.sz.width;
-	const unsigned chnls = i_imNoisy.sz.channels;
-	const unsigned wh    = width * i_imNoisy.sz.height;
-	const unsigned sP    = p_params.sizePatch;
-	const unsigned sWx   = p_params.sizeSearchWindow;
-	const unsigned sWt_f = p_params.sizeSearchTimeRangeFwd;
-	const unsigned sWt_b = p_params.sizeSearchTimeRangeBwd;
+	const int chnls = i_imNoisy.sz.channels;
+	const int sPx   = p_params.sizePatch;
+	const int sPt   = p_params.sizePatchTime;
+	int sWx   = p_params.sizeSearchWindow;
+	int sWy   = p_params.sizeSearchWindow;
+	const int sWt_f = p_params.sizeSearchTimeRangeFwd;
+	const int sWt_b = p_params.sizeSearchTimeRangeBwd;
 
 	//! Coordinates of center of search box
 	unsigned px, py, pt, pc;
 	i_imBasic.sz.coords(pidx, px, py, pt, pc);
 
-	const unsigned rangex[2] = {px - (sWx - 1)/2, px + (sWx - 1)/2};
-	const unsigned rangey[2] = {py - (sWx - 1)/2, py + (sWx - 1)/2};
-	const unsigned ranget[2] = {std::max((int)pt - (int)sWt_b, 0),
-	                            std::min((int)pt + (int)sWt_f, (int)i_imNoisy.sz.frames-1)};
+	unsigned rangex[2];
+	unsigned rangey[2];
+	unsigned ranget[2];
 
-	std::vector<std::pair<float, unsigned> > distance(sWx * sWx * 
-	                                            (ranget[1] - ranget[0] + 1));
+
+	//! Redefine size of search range
+	sWx = rangex[1] - rangex[0] + 1;
+	sWy = rangey[1] - rangey[0] + 1;
+	int sWt = ranget[1] - ranget[0] + 1;
+
+	std::vector<std::pair<float, unsigned> > distance(sWx * sWy * sWt);
 
 	//! Compute distance between patches in search range
 	for (unsigned qt = ranget[0], dt = 0; qt <= ranget[1]; qt++, dt++)
@@ -711,10 +766,11 @@ unsigned estimateSimilarPatchesStep2(
 		//! Squared L2 distance between color patches of basic image
 		float dist = 0.f, dif;
 		for (unsigned c = 0; c < chnls; c++)
-		for (unsigned hy = 0; hy < sP; hy++)
-		for (unsigned hx = 0; hx < sP; hx++)
-			dist += (dif = i_imBasic(px + hx, py + hy, pt, c)
-			             - i_imBasic(qx + hx, qy + hy, qt, c) ) * dif;
+		for (unsigned ht = 0; ht < sPt; ht++)
+		for (unsigned hy = 0; hy < sPx; hy++)
+		for (unsigned hx = 0; hx < sPx; hx++)
+			dist += (dif = i_imBasic(px + hx, py + hy, pt + ht, c)
+			             - i_imBasic(qx + hx, qy + hy, qt + ht, c) ) * dif;
 
 		//! Save distance and corresponding patch index
 		distance[dt * sWx*sWx + dy * sWx + dx] = 
@@ -722,9 +778,7 @@ unsigned estimateSimilarPatchesStep2(
 	}
 
 	//! Keep only the nSimilarPatches best similar patches
-	unsigned nSimP = std::min(p_params.nSimilarPatches, (rangex[1] - rangex[0] + 1) *
-	                                                    (rangey[1] - rangey[0] + 1) *
-	                                                    (ranget[1] - ranget[0] + 1));
+	unsigned nSimP = std::min(p_params.nSimilarPatches, (unsigned)distance.size());
 	std::partial_sort(distance.begin(), distance.begin() + nSimP,
 	                  distance.end(), comparaisonFirst);
 
@@ -739,13 +793,17 @@ unsigned estimateSimilarPatchesStep2(
 			o_index[nSimP++] = distance[n].second;
 
 	//! Save similar patches into 3D groups
+	const unsigned w   = i_imNoisy.sz.width;
+	const unsigned wh  = i_imNoisy.sz.wh;
+	const unsigned whc = i_imNoisy.sz.whc;
 	for (unsigned c = 0, k = 0; c < chnls; c++)
-	for (unsigned hy = 0; hy < sP; hy++)
-	for (unsigned hx = 0; hx < sP; hx++)
+	for (unsigned ht = 0; ht < sPt; ht++)
+	for (unsigned hy = 0; hy < sPx; hy++)
+	for (unsigned hx = 0; hx < sPx; hx++)
 	for (unsigned n = 0; n < nSimP; n++, k++)
 	{
-		o_group3dNoisy[k] = i_imNoisy(c * wh + o_index[n] + hy * width + hx);
-		o_group3dBasic[k] = i_imBasic(c * wh + o_index[n] + hy * width + hx);
+		o_group3dNoisy[k] = i_imNoisy(c * wh + o_index[n] + ht * whc + hy * w + hx);
+		o_group3dBasic[k] = i_imBasic(c * wh + o_index[n] + ht * whc + hy * w + hx);
 	}
 
 	return nSimP;
@@ -871,7 +929,7 @@ void computeBayesEstimateStep1(
 ){
 	//! Parameters
 	const unsigned chnls = io_group3d.size();
-	const unsigned sP2   = p_params.sizePatch * p_params.sizePatch;
+	const unsigned sP2   = p_params.sizePatch * p_params.sizePatch * p_params.sizePatchTime;
 	const float valDiag  = p_params.beta * p_params.sigma * p_params.sigma;
 
 #ifndef DEBUG_SHOW_PATCH_GROUPS
@@ -983,7 +1041,8 @@ void computeBayesEstimateStep2(
 ){
 	//! Parameters initialization
 	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
-	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch * p_imSize.channels;
+	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
+	                    * p_params.sizePatchTime * p_imSize.channels;
 
 	//! Center 3D groups around their baricenter
 	centerData( i_group3dBasic, i_mat.baricenter, p_nSimP, sPC);
@@ -1036,70 +1095,84 @@ void computeAggregationStep1(
 ,	const unsigned p_nSimP
 ){
 	//! Parameters initializations
-	const unsigned chnls  = io_im.sz.channels;
-	const unsigned width  = io_im.sz.width;
-	const unsigned height = io_im.sz.height;
-	const unsigned sP     = p_params.sizePatch;
+	const unsigned chnls = io_im.sz.channels;
+	const unsigned sPx   = p_params.sizePatch;
+	const unsigned sPt   = p_params.sizePatchTime;
+
+	const unsigned w   = io_im.sz.width;
+	const unsigned h   = io_im.sz.height;
+	const unsigned wh  = io_im.sz.wh;
+	const unsigned whc = io_im.sz.whc;
 
 #ifndef DEBUG_SHOW_PATCH_GROUPS
 	//! Aggregate estimates
 	for (unsigned n = 0; n < p_nSimP; n++)
 	{
 		const unsigned ind = i_index[n];
-		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
-		for (unsigned p = 0; p < sP; p++)
-		for (unsigned q = 0; q < sP; q++)
+		const unsigned ind1 = (ind / whc) * wh + ind % wh;
+		for (unsigned pt = 0; pt < sPt; pt++)
+		for (unsigned py = 0; py < sPx; py++)
+		for (unsigned px = 0; px < sPx; px++)
 		{
 			for (unsigned c = 0; c < chnls; c++)
 			{
-				const unsigned ij = ind  + c * width * height;
-				io_im(ij + p * width + q) += i_group3d[c][(p * sP + q) * p_nSimP + n];
+				const unsigned ij = ind  + c * wh;
+				io_im(ij + pt * whc + py * w + px) += 
+					i_group3d[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
 			}
-			io_weight(ind1 + p * width + q)++;
+			io_weight(ind1 + pt * wh + py * w + px)++;
 		}
 
 		//! Use Paste Trick
 		io_mask(ind1) = false;
 
+		unsigned px, py, pt;
+		io_mask.sz.coords(ind1, px, py, pt);
+
 		if (p_params.doPasteBoost)
 		{
-			io_mask(ind1 - width) = false;
-			io_mask(ind1 + width) = false;
-			io_mask(ind1 - 1    ) = false;
-			io_mask(ind1 + 1    ) = false;
+			if (py >     2*sPx) io_mask(ind1 - w) = false;
+			if (py < w - 2*sPx) io_mask(ind1 + w) = false;
+			if (px >     2*sPx) io_mask(ind1 - 1) = false;
+			if (px > h - 2*sPx) io_mask(ind1 + 1) = false;
 		}
 	}
 #else
 	for (unsigned n = 0; n < 1; n++)
 	{
 		const unsigned ind = i_index[n];
-		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
-		for (unsigned p = 0; p < 1; p++)
-		for (unsigned q = 0; q < 1; q++)
+		const unsigned ind1 = (ind / whc) * wh + ind % wh;
+		for (unsigned pt = 0; pt < sPt; pt++)
+		for (unsigned py = 0; py < sPx; py++)
+		for (unsigned px = 0; px < sPx; px++)
 		{
 			for (unsigned c = 0; c < chnls; c++)
 			{
-				const unsigned ij = ind  + c * width * height;
-				io_im(ij + p * width + q) += i_group3d[c][(p * sP + q) * p_nSimP + n];
+				const unsigned ij = ind  + c * wh;
+				io_im(ij + pt * whc + py * w + px) += 
+					i_group3d[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
 			}
-			io_weight(ind1 + p * width + q)++;
+			io_weight(ind1 + pt * wh + py * w + px)++;
 		}
 	}
 
 	for (unsigned n = 0; n < p_nSimP; n++)
 	{
 		const unsigned ind = i_index[n];
-		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
+		const unsigned ind1 = (ind / whc) * wh + ind % wh;
 
 		//! Use Paste Trick
 		io_mask(ind1) = false;
 
+		unsigned px, py, pt;
+		io_mask.sz.coords(ind1, px, py, pt);
+
 		if (p_params.doPasteBoost)
 		{
-			io_mask(ind1 - width) = false;
-			io_mask(ind1 + width) = false;
-			io_mask(ind1 - 1    ) = false;
-			io_mask(ind1 + 1    ) = false;
+			if (py >     2*sPx) io_mask(ind1 - w) = false;
+			if (py < w - 2*sPx) io_mask(ind1 + w) = false;
+			if (px >     2*sPx) io_mask(ind1 - 1) = false;
+			if (px > h - 2*sPx) io_mask(ind1 + 1) = false;
 		}
 	}
 #endif
@@ -1130,36 +1203,46 @@ void computeAggregationStep2(
 ){
 	//! Parameters initializations
 	const unsigned chnls = io_im.sz.channels;
-	const unsigned width = io_im.sz.width;
-	const unsigned wh    = width * io_im.sz.height;
-	const unsigned sP    = p_params.sizePatch;
+	const unsigned sPx   = p_params.sizePatch;
+	const unsigned sPt   = p_params.sizePatchTime;
+
+	const unsigned w   = io_im.sz.width;
+	const unsigned h   = io_im.sz.height;
+	const unsigned wh  = io_im.sz.wh;
+	const unsigned whc = io_im.sz.whc;
 
 	//! Aggregate estimates
 	for (unsigned n = 0; n < p_nSimP; n++)
 	{
-		const unsigned ind  = i_index[n];
+		const unsigned ind = i_index[n];
 		for (unsigned c = 0, k = 0; c < chnls; c++)
 		{
 			const unsigned ij = ind + c * wh;
-			for (unsigned p = 0; p < sP; p++)
-			for (unsigned q = 0; q < sP; q++, k++)
-				io_im(ij + p * width + q) += i_group3d[k * p_nSimP + n];
+			for (unsigned pt = 0; pt < sPt; pt++)
+			for (unsigned py = 0; py < sPx; py++)
+			for (unsigned px = 0; px < sPx; px++, k++)
+				io_im(ij + pt * whc + py * w + px) +=
+					i_group3d[k * p_nSimP + n];
 		}
 
-		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
-		for (unsigned p = 0; p < sP; p++)
-		for (unsigned q = 0; q < sP; q++)
-			io_weight(ind1 + p * width + q)++;
+		const unsigned ind1 = (ind / whc) * wh + ind % wh;
+		for (unsigned pt = 0; pt < sPt; pt++)
+		for (unsigned py = 0; py < sPx; py++)
+		for (unsigned px = 0; px < sPx; px++)
+			io_weight(ind1 + pt * wh + py * w + px)++;
 
 		//! Apply Paste Trick
 		io_mask(ind1) = false;
 
+		unsigned px, py, pt;
+		io_mask.sz.coords(ind1, px, py, pt);
+
 		if (p_params.doPasteBoost)
 		{
-			io_mask(ind1 - width) = false;
-			io_mask(ind1 + width) = false;
-			io_mask(ind1 - 1    ) = false;
-			io_mask(ind1 + 1    ) = false;
+			if (py >   0) io_mask(ind1 - w) = false;
+			if (py < w-1) io_mask(ind1 + w) = false;
+			if (px >   0) io_mask(ind1 - 1) = false;
+			if (px > h-1) io_mask(ind1 + 1) = false;
 		}
 	}
 }
