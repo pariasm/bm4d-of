@@ -264,6 +264,32 @@ int main(int argc, char **argv)
 	VideoUtils::computePSNR(vid1, vid3, psnr_13, rmse_13);
 	printf("After joining the subvideos... RMSE: %f - PSNR: %f\n", rmse_13, psnr_13);//*/
 
+	//! Subdivide into smaller videos with border
+	int nvids = 8;
+	int border = 10;
+	std::vector<Video<float> > subvids1;
+	std::vector<VideoUtils::CropPosition > crops; 
+	VideoUtils::subDivideTight(vid1, subvids1, crops, border, nvids); 
+
+	for (int n = 0; n < subvids1.size(); n++)
+	{
+		char name[1024];
+		sprintf(name, "/tmp/vid1_sub%02d_%%02d.png", n);
+		subvids1[n].saveVideo(name, i_firstFrame, i_frameStep);
+	}
+
+	//! Join again into large video, removing border
+	Video<float> vid3(vid1.sz);
+	VideoUtils::subBuildTight (subvids1, vid3, border); 
+
+	float psnr_13, rmse_13;
+	VideoUtils::computePSNR(vid1, vid3, psnr_13, rmse_13);
+	printf("After joining the subvideos... RMSE: %f - PSNR: %f\n", rmse_13, psnr_13);//*/
+
+	{
+		vid3.saveVideo("/tmp/vid1_built_%02d.png", i_firstFrame, i_frameStep);
+	}
+
 
 	/*/! Pad video by symmetry
 	Video<float> vid1_sym;
