@@ -111,9 +111,7 @@ void initializeNlbParameters(
 	o_params.nSimilarPatches *= timeSearchRangeFwd + timeSearchRangeBwd + 1; // FIXME: this is just a test
 
 	//! Size of boundaries used during the sub division
-	o_params.boundary = o_params.sizeSearchWindow/2 + (o_params.sizePatch - 1);
-
-	// TODO VIDEO: do we need to specify temporal boundary?
+	o_params.boundary = 2*(o_params.sizeSearchWindow/2) + (o_params.sizePatch - 1);
 
 	//! Parameter used to determine if an area is homogeneous
 	o_params.gamma = 1.05f;
@@ -180,7 +178,7 @@ void initializeNlbParameters(
 void setSizeSearchWindow(nlbParams& prms, unsigned sizeSearchWindow)
 {
 	prms.sizeSearchWindow = sizeSearchWindow;
-	prms.boundary = sizeSearchWindow/2 + (prms.sizePatch - 1);
+	prms.boundary = 2*(sizeSearchWindow/2) + (prms.sizePatch - 1);
 	prms.nSimilarPatches = std::min(prms.nSimilarPatches, sizeSearchWindow *
 	                                                      sizeSearchWindow *
 	                                                     (prms.sizeSearchTimeRangeFwd +
@@ -199,7 +197,7 @@ void setSizeSearchWindow(nlbParams& prms, unsigned sizeSearchWindow)
 void setSizePatch(nlbParams& prms, const VideoSize &size, unsigned sizePatch)
 {
 	prms.sizePatch = sizePatch;
-	prms.boundary = prms.sizeSearchWindow/2 + (prms.sizePatch - 1);
+	prms.boundary = 2*(prms.sizeSearchWindow/2) + (prms.sizePatch - 1);
 	prms.offSet = sizePatch/2;
 
 	//! Update number of similar patches, only if it is less than recommended value
