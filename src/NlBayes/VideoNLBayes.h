@@ -43,6 +43,7 @@ struct nlbParams
 {
 	float sigma;
 	unsigned sizePatch;        // depends on sigma
+	unsigned sizePatchTime;    // user given
 	unsigned nSimilarPatches;  // depends on sigma, sizeSearchTimeRange (1 channel) or sizePatch (3 channels)
 	unsigned sizeSearchWindow; // depends on nSimilarPatches
 	unsigned sizeSearchTimeRangeFwd; //< VIDEO how many forward  frames in search cube
@@ -99,6 +100,7 @@ void initializeNlbParameters(
 ,	const bool p_verbose
 ,	const unsigned timeSearchRangeFwd = 0
 ,	const unsigned timeSearchRangeBwd = 0
+,	const unsigned sizePatchTime = 1
 );
 
 

@@ -62,13 +62,14 @@ void initializeNlbParameters(
 ,	const bool p_verbose
 ,	const unsigned timeSearchRangeFwd
 ,	const unsigned timeSearchRangeBwd
+,	const unsigned sizePatchTime
 ){
 	const bool s1 = (p_step == 1);
 
 	//! Standard deviation of the noise
 	o_params.sigma = p_sigma;
 
-	//! Size of patches
+	//! Patch size, spatial dimension
 	if (p_size.channels == 1)
 	{
 		if(s1) o_params.sizePatch = (p_sigma < 30.f ? 5 : 7);
@@ -79,6 +80,9 @@ void initializeNlbParameters(
 		if(s1) o_params.sizePatch = (p_sigma < 20.f ? 3 : (p_sigma < 50.f ? 5 : 7));
 		else   o_params.sizePatch = (p_sigma < 50.f ? 3 : (p_sigma < 70.f ? 5 : 7));
 	}
+
+	//! Patch size, temporal dimension
+	o_params.sizePatchTime = sizePatchTime;
 
 	//! Number of similar patches
 	if (p_size.channels == 1)
@@ -244,6 +248,7 @@ void printNlbParameters(
 	printf("Parameters for step %d:\n", i_prms.isFirstStep ? 1 : 2);
 	printf("\tPatch search:\n");
 	printf("\t\tPatch size                  = %d\n"       , i_prms.sizePatch);
+	printf("\t\tPatch size temporal         = %d\n"       , i_prms.sizePatchTime);
 	printf("\t\tNumber of patches           = %d\n"       , i_prms.nSimilarPatches);
 	if (!i_prms.isFirstStep) printf("\t\tDistance threshold (tau)    = %g\n"       , i_prms.tau);
 	else                     printf("\t\tDistance threshold (tau)    = N/A\n"      );

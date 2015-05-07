@@ -69,8 +69,10 @@ int main(int argc, char **argv)
 	const int time_search2  = clo_option("-wt2", 2, "> Search window temporal radius, step 2");
 	const int space_search1 = clo_option("-wx1",-1, "> Search window spatial radius, step 1");
 	const int space_search2 = clo_option("-wx2",-1, "> Search window spatial radius, step 2");
-	const int patch_size1   = clo_option("-ps1",-1, "> Patch size, step 1");
-	const int patch_size2   = clo_option("-ps2",-1, "> Patch size, step 2");
+	const int patch_sizex1  = clo_option("-px1",-1, "> Spatial patch size, step 1");
+	const int patch_sizex2  = clo_option("-px2",-1, "> Spatial patch size, step 2");
+	const int patch_sizet1  = clo_option("-pt1", 1, "> Temporal patch size, step 1");
+	const int patch_sizet2  = clo_option("-pt2", 1, "> Temporal patch size, step 2");
 	const int num_patches1  = clo_option("-np1",-1, "> Number of similar patches, step 1");
 	const int num_patches2  = clo_option("-np2",-1, "> Number of similar patches, step 2");
 
@@ -88,8 +90,8 @@ int main(int argc, char **argv)
 		//! Override with command line parameters
 		if (space_search1 >= 0) VideoNLB::setSizeSearchWindow(prms1, (unsigned)space_search1);
 		if (space_search2 >= 0) VideoNLB::setSizeSearchWindow(prms2, (unsigned)space_search2);
-		if (patch_size1   >= 0) VideoNLB::setSizePatch(prms1, tmp, (unsigned)patch_size1);;
-		if (patch_size2   >= 0) VideoNLB::setSizePatch(prms2, tmp, (unsigned)patch_size2);;
+		if (patch_sizex1  >= 0) VideoNLB::setSizePatch(prms1, tmp, (unsigned)patch_sizex1);;
+		if (patch_sizex2  >= 0) VideoNLB::setSizePatch(prms2, tmp, (unsigned)patch_sizex2);;
 		if (num_patches1  >= 0) VideoNLB::setNSimilarPatches(prms1, (unsigned)num_patches1);
 		if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
 
@@ -130,14 +132,14 @@ int main(int argc, char **argv)
 
 	//! Compute denoising default parameters
 	VideoNLB::nlbParams prms1, prms2;
-	VideoNLB::initializeNlbParameters(prms1, 1, sigma, noisy.sz, flat_area1, verbose, time_search1, time_search1);
-	VideoNLB::initializeNlbParameters(prms2, 2, sigma, noisy.sz, flat_area2, verbose, time_search2, time_search2);
+	VideoNLB::initializeNlbParameters(prms1, 1, sigma, noisy.sz, flat_area1, verbose, time_search1, time_search1, patch_sizet1);
+	VideoNLB::initializeNlbParameters(prms2, 2, sigma, noisy.sz, flat_area2, verbose, time_search2, time_search2, patch_sizet2);
 
 	//! Override with command line parameters
 	if (space_search1 >= 0) VideoNLB::setSizeSearchWindow(prms1, (unsigned)space_search1);
 	if (space_search2 >= 0) VideoNLB::setSizeSearchWindow(prms2, (unsigned)space_search2);
-	if (patch_size1   >= 0) VideoNLB::setSizePatch(prms1, noisy.sz, (unsigned)patch_size1);;
-	if (patch_size2   >= 0) VideoNLB::setSizePatch(prms2, noisy.sz, (unsigned)patch_size2);;
+	if (patch_sizex1  >= 0) VideoNLB::setSizePatch(prms1, noisy.sz, (unsigned)patch_sizex1);;
+	if (patch_sizex2  >= 0) VideoNLB::setSizePatch(prms2, noisy.sz, (unsigned)patch_sizex2);;
 	if (num_patches1  >= 0) VideoNLB::setNSimilarPatches(prms1, (unsigned)num_patches1);
 	if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
 
