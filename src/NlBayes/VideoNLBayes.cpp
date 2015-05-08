@@ -722,7 +722,7 @@ unsigned estimateSimilarPatchesStep1(
 			             - i_im(qx + hx, qy + hy, qt + ht)) * dif;
 
 		//! Save distance and corresponding patch index
-		distance[dt * sWx*sWx + dy * sWx + dx] = 
+		distance[dt * sWx*sWy + dy * sWx + dx] = 
 			std::make_pair(dist, i_im.sz.index(qx, qy, qt, 0));
 	}
 
@@ -856,7 +856,7 @@ unsigned estimateSimilarPatchesStep2(
 			             - i_imBasic(qx + hx, qy + hy, qt + ht, c) ) * dif;
 
 		//! Save distance and corresponding patch index
-		distance[dt * sWx*sWx + dy * sWx + dx] = 
+		distance[dt * sWx*sWy + dy * sWx + dx] = 
 			std::make_pair(dist, i_imBasic.sz.index(qx, qy, qt, 0));
 	}
 
