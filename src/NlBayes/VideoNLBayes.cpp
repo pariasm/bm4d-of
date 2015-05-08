@@ -34,7 +34,8 @@
 #endif
 
 //#define DEBUG_SHOW_PATCH_GROUPS
-//#define DEBUG_SHOW_WEIGHT
+#define DEBUG_SHOW_WEIGHT
+#define CENTRED_SEARCH
 
 namespace VideoNLB
 {
@@ -623,6 +624,7 @@ unsigned estimateSimilarPatchesStep1(
 	unsigned rangey[2];
 	unsigned ranget[2];
 
+#ifdef CENTRED_SEARCH
 	rangex[0] = std::max(0, (int)px - (sWx-1)/2);
 	rangey[0] = std::max(0, (int)py - (sWy-1)/2);
 	ranget[0] = std::max(0, (int)pt -  sWt_b   );
@@ -630,14 +632,19 @@ unsigned estimateSimilarPatchesStep1(
 	rangex[1] = std::min((int)i_im.sz.width  - sPx, (int)px + (sWx-1)/2);
 	rangey[1] = std::min((int)i_im.sz.height - sPx, (int)py + (sWy-1)/2);
 	ranget[1] = std::min((int)i_im.sz.frames - sPt, (int)pt +  sWt_f   );
+#else
+	int shift_x = std::min(0, (int)px - (sWx-1)/2); 
+	int shift_y = std::min(0, (int)py - (sWy-1)/2); 
+	int shift_t = std::min(0, (int)pt -  sWt_b   ); 
 
-	rangex[0] = std::max(0, (int)px - (sWx-1)/2);
-	rangey[0] = std::max(0, (int)py - (sWx-1)/2);
-	ranget[0] = std::max(0, (int)pt -  sWt_b   );
+	rangex[0] = (int)px - (sWx-1)/2 - shift_x;
+	rangey[0] = (int)py - (sWy-1)/2 - shift_y;
+	ranget[0] = (int)pt -  sWt_b    - shift_t;
 
-	rangex[1] = std::min((int)i_imNoisy.sz.width  - sPx, (int)px + (sWx-1)/2);
-	rangey[1] = std::min((int)i_imNoisy.sz.height - sPx, (int)py + (sWx-1)/2);
-	ranget[1] = std::min((int)i_imNoisy.sz.frames - sPt, (int)pt +  sWt_f   );
+	rangex[1] = std::min((int)i_im.sz.width  - sPx, (int)px + (sWx-1)/2 - shift_x);
+	rangey[1] = std::min((int)i_im.sz.height - sPx, (int)py + (sWy-1)/2 - shift_y);
+	ranget[1] = std::min((int)i_im.sz.frames - sPt, (int)pt +  sWt_f    - shift_t);
+#endif
 
 	//! Redefine size of search range
 	sWx = rangex[1] - rangex[0] + 1;
@@ -750,6 +757,27 @@ unsigned estimateSimilarPatchesStep2(
 	unsigned rangey[2];
 	unsigned ranget[2];
 
+#ifdef CENTRED_SEARCH
+	rangex[0] = std::max(0, (int)px - (sWx-1)/2);
+	rangey[0] = std::max(0, (int)py - (sWx-1)/2);
+	ranget[0] = std::max(0, (int)pt -  sWt_b   );
+
+	rangex[1] = std::min((int)i_imNoisy.sz.width  - sPx, (int)px + (sWx-1)/2);
+	rangey[1] = std::min((int)i_imNoisy.sz.height - sPx, (int)py + (sWx-1)/2);
+	ranget[1] = std::min((int)i_imNoisy.sz.frames - sPt, (int)pt +  sWt_f   );
+#else
+	int shift_x = std::min(0, (int)px - (sWx-1)/2); 
+	int shift_y = std::min(0, (int)py - (sWx-1)/2); 
+	int shift_t = std::min(0, (int)pt -  sWt_b   ); 
+
+	rangex[0] = (int)px - (sWx-1)/2 - shift_x;
+	rangey[0] = (int)py - (sWx-1)/2 - shift_y;
+	ranget[0] = (int)pt -  sWt_b    - shift_t;
+
+	rangex[1] = std::min((int)i_imNoisy.sz.width  - sPx, (int)px + (sWx-1)/2 - shift_x);
+	rangey[1] = std::min((int)i_imNoisy.sz.height - sPx, (int)py + (sWx-1)/2 - shift_y);
+	ranget[1] = std::min((int)i_imNoisy.sz.frames - sPt, (int)pt +  sWt_f    - shift_t);
+#endif
 
 	//! Redefine size of search range
 	sWx = rangex[1] - rangex[0] + 1;
