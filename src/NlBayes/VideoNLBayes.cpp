@@ -386,6 +386,34 @@ int runNlBayes(
 
 		//! YUV to RGB
 		VideoUtils::transformColorSpace(o_imBasic, false);
+
+#ifdef DEBUG_SHOW_WEIGHT
+		{
+			std::vector<Video<float> > subWeights(nParts);
+
+			// First load all weight sequences
+			for (int n = 0; n < (int)nParts; n++)
+			{
+				// Build file name
+				int part_x = imCrops[n].origin_x;
+				int part_y = imCrops[n].origin_y;
+				int part_t = imCrops[n].origin_t;
+				char name[1024];
+				sprintf(name, "weight_step1_partx%dy%dt%d_%%03d.png", part_x, part_y, part_t);
+
+				int part_frames = imCrops[n].ending_t - part_t;
+				subWeights[n].loadVideo(name, 1, part_frames, 1);
+			}
+
+			// Call set build
+			Video<float> weight(imSize.width, imSize.height, imSize.frames);
+			VideoUtils::subBuildTight(subWeights, weight, p_prms1.boundary);
+
+			// Write to disk
+			weight.saveVideo("weight_step1_%03d.png", 1);
+		}
+#endif
+
 	}
 
 	//! Step 2
@@ -415,6 +443,33 @@ int runNlBayes(
 
 		//! Get the final result
 		VideoUtils::subBuildTight(imFinalSub, o_imFinal, p_prms2.boundary);
+
+#ifdef DEBUG_SHOW_WEIGHT
+		{
+			std::vector<Video<float> > subWeights(nParts);
+
+			// First load all weight sequences
+			for (int n = 0; n < (int)nParts; n++)
+			{
+				// Build file name
+				int part_x = imCrops[n].origin_x;
+				int part_y = imCrops[n].origin_y;
+				int part_t = imCrops[n].origin_t;
+				char name[1024];
+				sprintf(name, "weight_step2_partx%dy%dt%d_%%03d.png", part_x, part_y, part_t);
+
+				int part_frames = imCrops[n].ending_t - part_t;
+				subWeights[n].loadVideo(name, 1, part_frames, 1);
+			}
+
+			// Call set build
+			Video<float> weight(imSize.width, imSize.height, imSize.frames);
+			VideoUtils::subBuildTight(subWeights, weight, p_prms1.boundary);
+
+			// Write to disk
+			weight.saveVideo("weight_step2_%03d.png", 1);
+		}
+#endif
 	}
 
 	return EXIT_SUCCESS;
