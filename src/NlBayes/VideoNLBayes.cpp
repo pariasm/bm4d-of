@@ -866,8 +866,8 @@ unsigned estimateSimilarPatchesStep2(
 	                  distance.end(), comparaisonFirst);
 
 	//! Save index of similar patches
-	const float threshold = (p_params.tau > distance[p_params.nSimilarPatches - 1].first ?
-	                         p_params.tau : distance[p_params.nSimilarPatches - 1].first);
+	const float threshold = (p_params.tau > distance[nSimP - 1].first ?
+	                         p_params.tau : distance[nSimP - 1].first);
 	nSimP = 0;
 
 	//! Register position of similar patches
