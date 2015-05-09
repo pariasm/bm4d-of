@@ -42,7 +42,7 @@ int main(int argc, char **argv)
 
 	//! Paths to input/output sequences
 	using std::string;
-	const string  input_path = clo_option("-i"    , ""                   , "< input sequence");
+	const string  input_path = clo_option("-i"    , ""              , "< input sequence");
 	const string  noisy_path = clo_option("-nisy" , "nisy_%03d.png" , "> noisy sequence");
 	const string  final_path = clo_option("-deno" , "deno_%03d.png" , "> denoised sequence");
 	const string  basic_path = clo_option("-bsic" , "bsic_%03d.png" , "> basic denoised sequence");
@@ -63,8 +63,8 @@ int main(int argc, char **argv)
 	const unsigned print_prms = (unsigned) clo_option("-print-prms", 0, "> prints parameters for given channels");
 
 	//! Video NLB parameters
-	const bool flat_area1 = (bool) clo_option("-flat-area1", true , "> use flat area trick, step 1");
-	const bool flat_area2 = (bool) clo_option("-flat-area2", true , "> use flat area trick, step 2");
+	const bool flat_area1 = (bool) clo_option("-flat-area1", false , "> use flat area trick, step 1");
+	const bool flat_area2 = (bool) clo_option("-flat-area2", false , "> use flat area trick, step 2");
 	const int time_search1  = clo_option("-wt1", 2, "> Search window temporal radius, step 1");
 	const int time_search2  = clo_option("-wt2", 2, "> Search window temporal radius, step 2");
 	const int space_search1 = clo_option("-wx1",-1, "> Search window spatial radius, step 1");

@@ -1342,10 +1342,10 @@ void computeAggregationStep2(
 
 		if (p_params.doPasteBoost)
 		{
-			if (py >   0) io_mask(ind1 - w) = false;
-			if (py < w-1) io_mask(ind1 + w) = false;
-			if (px >   0) io_mask(ind1 - 1) = false;
-			if (px > h-1) io_mask(ind1 + 1) = false;
+			if (py >     2*sPx) io_mask(ind1 - w) = false;
+			if (py < w - 2*sPx) io_mask(ind1 + w) = false;
+			if (px >     2*sPx) io_mask(ind1 - 1) = false;
+			if (px > h - 2*sPx) io_mask(ind1 + 1) = false;
 		}
 	}
 }
