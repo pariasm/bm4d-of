@@ -35,7 +35,7 @@
 
 //#define DEBUG_SHOW_PATCH_GROUPS
 #define DEBUG_SHOW_WEIGHT
-#define CENTRED_SEARCH
+//#define CENTRED_SEARCH
 
 namespace VideoNLB
 {
@@ -113,7 +113,7 @@ void initializeNlbParameters(
 	//! Search window, temporal search radii
 	o_params.sizeSearchTimeRangeFwd = timeSearchRangeFwd;
 	o_params.sizeSearchTimeRangeBwd = timeSearchRangeBwd;
-	o_params.nSimilarPatches *= timeSearchRangeFwd + timeSearchRangeBwd + 1; // FIXME: this is just a test
+	o_params.nSimilarPatches *= timeSearchRangeFwd + timeSearchRangeBwd + 1;
 
 	//! Size of boundaries used during the sub division
 	o_params.boundary = 2*(o_params.sizeSearchWindow/2) + (o_params.sizePatch - 1);
@@ -692,9 +692,13 @@ unsigned estimateSimilarPatchesStep1(
 	int shift_y = std::min(0, (int)py - (sWy-1)/2); 
 	int shift_t = std::min(0, (int)pt -  sWt_b   ); 
 
-	rangex[0] = (int)px - (sWx-1)/2 - shift_x;
-	rangey[0] = (int)py - (sWy-1)/2 - shift_y;
-	ranget[0] = (int)pt -  sWt_b    - shift_t;
+	shift_x += std::max(0, (int)px + (sWx-1)/2 - (int)i_im.sz.width  + sPx); 
+	shift_y += std::max(0, (int)py + (sWy-1)/2 - (int)i_im.sz.height + sPx); 
+	shift_t += std::max(0, (int)pt +  sWt_f    - (int)i_im.sz.frames + sPt); 
+
+	rangex[0] = std::max(0, (int)px - (sWx-1)/2 - shift_x);
+	rangey[0] = std::max(0, (int)py - (sWy-1)/2 - shift_y);
+	ranget[0] = std::max(0, (int)pt -  sWt_b    - shift_t);
 
 	rangex[1] = std::min((int)i_im.sz.width  - sPx, (int)px + (sWx-1)/2 - shift_x);
 	rangey[1] = std::min((int)i_im.sz.height - sPx, (int)py + (sWy-1)/2 - shift_y);
@@ -739,6 +743,12 @@ unsigned estimateSimilarPatchesStep1(
 	const unsigned nSimP = std::min(p_params.nSimilarPatches, (unsigned)distance.size());
 	std::partial_sort(distance.begin(), distance.begin() + nSimP,
 	                  distance.end(), comparaisonFirst);
+
+	if (nSimP <  p_params.nSimilarPatches)
+	{
+		printf("SR1 [%d,%d,%d] ~ [%d-%d, %d-%d, %d-%d] - nsim = %d\n", 
+				px,py,pt,rangex[0], rangex[1], rangey[0], rangey[1], ranget[0], ranget[1], nSimP);
+	}
 
 //	for (int i = 0; i < nSimP; i++)
 //	{
@@ -796,13 +806,12 @@ unsigned estimateSimilarPatchesStep2(
 ,	const nlbParams &p_params
 ){
 	//! Initialization
-	const int chnls = i_imNoisy.sz.channels;
-	const int sPx   = p_params.sizePatch;
-	const int sPt   = p_params.sizePatchTime;
 	int sWx   = p_params.sizeSearchWindow;
 	int sWy   = p_params.sizeSearchWindow;
 	const int sWt_f = p_params.sizeSearchTimeRangeFwd;
 	const int sWt_b = p_params.sizeSearchTimeRangeBwd;
+	const int sPx   = p_params.sizePatch;
+	const int sPt   = p_params.sizePatchTime;
 
 	//! Coordinates of center of search box
 	unsigned px, py, pt, pc;
@@ -814,23 +823,27 @@ unsigned estimateSimilarPatchesStep2(
 
 #ifdef CENTRED_SEARCH
 	rangex[0] = std::max(0, (int)px - (sWx-1)/2);
-	rangey[0] = std::max(0, (int)py - (sWx-1)/2);
+	rangey[0] = std::max(0, (int)py - (sWy-1)/2);
 	ranget[0] = std::max(0, (int)pt -  sWt_b   );
 
 	rangex[1] = std::min((int)i_imNoisy.sz.width  - sPx, (int)px + (sWx-1)/2);
-	rangey[1] = std::min((int)i_imNoisy.sz.height - sPx, (int)py + (sWx-1)/2);
+	rangey[1] = std::min((int)i_imNoisy.sz.height - sPx, (int)py + (sWy-1)/2);
 	ranget[1] = std::min((int)i_imNoisy.sz.frames - sPt, (int)pt +  sWt_f   );
 #else
 	int shift_x = std::min(0, (int)px - (sWx-1)/2); 
-	int shift_y = std::min(0, (int)py - (sWx-1)/2); 
+	int shift_y = std::min(0, (int)py - (sWy-1)/2); 
 	int shift_t = std::min(0, (int)pt -  sWt_b   ); 
 
-	rangex[0] = (int)px - (sWx-1)/2 - shift_x;
-	rangey[0] = (int)py - (sWx-1)/2 - shift_y;
-	ranget[0] = (int)pt -  sWt_b    - shift_t;
+	shift_x += std::max(0, (int)px + (sWx-1)/2 - (int)i_imNoisy.sz.width  + sPx); 
+	shift_y += std::max(0, (int)py + (sWy-1)/2 - (int)i_imNoisy.sz.height + sPx); 
+	shift_t += std::max(0, (int)pt +  sWt_f    - (int)i_imNoisy.sz.frames + sPt); 
+
+	rangex[0] = std::max(0, (int)px - (sWx-1)/2 - shift_x);
+	rangey[0] = std::max(0, (int)py - (sWy-1)/2 - shift_y);
+	ranget[0] = std::max(0, (int)pt -  sWt_b    - shift_t);
 
 	rangex[1] = std::min((int)i_imNoisy.sz.width  - sPx, (int)px + (sWx-1)/2 - shift_x);
-	rangey[1] = std::min((int)i_imNoisy.sz.height - sPx, (int)py + (sWx-1)/2 - shift_y);
+	rangey[1] = std::min((int)i_imNoisy.sz.height - sPx, (int)py + (sWy-1)/2 - shift_y);
 	ranget[1] = std::min((int)i_imNoisy.sz.frames - sPt, (int)pt +  sWt_f    - shift_t);
 #endif
 
@@ -842,6 +855,7 @@ unsigned estimateSimilarPatchesStep2(
 	std::vector<std::pair<float, unsigned> > distance(sWx * sWy * sWt);
 
 	//! Compute distance between patches in search range
+	const int chnls = i_imNoisy.sz.channels;
 	for (unsigned qt = ranget[0], dt = 0; qt <= ranget[1]; qt++, dt++)
 	for (unsigned qy = rangey[0], dy = 0; qy <= rangey[1]; qy++, dy++)
 	for (unsigned qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
@@ -864,6 +878,12 @@ unsigned estimateSimilarPatchesStep2(
 	unsigned nSimP = std::min(p_params.nSimilarPatches, (unsigned)distance.size());
 	std::partial_sort(distance.begin(), distance.begin() + nSimP,
 	                  distance.end(), comparaisonFirst);
+
+	if (nSimP <  p_params.nSimilarPatches)
+	{
+		printf("SR2 [%d,%d,%d] ~ [%d-%d, %d-%d, %d-%d] - nsim = %d\n", 
+				px,py,pt,rangex[0], rangex[1], rangey[0], rangey[1], ranget[0], ranget[1], nSimP);
+	}
 
 	//! Save index of similar patches
 	const float threshold = (p_params.tau > distance[nSimP - 1].first ?
