@@ -211,7 +211,6 @@ void setSizePatch(nlbParams& prms, const VideoSize &size, unsigned sizePatch)
 		prms.nSimilarPatches = prms.sizePatch * prms.sizePatch * 3 * 
 		                      (prms.sizeSearchTimeRangeFwd + 
 		                       prms.sizeSearchTimeRangeBwd + 1);
-	
 }
 
 /**
@@ -1227,17 +1226,17 @@ void computeAggregationStep1(
 		}
 
 		//! Use Paste Trick
-		io_mask(ind1) = false;
-
 		unsigned px, py, pt;
 		io_mask.sz.coords(ind1, px, py, pt);
+
+		io_mask(ind1) = false;
 
 		if (p_params.doPasteBoost)
 		{
 			if (py >     2*sPx) io_mask(ind1 - w) = false;
-			if (py < w - 2*sPx) io_mask(ind1 + w) = false;
+			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
 			if (px >     2*sPx) io_mask(ind1 - 1) = false;
-			if (px > h - 2*sPx) io_mask(ind1 + 1) = false;
+			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
 		}
 	}
 #else
@@ -1265,17 +1264,17 @@ void computeAggregationStep1(
 		const unsigned ind1 = (ind / whc) * wh + ind % wh;
 
 		//! Use Paste Trick
-		io_mask(ind1) = false;
-
 		unsigned px, py, pt;
 		io_mask.sz.coords(ind1, px, py, pt);
+
+		io_mask(ind1) = false;
 
 		if (p_params.doPasteBoost)
 		{
 			if (py >     2*sPx) io_mask(ind1 - w) = false;
-			if (py < w - 2*sPx) io_mask(ind1 + w) = false;
+			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
 			if (px >     2*sPx) io_mask(ind1 - 1) = false;
-			if (px > h - 2*sPx) io_mask(ind1 + 1) = false;
+			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
 		}
 	}
 #endif
@@ -1335,17 +1334,17 @@ void computeAggregationStep2(
 			io_weight(ind1 + pt * wh + py * w + px)++;
 
 		//! Apply Paste Trick
-		io_mask(ind1) = false;
-
 		unsigned px, py, pt;
 		io_mask.sz.coords(ind1, px, py, pt);
+
+		io_mask(ind1) = false;
 
 		if (p_params.doPasteBoost)
 		{
 			if (py >     2*sPx) io_mask(ind1 - w) = false;
-			if (py < w - 2*sPx) io_mask(ind1 + w) = false;
+			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
 			if (px >     2*sPx) io_mask(ind1 - 1) = false;
-			if (px > h - 2*sPx) io_mask(ind1 + 1) = false;
+			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
 		}
 	}
 }
