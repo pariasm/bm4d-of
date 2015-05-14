@@ -554,16 +554,21 @@ void processNlBayes(
 		//! Matrices used for Bayes' estimate
 		vector<vector<float> > group3d(sz.channels, vector<float>(patch_num * patch_dim));
 
-		for (unsigned ij = 0; ij < i_imNoisy.sz.whf; ij += p_params.offSet)
-			if (mask(ij)) //< Only non-seen patches are processed
+		unsigned step = p_params.offSet;
+		for (unsigned pt = 0        ; pt < sz.frames; pt++)
+		for (unsigned py = 0        ; py < sz.height; py++)
+		for (unsigned px = py % step; px < sz.width ; px += step)
+			if (mask(px,py,pt)) //< Only non-seen patches are processed
 			{
+				const unsigned ij  = sz.index(px,py,pt);
+				const unsigned ij3 = sz.index(px,py,pt, 0);
+				//const unsigned ij3 = (ij / sz.wh) * sz.whc + ij % sz.wh;
+
 				if (p_params.verbose && (ij % 10000 == 0))
 				{
 					printf("\rprocessing step1 %05.1f", (float)ij/(float)(sz.whf)*100.f);
 					std::cout << std::flush;
 				}
-
-				const unsigned ij3 = (ij / i_imNoisy.sz.wh) * i_imNoisy.sz.whc + ij % i_imNoisy.sz.wh;
 
 				//! Search for similar patches around the reference one
 				unsigned nSimP = estimateSimilarPatchesStep1(i_imNoisy, group3d,
@@ -599,16 +604,21 @@ void processNlBayes(
 		vector<float> group3dNoisy(patch_num * patch_dim);
 		vector<float> group3dBasic(patch_num * patch_dim);
 
-		for (unsigned ij = 0; ij < i_imNoisy.sz.whf; ij += p_params.offSet)
-			if (mask(ij)) //< Only non-seen patches are processed
+		unsigned step = p_params.offSet;
+		for (unsigned pt = 0        ; pt < sz.frames; pt++)
+		for (unsigned py = 0        ; py < sz.height; py++)
+		for (unsigned px = py % step; px < sz.width ; px += step)
+			if (mask(px,py,pt)) //< Only non-seen patches are processed
 			{
+				const unsigned ij  = sz.index(px,py,pt);
+				const unsigned ij3 = sz.index(px,py,pt, 0);
+				//const unsigned ij3 = (ij / sz.wh) * sz.whc + ij % sz.wh;
+
 				if (p_params.verbose && (ij % 10000 == 0))
 				{
 					printf("\rprocessing step2 %05.1f", (float)ij/(float)(sz.whf)*100.f);
 					std::cout << std::flush;
 				}
-
-				const unsigned ij3 = (ij / i_imNoisy.sz.wh) * i_imNoisy.sz.whc + ij % i_imNoisy.sz.wh;
 
 				//! Search for similar patches around the reference one
 				unsigned nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic,
