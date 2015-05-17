@@ -211,7 +211,6 @@ void setSizePatch(nlbParams& prms, const VideoSize &size, unsigned sizePatch)
 		prms.nSimilarPatches = prms.sizePatch * prms.sizePatch * 3 * 
 		                      (prms.sizeSearchTimeRangeFwd + 
 		                       prms.sizeSearchTimeRangeBwd + 1);
-	
 }
 
 /**
@@ -501,31 +500,41 @@ void processNlBayes(
 	                     p_params.sizeSearchTimeRangeBwd + 1;// VIDEO
 	const unsigned sPx = p_params.sizePatch;
 	const unsigned sPt = p_params.sizePatchTime;
+	const VideoSize sz = i_imNoisy.sz;
 
 	unsigned nInverseFailed = 0;
 	const float threshold = p_params.sigma * p_params.sigma * p_params.gamma *
 	                       (p_params.isFirstStep ? i_imNoisy.sz.channels : 1.f);
 
 	//! Weight sum per pixel // FIXME: only one channel
-	Video<float> weight(i_imNoisy.sz.width, i_imNoisy.sz.height, i_imNoisy.sz.frames, 1, 0.f);
+	Video<float> weight(sz.width, sz.height, sz.frames, 1, 0.f);
 
 	//! Mask: true for pixels that still need to be processed
-	Video<char> mask(i_imNoisy.sz.width, i_imNoisy.sz.height, i_imNoisy.sz.frames, 1, false);
+	Video<char> mask(sz.width, sz.height, sz.frames, 1, false);
+
+	//! There's a border added only if the crop
+	//  doesn't touch the source image boundary
+	bool border_x0 = p_crop.origin_x > 0;
+	bool border_y0 = p_crop.origin_y > 0;
+	bool border_t0 = p_crop.origin_t > 0;
+	bool border_x1 = p_crop.ending_x < p_crop.source_sz.width;
+	bool border_y1 = p_crop.ending_y < p_crop.source_sz.height;
+	bool border_t1 = p_crop.ending_t < p_crop.source_sz.frames;
 
 	//! Only pixels of the center of the image must be processed (not the boundaries)
-	int ori_x =                                  (p_crop.origin_x > 0                      ) ? sPx-1 + sWx/2 : 0 ; 
-	int ori_y =                                  (p_crop.origin_y > 0                      ) ? sPx-1 + sWx/2 : 0 ; 
-	int ori_f =                                  (p_crop.origin_t > 0                      ) ? sPt-1 + sWt/2 : 0 ; 
-	int end_x = (int)i_imNoisy.sz.width  - (int)((p_crop.ending_x < p_crop.source_sz.width ) ? sPx-1 + sWx/2 : sPx-1); 
-	int end_y = (int)i_imNoisy.sz.height - (int)((p_crop.ending_y < p_crop.source_sz.height) ? sPx-1 + sWx/2 : sPx-1); 
-	int end_f = (int)i_imNoisy.sz.frames - (int)((p_crop.ending_t < p_crop.source_sz.frames) ? sPt-1 + sWt/2 : sPt-1); 
+	int ori_x =                        border_x0 ? sPx-1 + sWx/2 : 0 ;
+	int ori_y =                        border_y0 ? sPx-1 + sWx/2 : 0 ;
+	int ori_f =                        border_t0 ? sPt-1 + sWt/2 : 0 ;
+	int end_x = (int)sz.width  - (int)(border_x1 ? sPx-1 + sWx/2 : sPx-1);
+	int end_y = (int)sz.height - (int)(border_y1 ? sPx-1 + sWx/2 : sPx-1);
+	int end_f = (int)sz.frames - (int)(border_t1 ? sPt-1 + sWt/2 : sPt-1);
 	for (int f = ori_f; f < end_f; f++)
 	for (int y = ori_y; y < end_y; y++)
 	for (int x = ori_x; x < end_x; x++)
 		mask(x,y,f) = true;
 
 	//! Used matrices during Bayes' estimate
-	const unsigned patch_dim = step1 ? sPx * sPx * sPt : sPx * sPx * sPt * i_imNoisy.sz.channels;
+	const unsigned patch_dim = step1 ? sPx * sPx * sPt : sPx * sPx * sPt * sz.channels;
 	const unsigned patch_num = step1 ? p_params.nSimilarPatches : sWx * sWx * sWt;
 
 	//! Matrices used for Bayes' estimate
@@ -540,40 +549,45 @@ void processNlBayes(
 	if (step1)
 	{
 		//! Allocate Sizes
-		io_imBasic.resize(i_imNoisy.sz);
+		io_imBasic.resize(sz);
 
 		//! Matrices used for Bayes' estimate
-		vector<vector<float> > group3d(i_imNoisy.sz.channels,
-				                         vector<float>(patch_num * patch_dim));
+		vector<vector<float> > group3d(sz.channels, vector<float>(patch_num * patch_dim));
 
-		for (unsigned ij = 0; ij < i_imNoisy.sz.whf; ij += p_params.offSet)
-			if (mask(ij)) //< Only non-seen patches are processed
+		unsigned step = p_params.offSet;
+		for (unsigned pt = 0        ; pt < sz.frames; pt++)
+		for (unsigned py = 0        ; py < sz.height; py++)
+		for (unsigned px = py % step; px < sz.width ; px += step)
+			if (mask(px,py,pt)) //< Only non-seen patches are processed
 			{
+				const unsigned ij  = sz.index(px,py,pt);
+				const unsigned ij3 = sz.index(px,py,pt, 0);
+				//const unsigned ij3 = (ij / sz.wh) * sz.whc + ij % sz.wh;
+
 				if (p_params.verbose && (ij % 10000 == 0))
 				{
-					printf("\rprocessing step1 %05.1f", (float)ij/(float)(i_imNoisy.sz.whf)*100.f);
+					printf("\rprocessing step1 %05.1f", (float)ij/(float)(sz.whf)*100.f);
 					std::cout << std::flush;
 				}
 
-				const unsigned ij3 = (ij / i_imNoisy.sz.wh) * i_imNoisy.sz.whc + ij % i_imNoisy.sz.wh;
-
 				//! Search for similar patches around the reference one
-				unsigned nSimP = estimateSimilarPatchesStep1(i_imNoisy, group3d, index, ij3, p_params);
+				unsigned nSimP = estimateSimilarPatchesStep1(i_imNoisy, group3d,
+						index, ij3, p_params);
 
 				//! If we use the homogeneous area trick
 				bool doBayesEstimate = true;
 				if (p_params.useHomogeneousArea)
-					doBayesEstimate = !computeHomogeneousAreaStep1(group3d, sPx, patch_num,
-							threshold, i_imNoisy.sz);
+					doBayesEstimate = !computeHomogeneousAreaStep1(group3d, sPx,
+							patch_num, threshold, sz);
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
-					computeBayesEstimateStep1(group3d, mat, nInverseFailed, p_params, nSimP);
+					computeBayesEstimateStep1(group3d, mat, nInverseFailed, 
+							p_params, nSimP);
 
 				//! Aggregation
-				computeAggregationStep1(io_imBasic, weight, mask, group3d, index, p_params, nSimP);
-//				//! TEST: 'temporal' aggregation
-//				computeTemporalAggregationStep1(io_imBasic, weight, mask, group3d, index, p_params, nSimP);
+				computeAggregationStep1(io_imBasic, weight, mask, group3d, index,
+						p_params, nSimP);
 			}
 
 		if (p_params.verbose) printf("\n");
@@ -584,22 +598,27 @@ void processNlBayes(
 	else
 	{
 		//! Allocate Sizes
-		o_imFinal.resize(i_imNoisy.sz);
+		o_imFinal.resize(sz);
 
 		//! Matrices used for Bayes' estimate
 		vector<float> group3dNoisy(patch_num * patch_dim);
 		vector<float> group3dBasic(patch_num * patch_dim);
 
-		for (unsigned ij = 0; ij < i_imNoisy.sz.whf; ij += p_params.offSet)
-			if (mask(ij)) //< Only non-seen patches are processed
+		unsigned step = p_params.offSet;
+		for (unsigned pt = 0        ; pt < sz.frames; pt++)
+		for (unsigned py = 0        ; py < sz.height; py++)
+		for (unsigned px = py % step; px < sz.width ; px += step)
+			if (mask(px,py,pt)) //< Only non-seen patches are processed
 			{
+				const unsigned ij  = sz.index(px,py,pt);
+				const unsigned ij3 = sz.index(px,py,pt, 0);
+				//const unsigned ij3 = (ij / sz.wh) * sz.whc + ij % sz.wh;
+
 				if (p_params.verbose && (ij % 10000 == 0))
 				{
-					printf("\rprocessing step2 %05.1f", (float)ij/(float)(i_imNoisy.sz.whf)*100.f);
+					printf("\rprocessing step2 %05.1f", (float)ij/(float)(sz.whf)*100.f);
 					std::cout << std::flush;
 				}
-
-				const unsigned ij3 = (ij / i_imNoisy.sz.wh) * i_imNoisy.sz.whc + ij % i_imNoisy.sz.wh;
 
 				//! Search for similar patches around the reference one
 				unsigned nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic,
@@ -609,19 +628,16 @@ void processNlBayes(
 				bool doBayesEstimate = true;
 				if (p_params.useHomogeneousArea)
 					doBayesEstimate = !computeHomogeneousAreaStep2(group3dNoisy,
-							group3dBasic, sPx, nSimP, threshold, i_imNoisy.sz);
+							group3dBasic, sPx, nSimP, threshold, sz);
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
 					computeBayesEstimateStep2(group3dNoisy, group3dBasic, mat,
-							nInverseFailed, i_imNoisy.sz, p_params, nSimP);
+							nInverseFailed, sz, p_params, nSimP);
 
 				//! Aggregation
 				computeAggregationStep2(o_imFinal, weight, mask, group3dNoisy,
 						index, p_params, nSimP);
-				//! TEST: 'temporal' aggregation
-//				computeTemporalAggregationStep2(o_imFinal, weight, mask, group3dNoisy,
-//						index, p_params, nSimP);
 			}
 
 		if (p_params.verbose) printf("\n");
@@ -1227,17 +1243,17 @@ void computeAggregationStep1(
 		}
 
 		//! Use Paste Trick
-		io_mask(ind1) = false;
-
 		unsigned px, py, pt;
 		io_mask.sz.coords(ind1, px, py, pt);
+
+		io_mask(ind1) = false;
 
 		if (p_params.doPasteBoost)
 		{
 			if (py >     2*sPx) io_mask(ind1 - w) = false;
-			if (py < w - 2*sPx) io_mask(ind1 + w) = false;
+			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
 			if (px >     2*sPx) io_mask(ind1 - 1) = false;
-			if (px > h - 2*sPx) io_mask(ind1 + 1) = false;
+			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
 		}
 	}
 #else
@@ -1265,17 +1281,17 @@ void computeAggregationStep1(
 		const unsigned ind1 = (ind / whc) * wh + ind % wh;
 
 		//! Use Paste Trick
-		io_mask(ind1) = false;
-
 		unsigned px, py, pt;
 		io_mask.sz.coords(ind1, px, py, pt);
+
+		io_mask(ind1) = false;
 
 		if (p_params.doPasteBoost)
 		{
 			if (py >     2*sPx) io_mask(ind1 - w) = false;
-			if (py < w - 2*sPx) io_mask(ind1 + w) = false;
+			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
 			if (px >     2*sPx) io_mask(ind1 - 1) = false;
-			if (px > h - 2*sPx) io_mask(ind1 + 1) = false;
+			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
 		}
 	}
 #endif
@@ -1335,17 +1351,17 @@ void computeAggregationStep2(
 			io_weight(ind1 + pt * wh + py * w + px)++;
 
 		//! Apply Paste Trick
-		io_mask(ind1) = false;
-
 		unsigned px, py, pt;
 		io_mask.sz.coords(ind1, px, py, pt);
+
+		io_mask(ind1) = false;
 
 		if (p_params.doPasteBoost)
 		{
 			if (py >     2*sPx) io_mask(ind1 - w) = false;
-			if (py < w - 2*sPx) io_mask(ind1 + w) = false;
+			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
 			if (px >     2*sPx) io_mask(ind1 - 1) = false;
-			if (px > h - 2*sPx) io_mask(ind1 + 1) = false;
+			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
 		}
 	}
 }
