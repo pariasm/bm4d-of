@@ -410,7 +410,7 @@ int runNlBayes(
 			VideoUtils::subBuildTight(subWeights, weight, p_prms1.boundary);
 
 			// Write to disk
-			weight.saveVideo("weight_step1_%03d.png", 1);
+			weight.saveVideo("wei1_%03d.png", 1);
 		}
 #endif
 
@@ -467,7 +467,7 @@ int runNlBayes(
 			VideoUtils::subBuildTight(subWeights, weight, p_prms1.boundary);
 
 			// Write to disk
-			weight.saveVideo("weight_step2_%03d.png", 1);
+			weight.saveVideo("wei2_%03d.png", 1);
 		}
 #endif
 	}
