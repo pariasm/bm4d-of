@@ -18,12 +18,14 @@
  * @author Marc Lebrun <marc.lebrun.ik@gmail.com>
  **/
 
- #include "LibMatrix.h"
+#include "LibMatrix.h"
 #include <iostream>
- #include <math.h>
- #include <stdlib.h>
+#include <cmath>
+#include <cstdlib>
+#include <cstdio>
+#include <lapacke.h>
 
- using namespace std;
+using namespace std;
 
 /**
  * @brief Invert (in place) a symmetric real matrix, V -> Inv(V).
@@ -177,4 +179,71 @@ void productMatrix(
 			o_mat[i + j * p_l] = z;
 		}
 	}
+}
+
+/**
+ * @brief Compute a specified number of eigenvectors and eigenvalues of a
+ * symmetric matrix.
+ *
+ * NOTES:
+ * - matrices are stored in column-major ordering
+ * - columns of input matrices are contiguous in memory
+ * - only the upper triangular triangular part of o_mat is used 
+ * - the upper triangular part of o_mat is destroyed
+ * - the output o_U contains the eigenvectors as columns, and is 
+ *   stored ini column-major ordering (i.e. it returns the eigenvectors
+ *   as rows in row-major ordering)
+ *
+ * @param i_mat: contains input matrix;
+ * @param p_n  : size of the matrix;
+ * @param p_r  : number of eigenvectors and eigenvalues.
+ * @param o_S  : vector with the r eigenvalues
+ * @param o_U  : matrix with the r eigenvectors
+ *
+ * @return none.
+ **/
+int matrixEigs(
+	vector<float> &i_mat
+,	const unsigned p_n
+,	const unsigned p_r
+,	vector<float> &o_S
+,	vector<float> &o_U
+){
+	// set parameters for LAPACKE SSYEV function
+	// SSYEVX: Single SYmmetric EigenValues and eigenvectors eXpert
+	lapack_int m;          //< total values of eigenvalues found
+
+	o_S.resize(p_n);       //< array of dimension n. The first m entries 
+	                       //< contain the eigenvalues found in ascending order.
+
+	o_U.resize(p_n*p_r);   //< the first m columns contain the output eigenvectors
+
+	lapack_int lda = p_n;  //< leading dimension for input matrix
+	lapack_int ldu = p_n;  //< leading dimension for output eigenvectors matrix
+
+	lapack_int ifail[p_n]; //< if jobz == 'V' and info > 0, then ifail contains
+	                       //< the indices of the eigenvectors that didn't converge
+	
+	lapack_int info;       //< info =  0 : successful exit
+	                       //< info = -i : ith argument is wrong
+	                       //< info =  i : i eigenvectors failed to converge
+
+	info = LAPACKE_ssyevx(LAPACK_COL_MAJOR,
+			'V',                // compute eigenvalues and eigenvectors
+			'I',                // range 'I': eigenvals/vecs between IL-th and IU-th
+			'U',                // use upper triangular part of A
+			p_n,                // order of matrix A
+			i_mat.data(),       // matrix A
+			lda,                // stride of matrix
+			-1, -1,             // not used (used only when range is 'V'
+			p_n - p_r + 1, p_n, // IL and IU indices for eigenvals/vecs range
+			0,                  // abstol for stopping criterion
+			&m,                 // total values of eigenvectors found
+			o_S.data(),         // eigenvalues output
+			o_U.data(),         // eigenvectors matrix output
+			ldu,                // eigenvectors matrix stride
+			ifail               // eigenvectors that did not converge
+			);
+
+	return(info);
 }
