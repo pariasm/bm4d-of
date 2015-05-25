@@ -80,4 +80,32 @@ void productMatrix(
 ,	const unsigned p_l
 );
 
+/**
+ * @brief Compute a specified number of eigenvectors and eigenvalues of a
+ * symmetric matrix.
+ *
+ * NOTES:
+ * - matrices are stored in column-major ordering
+ * - columns of input matrices are contiguous in memory
+ * - only the upper triangular triangular part of o_mat is used 
+ * - the upper triangular part of o_mat is destroyed
+ * - the output o_U contains the eigenvectors as columns, and is 
+ *   stored ini column-major ordering (i.e. it returns the eigenvectors
+ *   as rows in row-major ordering)
+ *
+ * @param i_mat: contains input matrix;
+ * @param p_n  : size of the matrix;
+ * @param p_r  : number of eigenvectors and eigenvalues.
+ * @param o_S  : vector with the r eigenvalues
+ * @param o_U  : matrix with the r eigenvectors
+ *
+ * @return none.
+ **/
+int matrixEigs(
+	std::vector<float> &i_mat
+,	const unsigned p_n
+,	const unsigned p_r
+,	std::vector<float> &o_S
+,	std::vector<float> &o_U
+);
 #endif // LIB_MATRIX_H_INCLUDED
