@@ -27,6 +27,7 @@
 
 #include "VideoNLBayes.h"
 #include "LibMatrix.h"
+#include "cblas.h"
 #include "../Utilities/Utilities.h"
 
 #ifdef _OPENMP
@@ -539,7 +540,7 @@ void processNlBayes(
 
 	//! Matrices used for Bayes' estimate
 	vector<unsigned> index(patch_num);
-	matParams mat;
+	matWorkspace mat;
 	mat.group3dTranspose.resize(patch_num * patch_dim);
 	mat.tmpMat          .resize(patch_dim * patch_dim);
 	mat.covMat          .resize(patch_dim * patch_dim);
@@ -632,7 +633,7 @@ void processNlBayes(
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
-					computeBayesEstimateStep2(group3dNoisy, group3dBasic, mat,
+					computeBayesEstimateStep2_LR(group3dNoisy, group3dBasic, mat,
 							nInverseFailed, sz, p_params, nSimP);
 
 				//! Aggregation
@@ -1041,7 +1042,7 @@ int computeHomogeneousAreaStep2(
  **/
 void computeBayesEstimateStep1(
 	std::vector<std::vector<float> > &io_group3d
-,	matParams &i_mat
+,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
@@ -1149,10 +1150,10 @@ void computeBayesEstimateStep1(
  *
  * @return none.
  **/
-void computeBayesEstimateStep2(
+void computeBayesEstimateStep2_FR(
 	std::vector<float> &io_group3dNoisy
 ,	std::vector<float>  &i_group3dBasic
-,	matParams &i_mat
+,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
 ,	const VideoSize &p_imSize
 ,	nlbParams const& p_params
@@ -1183,6 +1184,108 @@ void computeBayesEstimateStep2(
 	}
 	else 
 		io_nInverseFailed++;
+
+	//! Add baricenter
+	for (unsigned j = 0, k = 0; j < sPC; j++)
+		for (unsigned i = 0; i < p_nSimP; i++, k++)
+			io_group3dNoisy[k] += i_mat.baricenter[j];
+}
+
+/**
+ * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
+ *
+ * @param io_group3dNoisy: inputs all similar patches in the noisy image,
+ *                         outputs their denoised estimates.
+ * @param i_group3dBasic: contains all similar patches in the basic image.
+ * @param i_mat: contains :
+ *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
+ *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+ *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
+ *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
+ *    - tmpMat: allocated memory. Used to process the Bayes estimate;
+ * @param io_nInverseFailed: update the number of failed matrix inversion;
+ * @param p_imSize: size of the image;
+ * @param p_params: see processStep2 for more explanations;
+ * @param p_nSimP: number of similar patches.
+ *
+ * @return none.
+ **/
+void computeBayesEstimateStep2_LR(
+	std::vector<float> &io_group3dNoisy
+,	std::vector<float>  &i_group3dBasic
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	const VideoSize &p_imSize
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+){
+	//! Parameters initialization
+	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
+	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
+	                    * p_params.sizePatchTime * p_imSize.channels;
+	const unsigned r = 4;
+
+	//! Center 3D groups around their baricenter
+	centerData( i_group3dBasic, i_mat.baricenter, p_nSimP, sPC);
+	centerData(io_group3dNoisy, i_mat.baricenter, p_nSimP, sPC);
+
+	//! Compute the covariance matrix of the set of similar patches
+	covarianceMatrix(i_group3dBasic, i_mat.covMat, p_nSimP, sPC);
+
+	//! Compute leading eigenvectors
+	int info = matrixEigs(i_mat.covMat, sPC, 4, i_mat.covEigVals, i_mat.covEigVecs);
+
+	//! Compute eigenvalues-based coefficients of Bayes' filter
+	float sigma2 = p_params.sigma * p_params.sigma;
+	for (unsigned k = 0; k < r; ++k)
+		i_mat.covEigVals[k] = 1.f / sqrtf( 1. + sigma2 / i_mat.covEigVals[k] );
+
+	//! Scale eigenvectors using the filter coefficients
+	//  TODO: can we do this more efficiently using BLAS o LAPACK?
+	float *eigVecs = i_mat.covEigVecs.data();
+	for (unsigned k = 0; k < r  ; ++k)
+	for (unsigned i = 0; i < sPC; ++i)
+		*eigVecs++ *= i_mat.covEigVals[k];
+
+	// NOTE: io_group3dNoisy, if read as a row-major column, contains in each
+	// row a patch. Thus, in row major storage it corresponds to X^T, where
+	// each column of X contains a centered data point.
+	//
+	// We need to compute the noiseless estimage hX as 
+	// hX = V * V' * X
+	// where V is the matrix with the normalized eigenvectors.
+	//
+	// Matrix V is stored (row-major) in i_mat.covEigVecs. Since we have X^T
+	// we compute 
+	// hX' = X' * V * V'
+
+	//! Z' = X'*V using CBLAS Z' <-- alpha op(X') op(V) + beta Z'
+	cblas_sgemm(CblasColMajor,                         // matrix storage mode
+	            CblasNoTrans,                          // op(X') = X'
+	            CblasNoTrans,                          // op(V ) = V
+	            p_nSimP,                               // rows(X') [= rows(Z')]
+	            r,                                     // cols(V ) [= cols(Z')]
+	            sPC,                                   // cols(X') [= rows(V )]
+	            1.f,                                   // alpha
+					io_group3dNoisy.data(), p_nSimP,       // X', ldx
+	            i_mat.covEigVecs.data(), sPC,          // V , ldv
+					0.f,                                   // beta
+	            i_mat.group3dTranspose.data(), p_nSimP // Z', ldz
+					);
+
+	//! hX' = Z'*V' using CBLAS hX' <-- alpha op(Z') op(V ) + beta hX'
+	cblas_sgemm(CblasColMajor,                         // matrix storage mode
+	            CblasNoTrans,                          // op(Z') = Z'
+	            CblasTrans,                            // op(V ) = V'
+	            p_nSimP,                               // rows(Z') [= rows(hX')]
+	            sPC,                                   // cols(V') [= cols(hX')]
+	            r,                                     // cols(Z') [= rows(V' )]
+	            1.f,                                   // alpha
+	            i_mat.group3dTranspose.data(), p_nSimP,// Z', ldz
+	            i_mat.covEigVecs.data(), sPC,          // V , ldv
+					0.f,                                   // beta
+					io_group3dNoisy.data(), p_nSimP        // hX', ldhx
+					);
 
 	//! Add baricenter
 	for (unsigned j = 0, k = 0; j < sPC; j++)
