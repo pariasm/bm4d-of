@@ -47,7 +47,7 @@ int main(int argc, char **argv)
 	const string  final_path = clo_option("-deno" , "deno_%03d.png" , "> denoised sequence");
 	const string  basic_path = clo_option("-bsic" , "bsic_%03d.png" , "> basic denoised sequence");
 	const string   diff_path = clo_option("-diff" , "diff_%03d.png" , "> difference sequence");
-	// TODO: this should be determined automatically from the other outputs.
+	// TODO: these should be determined automatically from the other outputs.
 	const string   bias_path = clo_option("-bdeno", "bdeno_%03d.png", "> bias sequence");
 	const string bbasic_path = clo_option("-bbsic", "bbsic_%03d.png", "> bias basic sequence");
 	const string  bdiff_path = clo_option("-bdiff", "bdiff_%03d.png", "> bias difference sequence");
@@ -75,6 +75,8 @@ int main(int argc, char **argv)
 	const int patch_sizet2  = clo_option("-pt2", 1, "> Temporal patch size, step 2");
 	const int num_patches1  = clo_option("-np1",-1, "> Number of similar patches, step 1");
 	const int num_patches2  = clo_option("-np2",-1, "> Number of similar patches, step 2");
+	const int rank1         = clo_option("-r1" , 4, "> Rank or covariance matrix, step 1");
+	const int rank2         = clo_option("-r2" , 4, "> Rank or covariance matrix, step 2");
 
 	//! Only print parameters
 	if (print_prms)
@@ -94,6 +96,9 @@ int main(int argc, char **argv)
 		if (patch_sizex2  >= 0) VideoNLB::setSizePatch(prms2, tmp, (unsigned)patch_sizex2);;
 		if (num_patches1  >= 0) VideoNLB::setNSimilarPatches(prms1, (unsigned)num_patches1);
 		if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
+
+		prms1.rank = rank1;
+		prms2.rank = rank2;
 
 		VideoNLB::printNlbParameters(prms1);
 		VideoNLB::printNlbParameters(prms2);	
@@ -142,6 +147,10 @@ int main(int argc, char **argv)
 	if (patch_sizex2  >= 0) VideoNLB::setSizePatch(prms2, noisy.sz, (unsigned)patch_sizex2);;
 	if (num_patches1  >= 0) VideoNLB::setNSimilarPatches(prms1, (unsigned)num_patches1);
 	if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
+
+	prms1.rank = rank1;
+	prms2.rank = rank2;
+
 
 	//! Run denoising algorithm
 	VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2);

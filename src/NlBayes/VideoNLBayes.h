@@ -13,7 +13,6 @@
 #ifndef VIDEO_NL_BAYES_H_INCLUDED
 #define VIDEO_NL_BAYES_H_INCLUDED
 
-//#include "../Utilities/LibVideo.h"
 #include "../Utilities/LibVideoT.hpp"
 #include "../Utilities/Utilities.h"
 
@@ -28,7 +27,7 @@ namespace VideoNLB
  * @param nSimilarPatches: minimum number of similar patches wanted;
  * @param sizeSearchWindow: size of the search window around the reference patch;
  * @param boundary: must be > sizeSearchWindow. Boundary kept around sub-images when the image is
- *      subdivided for parallelization;
+ *        subdivided for parallelization;
  * @param offSet: step between two similar patches;
  * @param useHomogeneousArea: if true, use the homogeneous area trick;
  * @param gamma: threshold to detect homogeneous area;
@@ -36,7 +35,7 @@ namespace VideoNLB
  * @param tau: parameter used to determine similar patches;
  * @param isFirstStep: true if the first step of the algorithm is wanted;
  * @param doPasteBoost: if true, patches near denoised similar patches will not be used as reference
- *		patches;
+ *        patches;
  * @param verbose: if true, print informations.
  **/
 struct nlbParams
@@ -46,12 +45,13 @@ struct nlbParams
 	unsigned sizePatchTime;    // user given
 	unsigned nSimilarPatches;  // depends on sigma, sizeSearchTimeRange (1 channel) or sizePatch (3 channels)
 	unsigned sizeSearchWindow; // depends on nSimilarPatches
-	unsigned sizeSearchTimeRangeFwd; //< VIDEO how many forward  frames in search cube
-	unsigned sizeSearchTimeRangeBwd; //< VIDEO how many backward frames in search cube
+	unsigned sizeSearchTimeRangeFwd; // how many forward  frames in search cube
+	unsigned sizeSearchTimeRangeBwd; // how many backward frames in search cube
 	unsigned boundary;         // depends on sizeSearchWindow
 	unsigned offSet;           // depends on sizePatch
 	bool useHomogeneousArea;
 	float gamma;
+	unsigned rank;             // rank of covariance matrix
 	float beta;                // depends on sigma
 	float tau;                 // depends on sizePatch
 	bool isFirstStep;
@@ -103,6 +103,7 @@ void initializeNlbParameters(
 ,	const unsigned timeSearchRangeFwd = 0
 ,	const unsigned timeSearchRangeBwd = 0
 ,	const unsigned sizePatchTime = 1
+,	const unsigned rank = 4
 );
 
 
