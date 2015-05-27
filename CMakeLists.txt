@@ -26,6 +26,9 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/modules/
 
 ###############################################################################
 
+include_directories("/home/pariasm/local/include/")
+set(CMAKE_PREFIX_PATH "/home/pariasm/local/")
+message("CMAKE_PREFIX_PATH: " ${CMAKE_PREFIX_PATH})
 find_package( CBLAS REQUIRED )
 find_package( LAPACKE REQUIRED )
 
