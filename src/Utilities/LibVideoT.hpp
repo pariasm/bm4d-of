@@ -443,13 +443,13 @@ namespace VideoUtils
 	,   const float p_sigma
 	,   const bool p_verbose = false
 	){
-		if (p_verbose) printf("Add noise [sigma = %f] ... ", p_sigma);
+		if (p_verbose) printf("Add noise with sigma = %g\n", p_sigma);
 
 		//! Initialization
 		o_vidNoisy = i_vid;
 //		mt_init_genrand((unsigned long int) time (NULL) +
 //		                (unsigned long int) getpid());
-		mt_init_genrand(0); printf("Warning: random generator seed is 0 ");
+		mt_init_genrand(0); printf("\x1b[33;1mWarning:\x1b[0m random generator seed is 0\n");
 
 		//! Add noise
 		for (unsigned k = 0; k < i_vid.sz.whcf; k++)
@@ -459,8 +459,6 @@ namespace VideoUtils
 			o_vidNoisy(k) += (T) (p_sigma *
 				sqrtl(-2.0l * log(a)) * cos(2.0l * M_PI * b));
 		}
-
-		if (p_verbose) printf("done.\n");
 	}
 	
 	/**

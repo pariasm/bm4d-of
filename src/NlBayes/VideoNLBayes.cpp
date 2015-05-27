@@ -37,6 +37,25 @@
 #define DEBUG_SHOW_WEIGHT
 //#define CENTRED_SEARCH
 
+// colors
+#define ANSI_BLK  "\x1b[30m"
+#define ANSI_RED  "\x1b[31m"
+#define ANSI_GRN  "\x1b[32m"
+#define ANSI_YLW  "\x1b[33m"
+#define ANSI_BLU  "\x1b[34m"
+#define ANSI_MAG  "\x1b[35m"
+#define ANSI_CYN  "\x1b[36m"
+#define ANSI_WHT  "\x1b[37m"
+#define ANSI_BBLK "\x1b[30;01m"
+#define ANSI_BRED "\x1b[31;01m"
+#define ANSI_BGRN "\x1b[32;01m"
+#define ANSI_BYLW "\x1b[33;01m"
+#define ANSI_BBLU "\x1b[34;01m"
+#define ANSI_BMAG "\x1b[35;01m"
+#define ANSI_BCYN "\x1b[36;01m"
+#define ANSI_BWHT "\x1b[37;01m"
+#define ANSI_RST "\x1b[0m"
+
 namespace VideoNLB
 {
 
@@ -249,7 +268,7 @@ void printNlbParameters(
 //	printf("------------------------\n\n");
 //	printf("Noise sigma = %g\n", i_prms1.sigma);
 
-	printf("Parameters for step %d:\n", i_prms.isFirstStep ? 1 : 2);
+	printf("\x1b[37;01m" "Parameters for step %d:" ANSI_RST "\n" , i_prms.isFirstStep ? 1 : 2);
 	printf("\tPatch search:\n");
 	printf("\t\tPatch size                  = %d\n"       , i_prms.sizePatch);
 	printf("\t\tPatch size temporal         = %d\n"       , i_prms.sizePatchTime);
@@ -343,7 +362,7 @@ int runNlBayes(
 	unsigned nThreads = 1;
 #ifdef _OPENMP
 	nThreads = omp_get_max_threads();
-	if (p_prms1.verbose) printf("OpenMP is using %d threads\n", nThreads);
+	if (p_prms1.verbose) printf(ANSI_CYN "OpenMP is using %d threads\n" ANSI_RST, nThreads);
 #endif
 	const unsigned nParts = 2 * nThreads;
 
