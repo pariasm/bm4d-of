@@ -23,6 +23,8 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
+
+#include <cblas.h>
 #include <lapacke.h>
 
 using namespace std;
@@ -182,6 +184,50 @@ void productMatrix(
 }
 
 /**
+ * @brief Multiply two matrix A * B. It uses BLAS SGEMM.
+ *
+ * @param o_AB = array containing nxl product matrix at exit;
+ * @param i_A = input array containing nxm (or mxn if p_transA) matrix;
+ * @param i_B = input array containing mxl (or lxm if p_transB) matrix;
+ * @param p_n, p_l, p_m = dimension parameters of arrays.
+ * @param p_transA = true for transposing A.
+ * @param p_transA = true for transposing B.
+ * @param p_colMajor = true for if matrices should be read by columns.
+ *
+ * @return  none.
+ **/
+void productMatrix(
+	vector<float> &o_AB
+,	vector<float> const& i_A
+,	vector<float> const& i_B
+,	const unsigned p_n
+,	const unsigned p_l
+,	const unsigned p_m
+,	const bool p_transA
+,	const bool p_transB
+,	const bool p_colMajor
+){
+	unsigned lda = p_colMajor ? (p_transA ? p_m : p_n) : (p_transA ? p_n : p_m);
+	unsigned ldb = p_colMajor ? (p_transB ? p_l : p_m) : (p_transB ? p_m : p_l);
+
+	cblas_sgemm(p_colMajor ? CblasColMajor : CblasRowMajor,  // matrix storage mode
+	            p_transA   ? CblasTrans    : CblasNoTrans,   // op(A)
+	            p_transB   ? CblasTrans    : CblasNoTrans,   // op(B)
+	            p_n,                                         // rows(op(A)) [= rows(AB)   ]
+	            p_l,                                         // cols(op(B)) [= cols(AB)   ]
+	            p_m,                                         // cols(op(A)) [= rows(op(B))]
+	            1.f,                                         // alpha
+					i_A.data(), lda,                             // A, lda
+	            i_B.data(), ldb,                             // B, ldb
+					0.f,                                         // beta
+	            o_AB.data(), p_colMajor ? p_n : p_l          // AB, ldab
+					);
+}
+
+
+
+
+/**
  * @brief Compute a specified number of eigenvectors and eigenvalues of a
  * symmetric matrix.
  *
@@ -247,3 +293,4 @@ int matrixEigs(
 
 	return(info);
 }
+

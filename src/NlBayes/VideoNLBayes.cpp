@@ -27,7 +27,6 @@
 
 #include "VideoNLBayes.h"
 #include "LibMatrix.h"
-#include "cblas.h"
 #include "../Utilities/Utilities.h"
 
 #ifdef _OPENMP
@@ -65,6 +64,7 @@ void initializeNlbParameters(
 ,	const unsigned timeSearchRangeFwd
 ,	const unsigned timeSearchRangeBwd
 ,	const unsigned sizePatchTime
+,	const unsigned rank
 ){
 	const bool s1 = (p_step == 1);
 
@@ -133,6 +133,9 @@ void initializeNlbParameters(
 		if(s1) o_params.beta = 1.f;
 		else   o_params.beta = (p_sigma < 50.f ? 1.2f : 1.f);
 	}
+
+	// maximum rank of covariance matrix
+	o_params.rank = rank;
 
 	//! Parameter used to determine similar patches
 	//  Differs from manuscript (tau = 4) because (1) this threshold is to be used 
@@ -258,6 +261,7 @@ void printNlbParameters(
 	printf("\t\tSpatial border added        = %d\n"       , i_prms.boundary);
 	printf("\tGroup filtering:\n");
 	printf("\t\tBeta                        = %g\n"       , i_prms.beta);
+	printf("\t\tRank                        = %d\n"       , i_prms.rank);
 	if (i_prms.useHomogeneousArea)
 		printf("\t\tFlat area trick with gamma  = %g\n"       , i_prms.gamma);
 	else
@@ -523,16 +527,43 @@ void processNlBayes(
 	bool border_t1 = p_crop.ending_t < p_crop.source_sz.frames;
 
 	//! Only pixels of the center of the image must be processed (not the boundaries)
+	unsigned stepx = p_params.offSet;
+	unsigned stepy = p_params.offSet;
 	int ori_x =                        border_x0 ? sPx-1 + sWx/2 : 0 ;
 	int ori_y =                        border_y0 ? sPx-1 + sWx/2 : 0 ;
 	int ori_f =                        border_t0 ? sPt-1 + sWt/2 : 0 ;
 	int end_x = (int)sz.width  - (int)(border_x1 ? sPx-1 + sWx/2 : sPx-1);
 	int end_y = (int)sz.height - (int)(border_y1 ? sPx-1 + sWx/2 : sPx-1);
 	int end_f = (int)sz.frames - (int)(border_t1 ? sPt-1 + sWt/2 : sPt-1);
-	for (int f = ori_f; f < end_f; f++)
-	for (int y = ori_y; y < end_y; y++)
-	for (int x = ori_x; x < end_x; x++)
-		mask(x,y,f) = true;
+	for (int f = ori_f, df = 0; f < end_f; f++, df++)
+	for (int y = ori_y, dy = 0; y < end_y; y++, dy++)
+	for (int x = ori_x, dx = 0; x < end_x; x++, dx++)
+	{
+		if (dy % stepy == 0)
+		{
+			if (dx % stepx == y/stepy % stepx)     mask(x,y,f) = true;
+			else if (!border_x1 && x == end_x - 1) mask(x,y,f) = true;
+		}
+		else if (!border_y1 && y == end_y - 1)
+		{
+			if (dx % stepx == 0)                   mask(x,y,f) = true;
+			else if (!border_x1 && x == end_x - 1) mask(x,y,f) = true;
+		}
+	}
+
+
+#ifdef DEBUG_SHOW_WEIGHT
+	{
+		int part_x = p_crop.origin_x;
+		int part_y = p_crop.origin_y;
+		int part_t = p_crop.origin_t;
+		char name[1024];
+		Video<float> mask_f(mask.sz);
+		for (int i = 0; i < mask.sz.whcf; ++i) mask_f(i) = 255*(float)mask(i);
+		sprintf(name, "/tmp/msk_step%d_partx%dy%dt%d_%%03d.png", step1 ? 1 : 2, part_x, part_y, part_t);
+		mask_f.saveVideo(name, 1, 1);
+	}
+#endif
 
 	//! Used matrices during Bayes' estimate
 	const unsigned patch_dim = step1 ? sPx * sPx * sPt : sPx * sPx * sPt * sz.channels;
@@ -555,19 +586,20 @@ void processNlBayes(
 		//! Matrices used for Bayes' estimate
 		vector<vector<float> > group3d(sz.channels, vector<float>(patch_num * patch_dim));
 
-		unsigned step = p_params.offSet;
-		for (unsigned pt = 0        ; pt < sz.frames; pt++)
-		for (unsigned py = 0        ; py < sz.height; py++)
-		for (unsigned px = py % step; px < sz.width ; px += step)
+		unsigned counter = 0;
+		for (unsigned pt = 0; pt < sz.frames; pt++)
+		for (unsigned py = 0; py < sz.height; py++)
+		for (unsigned px = 0; px < sz.width ; px++)
 			if (mask(px,py,pt)) //< Only non-seen patches are processed
 			{
 				const unsigned ij  = sz.index(px,py,pt);
 				const unsigned ij3 = sz.index(px,py,pt, 0);
 				//const unsigned ij3 = (ij / sz.wh) * sz.whc + ij % sz.wh;
 
-				if (p_params.verbose && (ij % 10000 == 0))
+				if (p_params.verbose && (counter++ % 10000/(stepx/stepy) == 0))
 				{
-					printf("\rprocessing step1 %05.1f", (float)ij/(float)(sz.whf)*100.f);
+	//				printf("\rprocessing step1 %05.1f", (float)ij/(float)(sz.whf)*100.f);
+					printf("\nprocessing step1 %05.1f", (float)ij/(float)(sz.whf)*100.f);
 					std::cout << std::flush;
 				}
 
@@ -605,19 +637,20 @@ void processNlBayes(
 		vector<float> group3dNoisy(patch_num * patch_dim);
 		vector<float> group3dBasic(patch_num * patch_dim);
 
-		unsigned step = p_params.offSet;
-		for (unsigned pt = 0        ; pt < sz.frames; pt++)
-		for (unsigned py = 0        ; py < sz.height; py++)
-		for (unsigned px = py % step; px < sz.width ; px += step)
+		unsigned counter = 0;
+		for (unsigned pt = 0; pt < sz.frames; pt++)
+		for (unsigned py = 0; py < sz.height; py++)
+		for (unsigned px = 0; px < sz.width ; px++)
 			if (mask(px,py,pt)) //< Only non-seen patches are processed
 			{
 				const unsigned ij  = sz.index(px,py,pt);
 				const unsigned ij3 = sz.index(px,py,pt, 0);
 				//const unsigned ij3 = (ij / sz.wh) * sz.whc + ij % sz.wh;
 
-				if (p_params.verbose && (ij % 10000 == 0))
+				if (p_params.verbose && (counter++ % (10000/stepx/stepy) == 0))
 				{
-					printf("\rprocessing step2 %05.1f", (float)ij/(float)(sz.whf)*100.f);
+	//				printf("\rprocessing step2 %05.1f", (float)ij/(float)(sz.whf)*100.f);
+					printf("\nprocessing step2 %05.1f", (float)ij/(float)(sz.whf)*100.f);
 					std::cout << std::flush;
 				}
 
@@ -1223,7 +1256,7 @@ void computeBayesEstimateStep2_LR(
 	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
 	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
 	                    * p_params.sizePatchTime * p_imSize.channels;
-	const unsigned r = 4;
+	const unsigned r    = p_params.rank;
 
 	//! Center 3D groups around their baricenter
 	centerData( i_group3dBasic, i_mat.baricenter, p_nSimP, sPC);
@@ -1233,7 +1266,7 @@ void computeBayesEstimateStep2_LR(
 	covarianceMatrix(i_group3dBasic, i_mat.covMat, p_nSimP, sPC);
 
 	//! Compute leading eigenvectors
-	int info = matrixEigs(i_mat.covMat, sPC, 4, i_mat.covEigVals, i_mat.covEigVecs);
+	int info = matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
 
 	//! Compute eigenvalues-based coefficients of Bayes' filter
 	float sigma2 = p_params.sigma * p_params.sigma;
@@ -1247,45 +1280,32 @@ void computeBayesEstimateStep2_LR(
 	for (unsigned i = 0; i < sPC; ++i)
 		*eigVecs++ *= i_mat.covEigVals[k];
 
-	// NOTE: io_group3dNoisy, if read as a row-major column, contains in each
-	// row a patch. Thus, in row major storage it corresponds to X^T, where
-	// each column of X contains a centered data point.
-	//
-	// We need to compute the noiseless estimage hX as 
-	// hX = V * V' * X
-	// where V is the matrix with the normalized eigenvectors.
-	//
-	// Matrix V is stored (row-major) in i_mat.covEigVecs. Since we have X^T
-	// we compute 
-	// hX' = X' * V * V'
+	/* NOTE: io_group3dNoisy, if read as a row-major column, contains in each
+	 * row a patch. Thus, in row major storage it corresponds to X^T, where
+	 * each column of X contains a centered data point.
+	 *
+	 * We need to compute the noiseless estimage hX as 
+	 * hX = V * V' * X
+	 * where V is the matrix with the normalized eigenvectors.
+	 *
+	 * Matrix V is stored (row-major) in i_mat.covEigVecs. Since we have X^T
+	 * we compute 
+	 * hX' = X' * V * V'
+	 */
 
-	//! Z' = X'*V using CBLAS Z' <-- alpha op(X') op(V) + beta Z'
-	cblas_sgemm(CblasColMajor,                         // matrix storage mode
-	            CblasNoTrans,                          // op(X') = X'
-	            CblasNoTrans,                          // op(V ) = V
-	            p_nSimP,                               // rows(X') [= rows(Z')]
-	            r,                                     // cols(V ) [= cols(Z')]
-	            sPC,                                   // cols(X') [= rows(V )]
-	            1.f,                                   // alpha
-					io_group3dNoisy.data(), p_nSimP,       // X', ldx
-	            i_mat.covEigVecs.data(), sPC,          // V , ldv
-					0.f,                                   // beta
-	            i_mat.group3dTranspose.data(), p_nSimP // Z', ldz
-					);
+	//! Z' = X'*V
+	productMatrix(i_mat.group3dTranspose,
+	              io_group3dNoisy,
+	              i_mat.covEigVecs,
+	              p_nSimP, r, sPC,
+	              false, false);
 
-	//! hX' = Z'*V' using CBLAS hX' <-- alpha op(Z') op(V ) + beta hX'
-	cblas_sgemm(CblasColMajor,                         // matrix storage mode
-	            CblasNoTrans,                          // op(Z') = Z'
-	            CblasTrans,                            // op(V ) = V'
-	            p_nSimP,                               // rows(Z') [= rows(hX')]
-	            sPC,                                   // cols(V') [= cols(hX')]
-	            r,                                     // cols(Z') [= rows(V' )]
-	            1.f,                                   // alpha
-	            i_mat.group3dTranspose.data(), p_nSimP,// Z', ldz
-	            i_mat.covEigVecs.data(), sPC,          // V , ldv
-					0.f,                                   // beta
-					io_group3dNoisy.data(), p_nSimP        // hX', ldhx
-					);
+	//! hX' = Z'*V'
+	productMatrix(io_group3dNoisy,
+	              i_mat.group3dTranspose,
+	              i_mat.covEigVecs,
+	              p_nSimP, sPC, r,
+	              false, true);
 
 	//! Add baricenter
 	for (unsigned j = 0, k = 0; j < sPC; j++)
