@@ -379,7 +379,11 @@ int runNlBayes(
 
 	//! Step 1
 	{
-		if (p_prms1.verbose) printf("1st Step\n");
+		if (p_prms1.verbose)
+		{
+			printf("1st Step\n");
+			for (int p = 0; p < nParts; ++p) printf("\n");
+		}
 
 		//! RGB to YUV
 		Video<float> imNoisy = i_imNoisy;
@@ -437,11 +441,16 @@ int runNlBayes(
 		}
 #endif
 
+		if (p_prms1.verbose) printf("\n");
 	}
 
 	//! Step 2
 	{
-		if (p_prms2.verbose) printf("2nd Step\n");
+		if (p_prms1.verbose)
+		{
+			printf("2nd Step\n");
+			for (int p = 0; p < nParts; ++p) printf("\n");
+		}
 
 		//! Divide the noisy and basic images into sub-images in order to easier parallelize the process
 		std::vector<Video<float> > imNoisySub(nParts);
@@ -493,6 +502,7 @@ int runNlBayes(
 			weight.saveVideo("weight_step2_%03d.png", 1);
 		}
 #endif
+		if (p_prms2.verbose) printf("\n");
 	}
 
 	return EXIT_SUCCESS;
@@ -615,10 +625,18 @@ void processNlBayes(
 				const unsigned ij3 = sz.index(px,py,pt, 0);
 				//const unsigned ij3 = (ij / sz.wh) * sz.whc + ij % sz.wh;
 
-				if (p_params.verbose && (counter++ % 10000/(stepx/stepy) == 0))
+				if (p_params.verbose && (counter++ % 100 == 0))
 				{
-	//				printf("\rprocessing step1 %05.1f", (float)ij/(float)(sz.whf)*100.f);
-					printf("\nprocessing step1 %05.1f", (float)ij/(float)(sz.whf)*100.f);
+					int ntiles = p_crop.ntiles_t * p_crop.ntiles_x * p_crop.ntiles_y;
+					int part_idx = p_crop.tile_t * p_crop.ntiles_x * p_crop.ntiles_y +
+					               p_crop.tile_y * p_crop.ntiles_x + 
+					               p_crop.tile_x;
+
+					printf("\x1b[%dF[%d,%d,%d] %05.1f\x1b[%dE", ntiles - part_idx,
+							p_crop.tile_x, p_crop.tile_y, p_crop.tile_t,
+							(float)ij/(float)(sz.whf)*100.f,
+							ntiles - part_idx);
+
 					std::cout << std::flush;
 				}
 
@@ -634,7 +652,7 @@ void processNlBayes(
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
-					computeBayesEstimateStep1(group3d, mat, nInverseFailed, 
+					computeBayesEstimateStep1(group3d, mat, nInverseFailed,
 							p_params, nSimP);
 
 				//! Aggregation
@@ -642,10 +660,22 @@ void processNlBayes(
 						p_params, nSimP);
 			}
 
-		if (p_params.verbose) printf("\n");
-
 		//! Weighted aggregation
 		computeWeightedAggregation(i_imNoisy, io_imBasic, weight);
+
+		if (p_params.verbose)
+		{
+			int ntiles = p_crop.ntiles_t * p_crop.ntiles_x * p_crop.ntiles_y;
+			int part_idx = p_crop.tile_t * p_crop.ntiles_x * p_crop.ntiles_y +
+			               p_crop.tile_y * p_crop.ntiles_x +
+			               p_crop.tile_x;
+
+			printf(ANSI_GRN "\x1b[%dF[%d,%d,%d] %05.1f\x1b[%dE" ANSI_RST,
+					ntiles - part_idx, p_crop.tile_x, p_crop.tile_y,
+					p_crop.tile_t, 100.f, ntiles - part_idx);
+
+			std::cout << std::flush;
+		}
 	}
 	else
 	{
@@ -666,10 +696,18 @@ void processNlBayes(
 				const unsigned ij3 = sz.index(px,py,pt, 0);
 				//const unsigned ij3 = (ij / sz.wh) * sz.whc + ij % sz.wh;
 
-				if (p_params.verbose && (counter++ % (10000/stepx/stepy) == 0))
+				if (p_params.verbose && (counter++ % 100 == 0))
 				{
-	//				printf("\rprocessing step2 %05.1f", (float)ij/(float)(sz.whf)*100.f);
-					printf("\nprocessing step2 %05.1f", (float)ij/(float)(sz.whf)*100.f);
+					int ntiles = p_crop.ntiles_t * p_crop.ntiles_x * p_crop.ntiles_y;
+					int part_idx = p_crop.tile_t * p_crop.ntiles_x * p_crop.ntiles_y +
+					               p_crop.tile_y * p_crop.ntiles_x +
+					               p_crop.tile_x;
+
+					printf("\x1b[%dF[%d,%d,%d] %05.1f\x1b[%dE", ntiles - part_idx,
+							p_crop.tile_x, p_crop.tile_y, p_crop.tile_t,
+							(float)ij/(float)(sz.whf)*100.f,
+							ntiles - part_idx);
+
 					std::cout << std::flush;
 				}
 
@@ -693,10 +731,22 @@ void processNlBayes(
 						index, p_params, nSimP);
 			}
 
-		if (p_params.verbose) printf("\n");
-
 		//! Weighted aggregation
 		computeWeightedAggregation(i_imNoisy, o_imFinal, weight);
+
+		if (p_params.verbose)
+		{
+			int ntiles = p_crop.ntiles_t * p_crop.ntiles_x * p_crop.ntiles_y;
+			int part_idx = p_crop.tile_t * p_crop.ntiles_x * p_crop.ntiles_y +
+			               p_crop.tile_y * p_crop.ntiles_x +
+			               p_crop.tile_x;
+
+			printf(ANSI_GRN "\x1b[%dF[%d,%d,%d] %05.1f\x1b[%dE" ANSI_RST,
+					ntiles - part_idx, p_crop.tile_x, p_crop.tile_y,
+					p_crop.tile_t, 100.f, ntiles - part_idx);
+
+			std::cout << std::flush;
+		}
 	}
 
 	if (nInverseFailed > 0 && p_params.verbose)
