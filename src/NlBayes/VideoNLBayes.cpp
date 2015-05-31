@@ -441,15 +441,14 @@ int runNlBayes(
 		}
 #endif
 
-		if (p_prms1.verbose) printf("\n");
 	}
 
 	//! Step 2
 	{
-		if (p_prms1.verbose)
+		if (p_prms2.verbose)
 		{
-			printf("2nd Step\n");
-			for (int p = 0; p < nParts; ++p) printf("\n");
+			printf("\x1b[%dF2nd Step\n",nParts+1);
+			for (int p = 0; p < nParts; ++p) printf("\x1b[2K\n");
 		}
 
 		//! Divide the noisy and basic images into sub-images in order to easier parallelize the process
