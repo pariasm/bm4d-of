@@ -422,11 +422,11 @@ int runNlBayes(
 			for (int n = 0; n < (int)nParts; n++)
 			{
 				// Build file name
-				int part_x = imCrops[n].origin_x;
-				int part_y = imCrops[n].origin_y;
-				int part_t = imCrops[n].origin_t;
+				int part_x = imCrops[n].tile_x;
+				int part_y = imCrops[n].tile_y;
+				int part_t = imCrops[n].tile_t;
 				char name[1024];
-				sprintf(name, "weight_step1_partx%dy%dt%d_%%03d.png", part_x, part_y, part_t);
+				sprintf(name, "/tmp/weight_step1_%d.%d.%d_%%03d.png", part_x, part_y, part_t);
 
 				int part_frames = imCrops[n].ending_t - part_t;
 				subWeights[n].loadVideo(name, 1, part_frames, 1);
@@ -437,7 +437,7 @@ int runNlBayes(
 			VideoUtils::subBuildTight(subWeights, weight, p_prms1.boundary);
 
 			// Write to disk
-			weight.saveVideo("weight_step1_%03d.png", 1);
+			weight.saveVideo("wei1_%03d.png", 1);
 		}
 #endif
 
@@ -483,11 +483,11 @@ int runNlBayes(
 			for (int n = 0; n < (int)nParts; n++)
 			{
 				// Build file name
-				int part_x = imCrops[n].origin_x;
-				int part_y = imCrops[n].origin_y;
-				int part_t = imCrops[n].origin_t;
+				int part_x = imCrops[n].tile_x;
+				int part_y = imCrops[n].tile_y;
+				int part_t = imCrops[n].tile_t;
 				char name[1024];
-				sprintf(name, "weight_step2_partx%dy%dt%d_%%03d.png", part_x, part_y, part_t);
+				sprintf(name, "/tmp/weight_step2_%d.%d.%d_%%03d.png", part_x, part_y, part_t);
 
 				int part_frames = imCrops[n].ending_t - part_t;
 				subWeights[n].loadVideo(name, 1, part_frames, 1);
@@ -495,10 +495,35 @@ int runNlBayes(
 
 			// Call set build
 			Video<float> weight(imSize.width, imSize.height, imSize.frames);
-			VideoUtils::subBuildTight(subWeights, weight, p_prms1.boundary);
+			VideoUtils::subBuildTight(subWeights, weight, p_prms2.boundary);
 
 			// Write to disk
-			weight.saveVideo("weight_step2_%03d.png", 1);
+			weight.saveVideo("wei2_%03d.png", 1);
+		}
+		{
+			std::vector<Video<float> > subVars(nParts);
+
+			// First load all weight sequences
+			for (int n = 0; n < (int)nParts; n++)
+			{
+				// Build file name
+				int part_x = imCrops[n].tile_x;
+				int part_y = imCrops[n].tile_y;
+				int part_t = imCrops[n].tile_t;
+				char name[1024];
+				sprintf(name, "/tmp/var_step2_%d.%d.%d_%%03d.png", part_x, part_y, part_t);
+
+				int part_frames = imCrops[n].ending_t - part_t;
+				subVars[n].loadVideo(name, 1, part_frames, 1);
+			}
+
+			// Call set build
+			Video<float> variance(imSize.width, imSize.height, imSize.frames);
+			VideoUtils::subBuildTight(subVars, variance, p_prms2.boundary);
+
+			// Write to disk
+			variance.saveVideo("var2_%03d.png", 1);
+			variance.saveVideoAscii("var2_", 1);
 		}
 #endif
 		if (p_prms2.verbose) printf("\n");
@@ -582,13 +607,13 @@ void processNlBayes(
 
 #ifdef DEBUG_SHOW_WEIGHT
 	{
-		int part_x = p_crop.origin_x;
-		int part_y = p_crop.origin_y;
-		int part_t = p_crop.origin_t;
+		int part_x = p_crop.tile_x;
+		int part_y = p_crop.tile_y;
+		int part_t = p_crop.tile_t;
 		char name[1024];
 		Video<float> mask_f(mask.sz);
 		for (int i = 0; i < mask.sz.whcf; ++i) mask_f(i) = 255*(float)mask(i);
-		sprintf(name, "/tmp/msk_step%d_partx%dy%dt%d_%%03d.png", step1 ? 1 : 2, part_x, part_y, part_t);
+		sprintf(name, "/tmp/msk_step%d_%d.%d.%d_%%03d.png", step1 ? 1 : 2, part_x, part_y, part_t);
 		mask_f.saveVideo(name, 1, 1);
 	}
 #endif
@@ -605,6 +630,9 @@ void processNlBayes(
 	mat.covMat          .resize(patch_dim * patch_dim);
 	mat.covMatTmp       .resize(patch_dim * patch_dim);
 	mat.baricenter      .resize(patch_dim);
+
+	//! Variance captured by the principal components
+	Video<float> variance(mask.sz);
 
 	if (step1)
 	{
@@ -722,12 +750,15 @@ void processNlBayes(
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
-					computeBayesEstimateStep2_LR(group3dNoisy, group3dBasic, mat,
-							nInverseFailed, sz, p_params, nSimP);
+					variance(ij) = 200.f * (p_params.rank > patch_dim)
+						? computeBayesEstimateStep2_LR(group3dNoisy, group3dBasic, mat,
+								nInverseFailed, sz, p_params, nSimP)
+						: computeBayesEstimateStep2_FR(group3dNoisy, group3dBasic, mat,
+								nInverseFailed, sz, p_params, nSimP);
 
 				//! Aggregation
 				computeAggregationStep2(o_imFinal, weight, mask, group3dNoisy,
-						index, p_params, nSimP);
+						variance, index, p_params, nSimP);
 			}
 
 		//! Weighted aggregation
@@ -753,12 +784,22 @@ void processNlBayes(
 
 #ifdef DEBUG_SHOW_WEIGHT
 	{
-		int part_x = p_crop.origin_x;
-		int part_y = p_crop.origin_y;
-		int part_t = p_crop.origin_t;
+		int part_x = p_crop.tile_x;
+		int part_y = p_crop.tile_y;
+		int part_t = p_crop.tile_t;
 		char name[1024];
-		sprintf(name, "weight_step%d_partx%dy%dt%d_%%03d.png", step1 ? 1 : 2, part_x, part_y, part_t);
+		sprintf(name, "/tmp/weight_step%d_%d.%d.%d_%%03d.png",
+				step1 ? 1 : 2, part_x, part_y, part_t);
 		weight.saveVideo(name, 1, 1);
+	}
+	{
+		int part_x = p_crop.tile_x;
+		int part_y = p_crop.tile_y;
+		int part_t = p_crop.tile_t;
+		char name[1024];
+		sprintf(name, "/tmp/var_step%d_%d.%d.%d_%%03d.png",
+				step1 ? 1 : 2, part_x, part_y, part_t);
+		variance.saveVideo(name, 1, 1);
 	}
 #endif
 }
@@ -1251,7 +1292,7 @@ void computeBayesEstimateStep1(
  *
  * @return none.
  **/
-void computeBayesEstimateStep2_FR(
+float computeBayesEstimateStep2_FR(
 	std::vector<float> &io_group3dNoisy
 ,	std::vector<float>  &i_group3dBasic
 ,	matWorkspace &i_mat
@@ -1290,6 +1331,8 @@ void computeBayesEstimateStep2_FR(
 	for (unsigned j = 0, k = 0; j < sPC; j++)
 		for (unsigned i = 0; i < p_nSimP; i++, k++)
 			io_group3dNoisy[k] += i_mat.baricenter[j];
+
+	return 1.f;
 }
 
 /**
@@ -1311,7 +1354,7 @@ void computeBayesEstimateStep2_FR(
  *
  * @return none.
  **/
-void computeBayesEstimateStep2_LR(
+float computeBayesEstimateStep2_LR(
 	std::vector<float> &io_group3dNoisy
 ,	std::vector<float>  &i_group3dBasic
 ,	matWorkspace &i_mat
@@ -1333,8 +1376,18 @@ void computeBayesEstimateStep2_LR(
 	//! Compute the covariance matrix of the set of similar patches
 	covarianceMatrix(i_group3dBasic, i_mat.covMat, p_nSimP, sPC);
 
+	//! Compute total variance
+	float total_variance = 0.f;
+	for (int i = 0; i < sPC; ++i)
+		total_variance += i_mat.covMat[i*sPC + i];
+
 	//! Compute leading eigenvectors
 	int info = matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
+
+	//! Compute variance captured by the r leading eigenvectors
+	float r_variance = 0.f;
+	for (int i = 0; i < r; ++i)
+		r_variance += i_mat.covEigVals[i];
 
 	//! Compute eigenvalues-based coefficients of Bayes' filter
 	float sigma2 = p_params.sigma * p_params.sigma;
@@ -1379,6 +1432,11 @@ void computeBayesEstimateStep2_LR(
 	for (unsigned j = 0, k = 0; j < sPC; j++)
 		for (unsigned i = 0; i < p_nSimP; i++, k++)
 			io_group3dNoisy[k] += i_mat.baricenter[j];
+
+	// return percentage of captured variance
+	return r_variance / total_variance;
+
+}
 }
 
 /**
@@ -1507,6 +1565,7 @@ void computeAggregationStep2(
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
 ,	std::vector<float> const& i_group3d
+,	Video<float> &variance
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
 ,	const unsigned p_nSimP
@@ -1553,6 +1612,13 @@ void computeAggregationStep2(
 			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
 			if (px >     2*sPx) io_mask(ind1 - 1) = false;
 			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
+
+#ifdef DEBUG_SHOW_WEIGHT
+			if (py >     2*sPx) variance(ind1 - w) = variance(ind1);
+			if (py < h - 2*sPx) variance(ind1 + w) = variance(ind1);
+			if (px >     2*sPx) variance(ind1 - 1) = variance(ind1);
+			if (px < w - 2*sPx) variance(ind1 + 1) = variance(ind1);
+#endif
 		}
 	}
 }
