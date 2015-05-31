@@ -1437,7 +1437,6 @@ float computeBayesEstimateStep2_LR(
 	return r_variance / total_variance;
 
 }
-}
 
 /**
  * @brief Aggregate estimates of all similar patches contained in the 3D group.
