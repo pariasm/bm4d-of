@@ -400,7 +400,13 @@ inline T Video<T>::getPixelSymmetric(
 namespace VideoUtils
 {
 	/**
-	 * @brief Structure to store the position of a rectangular crop.
+	 * @brief Structure to store the position of a rectangular crop. It also has
+	 * data to describe the position of the crop when it corresponds to a rectangular 
+	 * tiling (potentially with an added border) of a video. The tiles in the tiling
+	 * do not overlap, but the crop can correspond to a tile with an added border.
+	 * origin and ending encode the crop coordinates where as tile_origin and
+	 * tile_ending correspond to the tile coordinates (tile coordinates are
+	 * contained in the crop).
 	 *
 	 * @param origin_x  : x coordinate of top-left-front corner of crop
 	 * @param origin_y  : y coordinate of top-left-front corner of crop
@@ -411,6 +417,24 @@ namespace VideoUtils
 	 * @param ending_t  : t coordinate of bottom-right-back corner of crop
 	 *
 	 * @param source_sz : size of source video
+	 *
+	 * @params tile_x   : x index of tile (0 <= tile_x < ntiles_x)
+	 * @params tile_y   : y index of tile (0 <= tile_y < ntiles_y)
+	 * @params tile_t   : t index of tile (0 <= tile_t < ntiles_t)
+
+	 * @params ntiles_x : total number of tiles in x direction
+	 * @params ntiles_y : total number of tiles in y direction
+	 * @params ntiles_t : total number of tiles in t direction
+
+	 * @params tile_origin_x : x coordinate of top-left-front corner of tile
+	 * @params tile_origin_y : y coordinate of top-left-front corner of tile
+	 * @params tile_origin_t : t coordinate of top-left-front corner of tile
+
+	 * @params tile_ending_x : x coordinate of bottom-right-back corner of tile
+	 * @params tile_ending_y : y coordinate of bottom-right-back corner of tile
+	 * @params tile_ending_t : t coordinate of bottom-right-back corner of tile
+	 * 
+	 *
 	 **/
 	struct CropPosition
 	{
@@ -423,6 +447,22 @@ namespace VideoUtils
 		int ending_t;
 
 		VideoSize source_sz;
+
+		int tile_x;
+		int tile_y;
+		int tile_t;
+
+		int ntiles_x;
+		int ntiles_y;
+		int ntiles_t;
+
+		int tile_origin_x;
+		int tile_origin_y;
+		int tile_origin_t;
+
+		int tile_ending_x;
+		int tile_ending_y;
+		int tile_ending_t;
 	};
 
 
@@ -821,6 +861,23 @@ namespace VideoUtils
 
 			//! Crop using symmetric boundary conditions
 			VideoUtils::crop(i_vid, o_vidSub[n], o_crops[n]);
+
+			//! Add information about the tiling
+			o_crops[n].tile_x = q;
+			o_crops[n].tile_y = p;
+			o_crops[n].tile_t = 0;
+
+			o_crops[n].ntiles_x = nW;
+			o_crops[n].ntiles_y = nH;
+			o_crops[n].ntiles_t =  1;
+
+			o_crops[n].tile_origin_x = q * wTmp;
+			o_crops[n].tile_origin_y = p * wTmp;
+			o_crops[n].tile_origin_t = 0;
+
+			o_crops[n].tile_ending_x = std::min((int)i_vid.sz.width , (q+1) * wTmp);
+			o_crops[n].tile_ending_y = std::min((int)i_vid.sz.height, (p+1) * hTmp);
+			o_crops[n].tile_ending_t = i_vid.sz.frames;
 		}
 
 		return;
@@ -852,10 +909,13 @@ namespace VideoUtils
 		 *       time. */
 		
 		//! Determine number of sub-images
-		unsigned nW, nH;
-		determineFactor(p_nb, nW, nH);
-		const unsigned wTmp = ceil(float(i_vid.sz.width ) / float(nW)); // sizes w/out 
-		const unsigned hTmp = ceil(float(i_vid.sz.height) / float(nH)); //     borders
+		unsigned u_nW, u_nH; // FIXME problem with unsigned and int
+		determineFactor((unsigned)p_nb, u_nW, u_nH);
+		int nW = (int)u_nW;
+		int nH = (int)u_nH;
+
+		const int wTmp = ceil(float(i_vid.sz.width ) / float(nW)); // sizes w/out 
+		const int hTmp = ceil(float(i_vid.sz.height) / float(nH)); //     borders
 
 		//! Obtain sub-images
 		VideoSize imSubSize;
@@ -867,8 +927,8 @@ namespace VideoUtils
 
 		o_crops.resize(p_nb);
 		o_vidSub.resize(p_nb);
-		for (unsigned p = 0, n = 0; p < nH; p++)
-		for (unsigned q = 0;        q < nW; q++, n++)
+		for (int p = 0, n = 0; p < nH; p++)
+		for (int q = 0;        q < nW; q++, n++)
 		{
 			o_vidSub[n].resize(imSubSize);
 
@@ -883,6 +943,27 @@ namespace VideoUtils
 			o_crops[n].origin_x  = origin[0];
 			o_crops[n].origin_y  = origin[1];
 			o_crops[n].origin_t  = origin[2];
+
+			o_crops[n].ending_x  = origin[0] + o_vidSub[n].sz.width ;
+			o_crops[n].ending_y  = origin[1] + o_vidSub[n].sz.height;
+			o_crops[n].ending_t  = origin[2] + o_vidSub[n].sz.frames;
+
+			//! Add information about the tiling
+			o_crops[n].tile_x = q;
+			o_crops[n].tile_y = p;
+			o_crops[n].tile_t = 0;
+
+			o_crops[n].ntiles_x = nW;
+			o_crops[n].ntiles_y = nH;
+			o_crops[n].ntiles_t =  1;
+
+			o_crops[n].tile_origin_x = q * wTmp;
+			o_crops[n].tile_origin_y = p * wTmp;
+			o_crops[n].tile_origin_t = 0;
+
+			o_crops[n].tile_ending_x = std::min((int)i_vid.sz.width , (q+1) * wTmp);
+			o_crops[n].tile_ending_y = std::min((int)i_vid.sz.height, (p+1) * hTmp);
+			o_crops[n].tile_ending_t = i_vid.sz.frames;
 		}
 
 		return;

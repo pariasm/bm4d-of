@@ -73,10 +73,15 @@ struct matWorkspace
 	std::vector<float> group3dTranspose;
 	std::vector<float> baricenter;
 	std::vector<float> covMat;
-	std::vector<float> covEigVecs;
-	std::vector<float> covEigVals;
 	std::vector<float> covMatTmp;
 	std::vector<float> tmpMat;
+
+	// the following have been added for computing a low rank
+	// approximation of the covariance matrix C
+
+	// used if low-rank approximation is done via eigendecomp. of C
+	std::vector<float> covEigVecs;
+	std::vector<float> covEigVals;
 };
 
 /**
@@ -366,7 +371,36 @@ void computeBayesEstimateStep1(
  *
  * @return none.
  **/
-void computeBayesEstimateStep2_FR(
+float computeBayesEstimateStep2_FR(
+	std::vector<float> &io_group3dNoisy
+,	std::vector<float>  &i_group3dBasic
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	const VideoSize &p_imSize
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+);
+
+/**
+ * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
+ *
+ * @param io_group3dNoisy: inputs all similar patches in the noisy image,
+ *                         outputs their denoised estimates.
+ * @param i_group3dBasic: contains all similar patches in the basic image.
+ * @param i_mat: contains :
+ *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
+ *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+ *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
+ *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
+ *    - tmpMat: allocated memory. Used to process the Bayes estimate;
+ * @param io_nInverseFailed: update the number of failed matrix inversion;
+ * @param p_imSize: size of the image;
+ * @param p_params: see processStep2 for more explanations;
+ * @param p_nSimP: number of similar patches.
+ *
+ * @return none.
+ **/
+float computeBayesEstimateStep2_LR(
 	std::vector<float> &io_group3dNoisy
 ,	std::vector<float>  &i_group3dBasic
 ,	matWorkspace &i_mat
@@ -446,6 +480,7 @@ void computeAggregationStep2(
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
 ,	std::vector<float> const& i_group3d
+,	Video<float> &variance
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams& p_params
 ,	const unsigned p_nSimP
