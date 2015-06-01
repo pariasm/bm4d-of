@@ -206,9 +206,11 @@ void productMatrix(
 ,	const bool p_transA
 ,	const bool p_transB
 ,	const bool p_colMajor
+,	unsigned lda
+,	unsigned ldb
 ){
-	unsigned lda = p_colMajor ? (p_transA ? p_m : p_n) : (p_transA ? p_n : p_m);
-	unsigned ldb = p_colMajor ? (p_transB ? p_l : p_m) : (p_transB ? p_m : p_l);
+	if (!lda) lda = p_colMajor ? (p_transA ? p_m : p_n) : (p_transA ? p_n : p_m);
+	if (!ldb) ldb = p_colMajor ? (p_transB ? p_l : p_m) : (p_transB ? p_m : p_l);
 
 	cblas_sgemm(p_colMajor ? CblasColMajor : CblasRowMajor,  // matrix storage mode
 	            p_transA   ? CblasTrans    : CblasNoTrans,   // op(A)
@@ -217,15 +219,12 @@ void productMatrix(
 	            p_l,                                         // cols(op(B)) [= cols(AB)   ]
 	            p_m,                                         // cols(op(A)) [= rows(op(B))]
 	            1.f,                                         // alpha
-					i_A.data(), lda,                             // A, lda
+	            i_A.data(), lda,                             // A, lda
 	            i_B.data(), ldb,                             // B, ldb
-					0.f,                                         // beta
+	            0.f,                                         // beta
 	            o_AB.data(), p_colMajor ? p_n : p_l          // AB, ldab
-					);
+	            );
 }
-
-
-
 
 /**
  * @brief Compute a specified number of eigenvectors and eigenvalues of a
@@ -294,3 +293,91 @@ int matrixEigs(
 	return(info);
 }
 
+/**
+ * @brief Compute the eigenvectors and eigenvalues of 1/n*X'*X 
+ * using the SVD.
+ *
+ * NOTES:
+ * - matrices are stored in column-major ordering
+ * - columns of input matrices are contiguous in memory
+ * - the output o_U contains the left singular vectors as columns, and is
+ *   stored in column-major ordering (or as rows in row-major ordering)
+ * - the output o_VT contains the right singular vectors as rows, stored 
+ *   in column-major ordering (or as columns in row-major ordering)
+ * - if the workspace vectors are empty, they are resized internally
+ *
+ * @param i_mat: contains input matrix;
+ * @param p_m  : rows of the matrix;
+ * @param p_n  : cols of the matrix;
+ * @param o_S  : vector with min(m,n) singular values
+ * @param o_U  : matrix with min(m,n) left singular values
+ * @param o_VT : matrix with min(m,n) right singular values (transposed)
+ * @param i_work  : LAPACK's workspace
+ * @param i_iwork : LAPACK's integer workspace
+ *
+ * @return none.
+ **/
+int matrixEigsSVD(
+	vector<float> &i_mat
+,	const unsigned p_n
+,	const unsigned p_m
+,	vector<float> &o_S
+,	vector<float> &o_U
+,	vector<float> &o_VT
+,	vector<float> &i_work
+,	vector<int> &i_iwork
+){
+	// set parameters for LAPACKE SGESDD function
+	// SGESDD: Single GEneric Singular value Decomposition using Divide-and-conquer
+
+	o_S .resize(std::min(p_m, p_n));      // singular values in descending order.
+	o_U .resize(p_m*std::min(p_m, p_n));  // columns contain left  sigular vectors
+	o_VT.resize(p_n*std::min(p_m, p_n));  // rows    contain right sigular vectors
+	i_iwork.resize(8*std::min(p_m, p_n)); // integer workspace for SGESDD
+
+	lapack_int info;       // info =  0 : successful exit
+	                       // info = -i : ith argument is wrong
+	                       // info =  i : failed to converge
+
+	if (!i_work.size())
+	{
+		float workspace_size;
+		// query workspace
+		info = LAPACKE_sgesdd_work(LAPACK_COL_MAJOR,
+			'S',                   // economic SVD
+			p_m,                   // rows of matrix A
+			p_n,                   // cols of matrix A
+			i_mat.data(),          // matrix A
+			p_m,                   // stride of matrix A
+			o_S.data(),            // singular values output
+			o_U.data(),            // matrix U output
+			p_m,                   // stride of matrix U
+			o_VT.data(),           // matrix VT output
+			std::min(p_m, p_n),    // stride of VT
+			&workspace_size,       // size of workspace (output)
+			-1,                    // because we are quering
+			i_iwork.data()         // integer workspace
+			);
+
+		// allocate workspace
+		i_work.resize((int)workspace_size);
+	}
+
+	info = LAPACKE_sgesdd_work(LAPACK_COL_MAJOR,
+		'S',                   // economic SVD
+		p_m,                   // rows of matrix A
+		p_n,                   // cols of matrix A
+		i_mat.data(),          // matrix A
+		p_m,                   // stride of matrix A
+		o_S.data(),            // singular values output
+		o_U.data(),            // matrix U output
+		p_m,                   // stride of matrix U
+		o_VT.data(),           // matrix VT output
+		std::min(p_m, p_n),    // stride of VT
+		i_work.data(),         // workspace
+		i_work.size(),         // workspace size
+		i_iwork.data()         // integer workspace
+		);
+
+	return(info);
+}
