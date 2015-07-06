@@ -13,5 +13,6 @@ include_directories(${LAPACK_INCLUDES})
 include_directories(${CBLAS_INCLUDE_DIR})
 
 link_directories(${CMAKE_BINARY_DIR}/lib)
-target_link_libraries(vnlbayes videoNlBayes png ${LAPACK_LIBRARIES} ${CBLAS_LIBRARIES})
+target_link_libraries(vnlbayes videoNlBayes png
+	${LAPACK_LIBRARIES} ${CBLAS_LIBRARIES} ${IDDIST_LIBRARIES})
 

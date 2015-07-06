@@ -12,6 +12,8 @@ add_library(videoNlBayes SHARED
 	../Utilities/Utilities.cpp
 	)
 
+target_link_libraries(videoNlBayes id)
+
 set_target_properties(videoNlBayes PROPERTIES
 	SOVERSION ${PROJECT_VERSION})
 

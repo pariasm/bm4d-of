@@ -1,5 +1,5 @@
 
-project(VideoNLBayes)
+project(VideoNLBayes C CXX Fortran)
 
 message(STATUS "Configuring main project: " ${CMAKE_PROJECT_NAME})
 
@@ -43,6 +43,7 @@ endif()
 
 ###############################################################################
 
+add_subdirectory(lib/id_dist)
 add_subdirectory(src/NlBayes)
 add_subdirectory(src)
 add_subdirectory(src/unit_tests)
