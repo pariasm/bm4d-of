@@ -60,7 +60,7 @@ struct nlbParams
 };
 
 /**
- * @brief Structure containing usefull matrices for the Bayes estimations.
+ * @brief Structure containing matrices used in the Bayesian estimation.
  *
  * @param group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
  * @param baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;

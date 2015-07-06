@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2013, Marc Lebrun <marc.lebrun.ik@gmail.com>
+ * Modified work Copyright (c) 2014, Pablo Arias <pariasm@gmail.com>
+ * Original work Copyright (c) 2013, Marc Lebrun <marc.lebrun.ik@gmail.com>
  * All rights reserved.
  *
  * This program is free software: you can use, modify and/or
@@ -233,9 +234,9 @@ void productMatrix(
  * NOTES:
  * - matrices are stored in column-major ordering
  * - columns of input matrices are contiguous in memory
- * - only the upper triangular triangular part of o_mat is used 
+ * - only the upper triangular triangular part of o_mat is used
  * - the upper triangular part of o_mat is destroyed
- * - the output o_U contains the eigenvectors as columns, and is 
+ * - the output o_U contains the eigenvectors as columns, and is
  *   stored ini column-major ordering (i.e. it returns the eigenvectors
  *   as rows in row-major ordering)
  *
@@ -258,7 +259,7 @@ int matrixEigs(
 	// SSYEVX: Single SYmmetric EigenValues and eigenvectors eXpert
 	lapack_int m;          //< total values of eigenvalues found
 
-	o_S.resize(p_n);       //< array of dimension n. The first m entries 
+	o_S.resize(p_n);       //< array of dimension n. The first m entries
 	                       //< contain the eigenvalues found in ascending order.
 
 	o_U.resize(p_n*p_r);   //< the first m columns contain the output eigenvectors
@@ -380,4 +381,24 @@ int matrixEigsSVD(
 		);
 
 	return(info);
+}
+void printMatrix(
+	std::vector<float> &matrix
+,	unsigned rows
+,	unsigned cols
+,	std::string filename
+){
+	FILE *file = fopen(filename.c_str(),"w");
+
+	// print output
+	for(int i = 0; i < rows; i++)
+	{
+		for(int j = 0; j < cols; j++)
+		{
+			fprintf(file, "%.16g ", matrix[i*cols + j]);
+		}
+		fprintf(file, "\n");
+	}
+
+	fclose(file);
 }

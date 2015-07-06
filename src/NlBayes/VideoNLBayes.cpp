@@ -1,6 +1,6 @@
 /*
- * Original work Copyright (c) 2013, Marc Lebrun <marc.lebrun.ik@gmail.com>
  * Modified work Copyright (c) 2014, Pablo Arias <pariasm@gmail.com>
+ * Original work Copyright (c) 2013, Marc Lebrun <marc.lebrun.ik@gmail.com>
  * All rights reserved.
  *
  * This program is free software: you can use, modify and/or
@@ -1401,27 +1401,27 @@ float computeBayesEstimateStep2_LR(
 	for (unsigned i = 0; i < sPC; ++i)
 		*eigVecs++ *= i_mat.covEigVals[k];
 
-	/* NOTE: io_group3dNoisy, if read as a row-major column, contains in each
-	 * row a patch. Thus, in row major storage it corresponds to X^T, where
+	/* NOTE: io_group3dNoisy, if read as a column-major matrix, contains in each
+	 * row a patch. Thus, in column-major storage it corresponds to X^T, where
 	 * each column of X contains a centered data point.
 	 *
 	 * We need to compute the noiseless estimage hX as 
-	 * hX = V * V' * X
-	 * where V is the matrix with the normalized eigenvectors.
+	 * hX = U * U' * X
+	 * where U is the matrix with the normalized eigenvectors.
 	 *
-	 * Matrix V is stored (row-major) in i_mat.covEigVecs. Since we have X^T
+	 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
 	 * we compute 
-	 * hX' = X' * V * V'
+	 * hX' = X' * U * U'
 	 */
 
-	//! Z' = X'*V
+	//! Z' = X'*U
 	productMatrix(i_mat.group3dTranspose,
 	              io_group3dNoisy,
 	              i_mat.covEigVecs,
 	              p_nSimP, r, sPC,
 	              false, false);
 
-	//! hX' = Z'*V'
+	//! hX' = Z'*U'
 	productMatrix(io_group3dNoisy,
 	              i_mat.group3dTranspose,
 	              i_mat.covEigVecs,

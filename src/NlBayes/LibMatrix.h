@@ -12,7 +12,8 @@
 #ifndef LIB_MATRIX_H_INCLUDED
 #define LIB_MATRIX_H_INCLUDED
 
-#include<vector>
+#include <vector>
+#include <string>
 
 /**
  * @brief Invert (in place) a symmetric real matrix, V -> Inv(V).
@@ -114,9 +115,9 @@ void productMatrix(
  * NOTES:
  * - matrices are stored in column-major ordering
  * - columns of input matrices are contiguous in memory
- * - only the upper triangular triangular part of o_mat is used 
+ * - only the upper triangular triangular part of o_mat is used
  * - the upper triangular part of o_mat is destroyed
- * - the output o_U contains the eigenvectors as columns, and is 
+ * - the output o_U contains the eigenvectors as columns, and is
  *   stored ini column-major ordering (i.e. it returns the eigenvectors
  *   as rows in row-major ordering)
  *
@@ -171,5 +172,11 @@ int matrixEigsSVD(
 ,	std::vector<int> &i_iwork
 );
 
+void printMatrix(
+	std::vector<float> &matrix
+,	unsigned rows
+,	unsigned cols
+,	std::string filename
+);
 
 #endif // LIB_MATRIX_H_INCLUDED
