@@ -171,6 +171,40 @@ int matrixSVD(
 ,	std::vector<int> &i_iwork
 );
 
+/**
+ * @brief Compute approximated low-rank SVD.
+ *
+ * NOTES:
+ * - matrices are stored in column-major ordering
+ * - columns of input matrices are contiguous in memory
+ * - the output o_U contains the left singular vectors as columns, and is
+ *   stored in column-major ordering (or as rows in row-major ordering)
+ * - the output o_V contains the right singular vectors as columns, stored
+ *   in column-major ordering (or as rows in row-major ordering)
+ * - if the workspace vectors are empty, they are resized internally
+ *
+ * @param i_mat: m x n input matrix;
+ * @param p_m  : rows of the matrix;
+ * @param p_n  : cols of the matrix;
+ * @param p_k  : rank;
+ * @param o_S  : vector with min(m,n,k) singular values
+ * @param o_U  : m x min(m,n,k) matrix with min(m,n,k) left singular values
+ * @param o_V  : n x min(m,n,k) matrix with min(m,n,k) right singular values
+ * @param i_work : id_dist's workspace
+ *
+ * @return none.
+ **/
+int matrixLRSVD(
+	std::vector<double> &i_mat
+,	int p_n
+,	int p_m
+,	int p_k
+,	std::vector<double> &o_S
+,	std::vector<double> &o_U
+,	std::vector<double> &o_V
+,	std::vector<double> &i_work
+);
+
 void printMatrix(
 	std::vector<float> &matrix
 ,	unsigned rows
