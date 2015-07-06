@@ -1559,6 +1559,167 @@ float computeBayesEstimateStep2_LRSVD(
 }
 
 /**
+ * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
+ * This version uses an approximate partial SVD decomposition of the data
+ * matrix, instead of eigen decomposition of the covariance matrix.
+ *
+ * @param io_group3dNoisy: inputs all similar patches in the noisy image,
+ *                         outputs their denoised estimates.
+ * @param i_group3dBasic: contains all similar patches in the basic image.
+ * @param i_mat: contains :
+ *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
+ *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+ *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
+ *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
+ *    - tmpMat: allocated memory. Used to process the Bayes estimate;
+ * @param io_nInverseFailed: update the number of failed matrix inversion;
+ * @param p_imSize: size of the image;
+ * @param p_params: see processStep2 for more explanations;
+ * @param p_nSimP: number of similar patches.
+ *
+ * @return none.
+ **/
+float computeBayesEstimateStep2_LRSVDID(
+	std::vector<float> &io_group3dNoisy
+,	std::vector<float>  &i_group3dBasic
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	const VideoSize &p_imSize
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+){
+	//! Parameters initialization
+	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
+	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
+	                    * p_params.sizePatchTime * p_imSize.channels;
+	const unsigned r    = p_params.rank;
+
+//	printMatrix(i_group3dBasic, sPC, p_nSimP, "/tmp/data_matrix_uncentered.asc");
+
+	//! Center 3D groups around their baricenter
+	centerData( i_group3dBasic, i_mat.baricenter, p_nSimP, sPC);
+	centerData(io_group3dNoisy, i_mat.baricenter, p_nSimP, sPC);
+
+	//XXX DEBUG
+//	printMatrix(i_group3dBasic, sPC, p_nSimP, "/tmp/data_matrix.asc");
+
+	//XXX DEBUG: Compute the covariance matrix of the set of similar patches
+//	covarianceMatrix(i_group3dBasic, i_mat.covMat, p_nSimP, sPC);
+//	printMatrix(i_mat.covMat, sPC, sPC, "/tmp/covariance_matrix.asc");
+//	matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
+//	printMatrix(i_mat.covEigVals, 1, r  , "/tmp/eigenvals.asc");
+//	printMatrix(i_mat.covEigVecs, r, sPC, "/tmp/eigenvecs.asc");
+
+	//! Compute total variance HOW?
+	float total_variance = 0.f;
+
+	//! Compute SVD
+	{
+		// convert data to double
+		i_mat.svd_ddata.resize(i_group3dBasic.size());
+		std::vector<double>::iterator ddata = i_mat.svd_ddata.begin();
+		std::vector<float >::iterator fdata =  i_group3dBasic.begin();
+		for (int i = 0; i < i_group3dBasic.size(); ++i)
+			*ddata++ = (double)*fdata++;
+
+		// compute low rand SVD
+		int info = matrixLRSVD(i_mat.svd_ddata, sPC, p_nSimP, r,
+				i_mat.svd_dS, i_mat.svd_dV, i_mat.svd_dU,
+				i_mat.svd_dwork);
+
+		// convert SVD matrices to float
+		i_mat.svd_S.resize(i_mat.svd_dS.size());
+		i_mat.svd_V.resize(i_mat.svd_dV.size());
+		i_mat.svd_U.resize(i_mat.svd_dU.size());
+
+		std::vector<float >::iterator to;
+		std::vector<double>::iterator from;
+
+		to   = i_mat.svd_S .begin();
+		from = i_mat.svd_dS.begin();
+		for (int i = 0; i < i_mat.svd_dS.size(); ++i) *to++ = *from++;
+
+		to   = i_mat.svd_V .begin();
+		from = i_mat.svd_dV.begin();
+		for (int i = 0; i < i_mat.svd_dV.size(); ++i) *to++ = *from++;
+
+		to   = i_mat.svd_U .begin();
+		from = i_mat.svd_dU.begin();
+		for (int i = 0; i < i_mat.svd_dU.size(); ++i) *to++ = *from++;
+	}
+
+//	//XXX DEBUG Print patch group and covariance matrix to a file
+//	printMatrix(i_mat.svd_U, r, sPC    , "/tmp/svdU.asc");
+//	printMatrix(i_mat.svd_S, r, 1      , "/tmp/svdS.asc");
+//	printMatrix(i_mat.svd_V, r, p_nSimP, "/tmp/svdV.asc");
+//
+//	//XXX DEBUG
+//	while (1) int a = 1;
+
+	//! Compute variance captured by the r leading eigenvectors
+	float r_variance = 0.f;
+	for (int i = 0; i < r; ++i)
+	{
+		i_mat.svd_S[i] = (i_mat.svd_S[i] * i_mat.svd_S[i]) / (float)p_nSimP;
+		r_variance += i_mat.svd_S[i];
+	}
+
+	//! Compute eigenvalues-based coefficients of Bayes' filter
+	float sigma2 = p_params.sigma * p_params.sigma;
+	for (unsigned k = 0; k < r; ++k)
+		i_mat.svd_S[k] = 1.f / sqrtf( 1.f + sigma2 / i_mat.svd_S[k] );
+
+	//! Multiply sing. vector matrix by singular value matrix
+	{
+		float *svdU = i_mat.svd_U.data();
+		for (unsigned k = 0; k < r  ; ++k)
+		for (unsigned i = 0; i < sPC; ++i)
+			*svdU++ *= i_mat.svd_S[k];
+	}
+
+	//XXX DEBUG
+//	printMatrix(i_mat.svd_U , mdim, sPC    , "/tmp/svdU.asc");
+//	while (1) int a = 1;
+
+	/* NOTE: io_group3dNoisy, if read as a column-major matrix, contains in each
+	 * row a patch. Thus, in column-major storage it corresponds to X^T, where
+	 * each column of X contains a centered data point.
+	 *
+	 * We need to compute the noiseless estimage hX as 
+	 * hX = U * U' * X
+	 * where U is the matrix with the normalized eigenvectors.
+	 *
+	 * Matrix U' is stored (column-major) in i_mat.svd_U. Since we have X^T
+	 * we compute 
+	 * hX' = X' * (U')' * U'
+	 */
+
+
+	//! Z' = X'*V
+	productMatrix(i_mat.group3dTranspose,
+	              io_group3dNoisy,
+	              i_mat.svd_U,
+	              p_nSimP, r, sPC,
+	              false, false);
+
+	//! hX' = Z'*V'
+	productMatrix(io_group3dNoisy,
+	              i_mat.group3dTranspose,
+	              i_mat.svd_U,
+	              p_nSimP, sPC, r,
+	              false, true);
+
+	//! Add baricenter
+	for (unsigned j = 0, k = 0; j < sPC; j++)
+		for (unsigned i = 0; i < p_nSimP; i++, k++)
+			io_group3dNoisy[k] += i_mat.baricenter[j];
+
+	// return percentage of captured variance
+	return r_variance / total_variance;
+
+}
+
+/**
  * @brief Aggregate estimates of all similar patches contained in the 3D group.
  *
  * @param io_im: update the image with estimate values;

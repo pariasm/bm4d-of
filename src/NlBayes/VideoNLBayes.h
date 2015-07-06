@@ -90,6 +90,13 @@ struct matWorkspace
 	std::vector<float> svd_S;      // sing. values of X ~ sqrt of eigen vecs of C
 	std::vector<float> svd_work;
 	std::vector<int  > svd_iwork;
+
+	// double matrix to compute svd using idd
+	std::vector<double> svd_dU;    // left sing. vecs of X ~ eigen vecs of C
+	std::vector<double> svd_dV;    // right sing. vecs of X
+	std::vector<double> svd_dS;    // sing. values of X ~ sqrt of eigen vecs of C
+	std::vector<double> svd_ddata; // 
+	std::vector<double> svd_dwork;
 };
 
 /**
@@ -440,6 +447,37 @@ float computeBayesEstimateStep2_LR(
  * @return none.
  **/
 float computeBayesEstimateStep2_LRSVD(
+	std::vector<float> &io_group3dNoisy
+,	std::vector<float>  &i_group3dBasic
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	const VideoSize &p_imSize
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+);
+
+/**
+ * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
+ * This version uses the SVD decomposition of the data matrix, instead of
+ * eigen decomposition of the covariance matrix.
+ *
+ * @param io_group3dNoisy: inputs all similar patches in the noisy image,
+ *                         outputs their denoised estimates.
+ * @param i_group3dBasic: contains all similar patches in the basic image.
+ * @param i_mat: contains :
+ *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
+ *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+ *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
+ *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
+ *    - tmpMat: allocated memory. Used to process the Bayes estimate;
+ * @param io_nInverseFailed: update the number of failed matrix inversion;
+ * @param p_imSize: size of the image;
+ * @param p_params: see processStep2 for more explanations;
+ * @param p_nSimP: number of similar patches.
+ *
+ * @return none.
+ **/
+float computeBayesEstimateStep2_LRSVDID(
 	std::vector<float> &io_group3dNoisy
 ,	std::vector<float>  &i_group3dBasic
 ,	matWorkspace &i_mat
