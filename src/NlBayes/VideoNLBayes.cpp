@@ -33,7 +33,10 @@
 #include <omp.h>
 #endif
 
-//#define DEBUG_SHOW_PATCH_GROUPS
+// choose implementation for low-rank Bayes estimate 
+//#define USE_SVD_LAPACK
+#define USE_SVD_IDDIST
+
 #define DEBUG_SHOW_WEIGHT
 //#define CENTRED_SEARCH
 
@@ -1342,25 +1345,13 @@ float computeBayesEstimateStep2_FR(
 }
 
 /**
- * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
+ * @brief Implementation of computeBayesEstimateStep2_LR computing the
+ * principal directions of the a priori covariance matrix. This functions
+ * computes the eigenvectors/values of the data covariance matrix using LAPACK.
  *
- * @param io_group3dNoisy: inputs all similar patches in the noisy image,
- *                         outputs their denoised estimates.
- * @param i_group3dBasic: contains all similar patches in the basic image.
- * @param i_mat: contains :
- *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
- *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
- *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
- *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
- *    - tmpMat: allocated memory. Used to process the Bayes estimate;
- * @param io_nInverseFailed: update the number of failed matrix inversion;
- * @param p_imSize: size of the image;
- * @param p_params: see processStep2 for more explanations;
- * @param p_nSimP: number of similar patches.
- *
- * @return none.
+ * See computeBayesEstimateStep2_LR for information about the arguments.
  **/
-float computeBayesEstimateStep2_LR(
+float computeBayesEstimateStep2_LR_EIG_LAPACK(
 	std::vector<float> &io_group3dNoisy
 ,	std::vector<float>  &i_group3dBasic
 ,	matWorkspace &i_mat
@@ -1445,27 +1436,13 @@ float computeBayesEstimateStep2_LR(
 }
 
 /**
- * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
- * This version uses the SVD decomposition of the data matrix, instead of
- * eigen decomposition of the covariance matrix.
+ * @brief Implementation of computeBayesEstimateStep2_LR computing the
+ * principal directions of the a priori covariance matrix. This functions
+ * computes the full SVD of the data matrix using LAPACK.
  *
- * @param io_group3dNoisy: inputs all similar patches in the noisy image,
- *                         outputs their denoised estimates.
- * @param i_group3dBasic: contains all similar patches in the basic image.
- * @param i_mat: contains :
- *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
- *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
- *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
- *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
- *    - tmpMat: allocated memory. Used to process the Bayes estimate;
- * @param io_nInverseFailed: update the number of failed matrix inversion;
- * @param p_imSize: size of the image;
- * @param p_params: see processStep2 for more explanations;
- * @param p_nSimP: number of similar patches.
- *
- * @return none.
+ * See computeBayesEstimateStep2_LR for information about the arguments.
  **/
-float computeBayesEstimateStep2_LRSVD(
+float computeBayesEstimateStep2_LR_SVD_LAPACK(
 	std::vector<float> &io_group3dNoisy
 ,	std::vector<float>  &i_group3dBasic
 ,	matWorkspace &i_mat
@@ -1556,30 +1533,39 @@ float computeBayesEstimateStep2_LRSVD(
 	// return percentage of captured variance
 	return r_variance / total_variance;
 
+/* TODO use this for the first step
+//	if (p_nSimP < sPC)
+//	{
+//		float *svdV = i_mat.svd_V.data();
+//		for (unsigned k = 0; k < r      ; ++k)
+//		for (unsigned i = 0; i < p_nSimP; ++i)
+//			*svdV++ *= i_mat.svd_S[k];
+//	}
+//	else
+//	{
+//		float *svdUT = i_mat.svd_UT.data();
+//		for (unsigned k = 0; k < r  ; ++k, svdUT += 1 - sPC*p_nSimP)
+//		for (unsigned i = 0; i < sPC; ++i, svdUT += p_nSimP)
+//			*svdUT *= i_mat.svd_S[k];
+//	}
+//
+//	productMatrix(io_group3dNoisy,
+//	              i_mat.svd_V,
+//	              i_mat.svd_UT,
+//	              p_nSimP, sPC, r,
+//	              false, false, true,
+//	              p_nSimP, std::min(p_nSimP, sPC)); */
+
 }
 
 /**
- * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
- * This version uses an approximate partial SVD decomposition of the data
- * matrix, instead of eigen decomposition of the covariance matrix.
+ * @brief Implementation of computeBayesEstimateStep2_LR computing the
+ * principal directions of the a priori covariance matrix. This functions
+ * computes an approximate partial SVD of the data matrix using id_dist.
  *
- * @param io_group3dNoisy: inputs all similar patches in the noisy image,
- *                         outputs their denoised estimates.
- * @param i_group3dBasic: contains all similar patches in the basic image.
- * @param i_mat: contains :
- *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
- *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
- *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
- *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
- *    - tmpMat: allocated memory. Used to process the Bayes estimate;
- * @param io_nInverseFailed: update the number of failed matrix inversion;
- * @param p_imSize: size of the image;
- * @param p_params: see processStep2 for more explanations;
- * @param p_nSimP: number of similar patches.
- *
- * @return none.
+ * See computeBayesEstimateStep2_LR for information about the arguments.
  **/
-float computeBayesEstimateStep2_LRSVDID(
+float computeBayesEstimateStep2_LR_SVD_IDDIST(
 	std::vector<float> &io_group3dNoisy
 ,	std::vector<float>  &i_group3dBasic
 ,	matWorkspace &i_mat
@@ -1824,6 +1810,48 @@ void computeAggregationStep1(
 		}
 	}
 #endif
+}
+
+/**
+ * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
+ *
+ * @param io_group3dNoisy: inputs all similar patches in the noisy image,
+ *                         outputs their denoised estimates.
+ * @param i_group3dBasic: contains all similar patches in the basic image.
+ * @param i_mat: contains :
+ *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
+ *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+ *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
+ *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
+ *    - tmpMat: allocated memory. Used to process the Bayes estimate;
+ * @param io_nInverseFailed: update the number of failed matrix inversion;
+ * @param p_imSize: size of the image;
+ * @param p_params: see processStep2 for more explanations;
+ * @param p_nSimP: number of similar patches.
+ *
+ * @return estimate of kept variance.
+ **/
+float computeBayesEstimateStep2_LR(
+	std::vector<float> &io_groupNoisy
+,	std::vector<float>  &i_groupBasic
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	const VideoSize &p_size
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+){
+	return
+#if defined(USE_SVD_IDDIST)
+		computeBayesEstimateStep2_LR_SVD_IDDIST(io_groupNoisy, i_groupBasic, i_mat,
+			io_nInverseFailed, p_size, p_params, p_nSimP);
+#elif defined(USE_SVD_LAPACK)
+		computeBayesEstimateStep2_LR_SVD_LAPACK(io_groupNoisy, i_groupBasic, i_mat,
+			io_nInverseFailed, p_size, p_params, p_nSimP);
+#else
+		computeBayesEstimateStep2_LR_EIG_LAPACK(io_groupNoisy, i_groupBasic, i_mat,
+			io_nInverseFailed, p_size, p_params, p_nSimP);
+#endif
+
 }
 
 /**
