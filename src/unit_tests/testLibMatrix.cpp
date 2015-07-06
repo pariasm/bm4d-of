@@ -55,6 +55,28 @@ void print_matrix(
 	fclose(file);
 }
 
+// Assumes row-major ordering
+void print_matrix(
+	std::vector<double> &matrix
+,	unsigned rows
+,	unsigned cols
+,	std::string filename
+){
+	FILE *file = fopen(filename.c_str(),"w");
+
+	// print output
+	for(int i = 0; i < rows; i++)
+	{
+		for(int j = 0; j < cols; j++)
+		{
+			fprintf(file, "%.16g ", matrix[i*cols + j]);
+		}
+		fprintf(file, "\n");
+	}
+
+	fclose(file);
+}
+
 void print_video_size(const std::string& name, const Video<float>& vid)
 {
 	printf("%s", name.c_str());
@@ -126,7 +148,7 @@ int main(int argc, char **argv)
 		//! Matrices used for Bayes' estimate
 		vector<unsigned> patch_index(patch_num);
 		vector<vector<float> > patch_stack(vid.sz.channels,
-				                             vector<float>(patch_num * patch_dim));
+		                                   vector<float>(patch_num * patch_dim));
 
 		//! Compute stack of patches
 		printf("computing patch group for point: [% 3d,% 3d,% 2d]\n\n",px,py,pt);
@@ -148,14 +170,51 @@ int main(int argc, char **argv)
 			covarianceMatrix(patch_stack[channel], mat.covMat, n_similar, patch_dim);
 		}
 
-		//! Print covariance matrix to a file
-		print_matrix(mat.covMat, patch_dim, patch_dim, "covariance_matrix.asc");
+		//! Print patch group and covariance matrix to a file
+		print_matrix(mat.covMat, patch_dim, patch_dim, "/tmp/covariance_matrix.asc");
+		print_matrix(patch_stack[channel], patch_dim, n_similar, "/tmp/data_matrix.asc");
 
 		//! Compute first 4 eigenvectors and eigenvalues
-		int info = matrixEigs(mat.covMat, patch_dim, 4, mat.covMatTmp, mat.tmpMat);
+		const int r = 4;
+		int info = matrixEigs(mat.covMat, patch_dim, r, mat.covEigVals, mat.covEigVecs);
 
-		print_matrix(mat.covMatTmp, 1, 4,      "eigenvals.asc");
-		print_matrix(mat.tmpMat, 4, patch_dim, "eigenvecs.asc");
+		printf("matrixEigs exited with status: %d\n", info);
+
+		print_matrix(mat.covEigVals, 1, r,         "/tmp/eigenvals.asc");
+		print_matrix(mat.covEigVecs, r, patch_dim, "/tmp/eigenvecs.asc");
+
+		//! Compute SVD with LAPACK
+		int info_svd = matrixSVD(patch_stack[channel], patch_dim, n_similar,
+		                         mat.svd_S, mat.svd_VT, mat.svd_U,
+		                         mat.svd_work, mat.svd_iwork);
+
+		printf("matrixSVD exited with status: %d\n", info);
+
+		int min_dim = std::min(patch_dim, n_similar);
+		print_matrix(mat.svd_S , min_dim, 1        , "/tmp/svdS.asc");
+		print_matrix(mat.svd_U , min_dim, patch_dim, "/tmp/svdU.asc");
+		print_matrix(mat.svd_VT, min_dim, n_similar, "/tmp/svdVT.asc");
+
+		//! Compute LR SVD with ID
+		{
+			mat.svd_ddata.resize(patch_stack[channel].size());
+			std::vector<double>::iterator ddata = mat.svd_ddata.begin();
+			std::vector<float >::iterator fdata = patch_stack[channel].begin();
+			for (int i = 0; i < patch_stack[channel].size(); ++i)
+				*ddata++ = (double)*fdata++;
+		}
+		const int l = 10;
+		printf("size ddata = %d\n",(int)mat.svd_ddata.size());
+		int info_lrsvd = matrixLRSVD(mat.svd_ddata, patch_dim, n_similar, r + l,
+		                             mat.svd_dS, mat.svd_dV, mat.svd_dU,
+		                             mat.svd_dwork);
+
+		printf("matrixLRSVD exited with status: %d\n", info);
+
+		print_matrix(mat.svd_dS, r + l, 1        , "/tmp/svddS.asc");
+		print_matrix(mat.svd_dU, r + l, patch_dim, "/tmp/svddU.asc");
+		print_matrix(mat.svd_dV, r + l, n_similar, "/tmp/svddV.asc");
+
 
 	}
 }
