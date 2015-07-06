@@ -295,8 +295,7 @@ int matrixEigs(
 }
 
 /**
- * @brief Compute the eigenvectors and eigenvalues of 1/n*X'*X 
- * using the SVD.
+ * @brief Compute a complete SVD.
  *
  * NOTES:
  * - matrices are stored in column-major ordering
@@ -307,18 +306,18 @@ int matrixEigs(
  *   in column-major ordering (or as columns in row-major ordering)
  * - if the workspace vectors are empty, they are resized internally
  *
- * @param i_mat: contains input matrix;
- * @param p_m  : rows of the matrix;
+ * @param i_mat: m x n input matrix;
  * @param p_n  : cols of the matrix;
+ * @param p_m  : rows of the matrix;
  * @param o_S  : vector with min(m,n) singular values
- * @param o_U  : matrix with min(m,n) left singular values
- * @param o_VT : matrix with min(m,n) right singular values (transposed)
+ * @param o_U  : m x min(m,n) matrix with min(m,n) left singular values
+ * @param o_VT : min(m,n) x n matrix with min(m,n) right singular values (transposed)
  * @param i_work  : LAPACK's workspace
  * @param i_iwork : LAPACK's integer workspace
  *
  * @return none.
  **/
-int matrixEigsSVD(
+int matrixSVD(
 	vector<float> &i_mat
 ,	const unsigned p_n
 ,	const unsigned p_m
@@ -382,6 +381,7 @@ int matrixEigsSVD(
 
 	return(info);
 }
+
 void printMatrix(
 	std::vector<float> &matrix
 ,	unsigned rows

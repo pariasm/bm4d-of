@@ -84,8 +84,9 @@ struct matWorkspace
 	std::vector<float> covEigVals;
 
 	// used if low-rank approximation of C is done via SVD of data matrix X
-	std::vector<float> svd_UT;     // left sing. vecs of X ~ eigen vecs of C
+	std::vector<float> svd_U;      // left  sing. vecs of X ~ eigen vecs of C
 	std::vector<float> svd_V;      // right sing. vecs of X
+	std::vector<float> svd_VT;     // right sing. vecs of X (transposed for LAPACKE)
 	std::vector<float> svd_S;      // sing. values of X ~ sqrt of eigen vecs of C
 	std::vector<float> svd_work;
 	std::vector<int  > svd_iwork;

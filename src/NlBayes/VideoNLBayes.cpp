@@ -1479,25 +1479,31 @@ float computeBayesEstimateStep2_LRSVD(
 	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
 	                    * p_params.sizePatchTime * p_imSize.channels;
 	const unsigned r    = p_params.rank;
+	const unsigned mdim = std::min(sPC, p_nSimP);
 
 	//! Center 3D groups around their baricenter
 	centerData( i_group3dBasic, i_mat.baricenter, p_nSimP, sPC);
 	centerData(io_group3dNoisy, i_mat.baricenter, p_nSimP, sPC);
 
-	//! Compute total variance HOW?
-	float total_variance = 0.f;
-
 	//! Compute SVD
-	int info = matrixEigsSVD(i_group3dBasic, p_nSimP, sPC,
-			i_mat.svd_S, i_mat.svd_V, i_mat.svd_UT,
+	int info = matrixSVD(i_group3dBasic, sPC, p_nSimP,
+			i_mat.svd_S, i_mat.svd_VT, i_mat.svd_U,
 			i_mat.svd_work, i_mat.svd_iwork);
 
 	//! Compute variance captured by the r leading eigenvectors
 	float r_variance = 0.f;
 	for (int i = 0; i < r; ++i)
 	{
-		i_mat.svd_S[i] *= i_mat.svd_S[i];
+		i_mat.svd_S[i] *= i_mat.svd_S[i]/(float)p_nSimP;
 		r_variance += i_mat.svd_S[i];
+	}
+
+	//! Compute total variance
+	float total_variance = r_variance;
+	for (int i = r; i < mdim; ++i)
+	{
+		i_mat.svd_S[i] *= i_mat.svd_S[i]/(float)p_nSimP;
+		total_variance += i_mat.svd_S[i];
 	}
 
 	//! Compute eigenvalues-based coefficients of Bayes' filter
@@ -1505,29 +1511,42 @@ float computeBayesEstimateStep2_LRSVD(
 	for (unsigned k = 0; k < r; ++k)
 		i_mat.svd_S[k] = 1.f / sqrtf( 1. + sigma2 / i_mat.svd_S[k] );
 
-	//! Multiply smallest sing. vector matrix by singular value matrix
+	//! Scale eigenvectors using the filter coefficients
 	//  TODO: can we do this more efficiently using BLAS o LAPACK?
-	if (p_nSimP < sPC)
-	{
-		float *svdV = i_mat.svd_V.data();
-		for (unsigned k = 0; k < r      ; ++k)
-		for (unsigned i = 0; i < p_nSimP; ++i)
-			*svdV++ *= i_mat.svd_S[k];
-	}
-	else
-	{
-		float *svdUT = i_mat.svd_UT.data();
-		for (unsigned k = 0; k < r  ; ++k, svdUT += 1 - sPC*p_nSimP)
-		for (unsigned i = 0; i < sPC; ++i, svdUT += p_nSimP)
-			*svdUT *= i_mat.svd_S[k];
-	}
+	float *svdU = i_mat.svd_U.data();
+	for (unsigned k = 0; k < r  ; ++k)
+	for (unsigned i = 0; i < sPC; ++i)
+		svdU[mdim*i + k] *= i_mat.svd_S[k];
 
+
+	/* NOTE: io_group3dNoisy, if read as a column-major matrix, contains in each
+	 * row a patch. Thus, in column-major storage it corresponds to X^T, where
+	 * each column of X contains a centered data point.
+	 *
+	 * We need to compute the noiseless estimage hX as 
+	 * hX = U * U' * X
+	 * where U is the matrix with the normalized eigenvectors.
+	 *
+	 * Matrix U' is stored (column-major) in i_mat.svd_U. Since we have X^T
+	 * we compute 
+	 * hX' = X' * (U')' * U'
+	 */
+
+	//! Z' = X'*U
+	productMatrix(i_mat.group3dTranspose,
+	              io_group3dNoisy,
+	              i_mat.svd_U,
+	              p_nSimP, r, sPC,
+	              false, true, true,
+	              p_nSimP, mdim);
+
+	//! hX' = Z'*U'
 	productMatrix(io_group3dNoisy,
-	              i_mat.svd_V,
-	              i_mat.svd_UT,
+	              i_mat.group3dTranspose,
+	              i_mat.svd_U,
 	              p_nSimP, sPC, r,
 	              false, false, true,
-					  p_nSimP, std::min(p_nSimP, sPC));
+	              p_nSimP, mdim);
 
 	//! Add baricenter
 	for (unsigned j = 0, k = 0; j < sPC; j++)
