@@ -49,6 +49,7 @@ struct nlbParams
 	unsigned sizeSearchTimeRangeBwd; // how many backward frames in search cube
 	unsigned boundary;         // depends on sizeSearchWindow
 	unsigned offSet;           // depends on sizePatch
+	unsigned offSetTime;       // depends on sizePatchTime
 	bool useHomogeneousArea;
 	float gamma;
 	unsigned rank;             // rank of covariance matrix
@@ -436,9 +437,9 @@ float computeBayesEstimateStep2_LR(
  * @param p_params: see processStep1 for more explanation.
  * @param p_nSimP: number of similar patches.
  *
- * @return none.
+ * @return masked: number of processable pixels that were flaged non-processable.
  **/
-void computeAggregationStep1(
+int computeAggregationStep1(
 	Video<float> &io_im
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
@@ -459,9 +460,10 @@ void computeAggregationStep1(
  * @param p_params: see processStep2 for more explanation;
  * @param p_nSimP: number of similar patches.
  *
- * @return none.
+ * @return masked: number of processable pixels that were flaged non-processable.
+ *
  **/
-void computeAggregationStep2(
+int computeAggregationStep2(
 	Video<float> &io_im
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask

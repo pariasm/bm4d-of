@@ -38,6 +38,7 @@
 #define USE_SVD_IDDIST
 
 #define DEBUG_SHOW_WEIGHT
+//#define DEBUG_SHOW_PATCH_GROUPS
 //#define CENTRED_SEARCH
 
 // colors
@@ -124,7 +125,8 @@ void initializeNlbParameters(
 		o_params.nSimilarPatches = o_params.sizePatch * o_params.sizePatch * 3;
 
 	//! Offset: step between two similar patches
-	o_params.offSet = o_params.sizePatch / 2;
+	o_params.offSet     = std::max((unsigned)1, o_params.sizePatch     / 2);
+	o_params.offSetTime = std::max((unsigned)1, o_params.sizePatchTime / 2);
 
 	//! Use the homogeneous area detection trick
 	o_params.useHomogeneousArea = p_flatArea;
@@ -290,6 +292,7 @@ void printNlbParameters(
 		printf("\t\tFlat area trick             = inactive\n");
 	printf("\tSpeed-ups:\n");
 	printf("\t\tOffset                      = %d\n"       , i_prms.offSet);
+	printf("\t\tOffsetTime                  = %d\n"       , i_prms.offSetTime);
 	printf("\t\tPasteBoost                  = %s\n\n"     , i_prms.doPasteBoost ? "active" : "inactive");
 }
 
@@ -526,7 +529,7 @@ int runNlBayes(
 
 			// Write to disk
 			variance.saveVideo("var2_%03d.png", 1);
-			variance.saveVideoAscii("var2_", 1);
+			variance.saveVideoAscii("var2", 1);
 		}
 #endif
 		if (p_prms2.verbose) printf("\n");
@@ -583,8 +586,10 @@ void processNlBayes(
 	bool border_t1 = p_crop.ending_t < p_crop.source_sz.frames;
 
 	//! Only pixels of the center of the image must be processed (not the boundaries)
+	int n_groups = 0;
 	unsigned stepx = p_params.offSet;
 	unsigned stepy = p_params.offSet;
+	unsigned stepf = p_params.offSetTime;
 	int ori_x =                        border_x0 ? sPx-1 + sWx/2 : 0 ;
 	int ori_y =                        border_y0 ? sPx-1 + sWx/2 : 0 ;
 	int ori_f =                        border_t0 ? sPt-1 + sWt/2 : 0 ;
@@ -595,17 +600,28 @@ void processNlBayes(
 	for (int y = ori_y, dy = 0; y < end_y; y++, dy++)
 	for (int x = ori_x, dx = 0; x < end_x; x++, dx++)
 	{
-		if (dy % stepy == 0)
+		if ( (df % stepf == 0) || (!border_t1 && f == end_f - 1))
 		{
-			if (dx % stepx == y/stepy % stepx)     mask(x,y,f) = true;
-			else if (!border_x1 && x == end_x - 1) mask(x,y,f) = true;
-		}
-		else if (!border_y1 && y == end_y - 1)
-		{
-			if (dx % stepx == 0)                   mask(x,y,f) = true;
-			else if (!border_x1 && x == end_x - 1) mask(x,y,f) = true;
+			int phasey = (!border_t1 && f == end_f - 1) ? 0 : f/stepf;
+
+			if ( (dy % stepy == phasey % stepy) ||
+			     (!border_y1 && y == end_y - 1) ||
+				  (!border_y0 && y == ori_y    ) )
+			{
+				int phasex = (!border_y1 && y == end_y - 1) ? 0 : (phasey + y/stepy);
+
+				if ( (dx % stepx == phasex % stepx) ||
+				     (!border_x1 && x == end_x - 1) ||
+				     (!border_x0 && x == ori_x    ) )
+				{
+					mask(x,y,f) = true;
+					n_groups++;
+				}
+			}
 		}
 	}
+
+//	printf("Processing at most %d groups of similar patches\n", n_groups);
 
 
 #ifdef DEBUG_SHOW_WEIGHT
@@ -645,7 +661,8 @@ void processNlBayes(
 		//! Matrices used for Bayes' estimate
 		vector<vector<float> > group3d(sz.channels, vector<float>(patch_num * patch_dim));
 
-		unsigned counter = 0;
+		int remaining_groups = n_groups;
+		unsigned group_counter;
 		for (unsigned pt = 0; pt < sz.frames; pt++)
 		for (unsigned py = 0; py < sz.height; py++)
 		for (unsigned px = 0; px < sz.width ; px++)
@@ -655,7 +672,7 @@ void processNlBayes(
 				const unsigned ij3 = sz.index(px,py,pt, 0);
 				//const unsigned ij3 = (ij / sz.wh) * sz.whc + ij % sz.wh;
 
-				if (p_params.verbose && (counter++ % 100 == 0))
+				if (p_params.verbose && (group_counter++ % 100 == 0))
 				{
 					int ntiles = p_crop.ntiles_t * p_crop.ntiles_x * p_crop.ntiles_y;
 					int part_idx = p_crop.tile_t * p_crop.ntiles_x * p_crop.ntiles_y +
@@ -664,7 +681,7 @@ void processNlBayes(
 
 					printf("\x1b[%dF[%d,%d,%d] %05.1f\x1b[%dE", ntiles - part_idx,
 							p_crop.tile_x, p_crop.tile_y, p_crop.tile_t,
-							(float)ij/(float)(sz.whf)*100.f,
+							100.f - (float)remaining_groups/(float)(n_groups)*100.f,
 							ntiles - part_idx);
 
 					std::cout << std::flush;
@@ -686,7 +703,8 @@ void processNlBayes(
 							p_params, nSimP);
 
 				//! Aggregation
-				computeAggregationStep1(io_imBasic, weight, mask, group3d, index,
+				remaining_groups -=
+					computeAggregationStep1(io_imBasic, weight, mask, group3d, index,
 						p_params, nSimP);
 			}
 
@@ -705,6 +723,8 @@ void processNlBayes(
 					p_crop.tile_t, 100.f, ntiles - part_idx);
 
 			std::cout << std::flush;
+
+			//printf("Processed %d groups\n", group_counter);
 		}
 	}
 	else
@@ -716,7 +736,8 @@ void processNlBayes(
 		vector<float> group3dNoisy(patch_num * patch_dim);
 		vector<float> group3dBasic(patch_num * patch_dim);
 
-		unsigned counter = 0;
+		int remaining_groups = n_groups;
+		unsigned group_counter = 0;
 		for (unsigned pt = 0; pt < sz.frames; pt++)
 		for (unsigned py = 0; py < sz.height; py++)
 		for (unsigned px = 0; px < sz.width ; px++)
@@ -726,7 +747,7 @@ void processNlBayes(
 				const unsigned ij3 = sz.index(px,py,pt, 0);
 				//const unsigned ij3 = (ij / sz.wh) * sz.whc + ij % sz.wh;
 
-				if (p_params.verbose && (counter++ % 100 == 0))
+				if (p_params.verbose && (group_counter++ % 100 == 0))
 				{
 					int ntiles = p_crop.ntiles_t * p_crop.ntiles_x * p_crop.ntiles_y;
 					int part_idx = p_crop.tile_t * p_crop.ntiles_x * p_crop.ntiles_y +
@@ -735,7 +756,7 @@ void processNlBayes(
 
 					printf("\x1b[%dF[%d,%d,%d] %05.1f\x1b[%dE", ntiles - part_idx,
 							p_crop.tile_x, p_crop.tile_y, p_crop.tile_t,
-							(float)ij/(float)(sz.whf)*100.f,
+							100.f - (float)remaining_groups/(float)(n_groups)*100.f,
 							ntiles - part_idx);
 
 					std::cout << std::flush;
@@ -760,7 +781,8 @@ void processNlBayes(
 								nInverseFailed, sz, p_params, nSimP);
 
 				//! Aggregation
-				computeAggregationStep2(o_imFinal, weight, mask, group3dNoisy,
+				remaining_groups -=
+					computeAggregationStep2(o_imFinal, weight, mask, group3dNoisy,
 						variance, index, p_params, nSimP);
 			}
 
@@ -779,6 +801,8 @@ void processNlBayes(
 					p_crop.tile_t, 100.f, ntiles - part_idx);
 
 			std::cout << std::flush;
+
+			//printf("Processed %d groups\n", group_counter);
 		}
 	}
 
@@ -1706,113 +1730,6 @@ float computeBayesEstimateStep2_LR_SVD_IDDIST(
 }
 
 /**
- * @brief Aggregate estimates of all similar patches contained in the 3D group.
- *
- * @param io_im: update the image with estimate values;
- * @param io_weight: update corresponding weight, used later in the weighted aggregation;
- * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group3d: contains estimated values of all similar patches in the 3D group;
- * @param i_index: contains index of all similar patches contained in i_group3d;
- * @param p_imSize: size of io_im;
- * @param p_params: see processStep1 for more explanation.
- * @param p_nSimP: number of similar patches.
- *
- * @return none.
- **/
-void computeAggregationStep1(
-	Video<float> &io_im
-,	Video<float> &io_weight
-,	Video<char>  &io_mask
-,	std::vector<std::vector<float> > const& i_group3d
-,	std::vector<unsigned> const& i_index
-,	const nlbParams &p_params
-,	const unsigned p_nSimP
-){
-	//! Parameters initializations
-	const unsigned chnls = io_im.sz.channels;
-	const unsigned sPx   = p_params.sizePatch;
-	const unsigned sPt   = p_params.sizePatchTime;
-
-	const unsigned w   = io_im.sz.width;
-	const unsigned h   = io_im.sz.height;
-	const unsigned wh  = io_im.sz.wh;
-	const unsigned whc = io_im.sz.whc;
-
-#ifndef DEBUG_SHOW_PATCH_GROUPS
-	//! Aggregate estimates
-	for (unsigned n = 0; n < p_nSimP; n++)
-	{
-		const unsigned ind = i_index[n];
-		const unsigned ind1 = (ind / whc) * wh + ind % wh;
-		for (unsigned pt = 0; pt < sPt; pt++)
-		for (unsigned py = 0; py < sPx; py++)
-		for (unsigned px = 0; px < sPx; px++)
-		{
-			for (unsigned c = 0; c < chnls; c++)
-			{
-				const unsigned ij = ind  + c * wh;
-				io_im(ij + pt * whc + py * w + px) += 
-					i_group3d[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
-			}
-			io_weight(ind1 + pt * wh + py * w + px)++;
-		}
-
-		//! Use Paste Trick
-		unsigned px, py, pt;
-		io_mask.sz.coords(ind1, px, py, pt);
-
-		io_mask(ind1) = false;
-
-		if (p_params.doPasteBoost)
-		{
-			if (py >     2*sPx) io_mask(ind1 - w) = false;
-			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
-			if (px >     2*sPx) io_mask(ind1 - 1) = false;
-			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
-		}
-	}
-#else
-	for (unsigned n = 0; n < 1; n++)
-	{
-		const unsigned ind = i_index[n];
-		const unsigned ind1 = (ind / whc) * wh + ind % wh;
-		for (unsigned pt = 0; pt < sPt; pt++)
-		for (unsigned py = 0; py < sPx; py++)
-		for (unsigned px = 0; px < sPx; px++)
-		{
-			for (unsigned c = 0; c < chnls; c++)
-			{
-				const unsigned ij = ind  + c * wh;
-				io_im(ij + pt * whc + py * w + px) += 
-					i_group3d[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
-			}
-			io_weight(ind1 + pt * wh + py * w + px)++;
-		}
-	}
-
-	for (unsigned n = 0; n < p_nSimP; n++)
-	{
-		const unsigned ind = i_index[n];
-		const unsigned ind1 = (ind / whc) * wh + ind % wh;
-
-		//! Use Paste Trick
-		unsigned px, py, pt;
-		io_mask.sz.coords(ind1, px, py, pt);
-
-		io_mask(ind1) = false;
-
-		if (p_params.doPasteBoost)
-		{
-			if (py >     2*sPx) io_mask(ind1 - w) = false;
-			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
-			if (px >     2*sPx) io_mask(ind1 - 1) = false;
-			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
-		}
-	}
-#endif
-}
-
-/**
  * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
  *
  * @param io_group3dNoisy: inputs all similar patches in the noisy image,
@@ -1863,12 +1780,135 @@ float computeBayesEstimateStep2_LR(
  * @param i_group3d: contains estimated values of all similar patches in the 3D group;
  * @param i_index: contains index of all similar patches contained in i_group3d;
  * @param p_imSize: size of io_im;
+ * @param p_params: see processStep1 for more explanation.
+ * @param p_nSimP: number of similar patches.
+ *
+ * @return masked: number of processable pixels that were flaged non-processable.
+ **/
+int computeAggregationStep1(
+	Video<float> &io_im
+,	Video<float> &io_weight
+,	Video<char>  &io_mask
+,	std::vector<std::vector<float> > const& i_group3d
+,	std::vector<unsigned> const& i_index
+,	const nlbParams &p_params
+,	const unsigned p_nSimP
+){
+	//! Parameters initializations
+	const unsigned chnls = io_im.sz.channels;
+	const unsigned sPx   = p_params.sizePatch;
+	const unsigned sPt   = p_params.sizePatchTime;
+
+	const unsigned w   = io_im.sz.width;
+	const unsigned h   = io_im.sz.height;
+	const unsigned wh  = io_im.sz.wh;
+	const unsigned whc = io_im.sz.whc;
+
+	int masked = 0;
+
+#ifndef DEBUG_SHOW_PATCH_GROUPS
+	//! Aggregate estimates
+	for (unsigned n = 0; n < p_nSimP; n++)
+	{
+		const unsigned ind = i_index[n];
+		const unsigned ind1 = (ind / whc) * wh + ind % wh;
+		for (unsigned pt = 0; pt < sPt; pt++)
+		for (unsigned py = 0; py < sPx; py++)
+		for (unsigned px = 0; px < sPx; px++)
+		{
+			for (unsigned c = 0; c < chnls; c++)
+			{
+				const unsigned ij = ind  + c * wh;
+				io_im(ij + pt * whc + py * w + px) += 
+					i_group3d[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
+			}
+			io_weight(ind1 + pt * wh + py * w + px)++;
+		}
+
+		//! Use Paste Trick
+		unsigned px, py, pt;
+		io_mask.sz.coords(ind1, px, py, pt);
+
+		if (io_mask(ind1)) masked++;
+		io_mask(ind1) = false;
+
+		if (p_params.doPasteBoost)
+		{
+			if ((py >     2*sPx) && io_mask(ind1 - w)) masked++;
+			if ((py < h - 2*sPx) && io_mask(ind1 + w)) masked++;
+			if ((px >     2*sPx) && io_mask(ind1 - 1)) masked++;
+			if ((px < w - 2*sPx) && io_mask(ind1 + 1)) masked++;
+
+			if (py >     2*sPx) io_mask(ind1 - w) = false;
+			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
+			if (px >     2*sPx) io_mask(ind1 - 1) = false;
+			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
+		}
+	}
+#else
+	for (unsigned n = 0; n < 1; n++)
+	{
+		const unsigned ind = i_index[n];
+		const unsigned ind1 = (ind / whc) * wh + ind % wh;
+		for (unsigned pt = 0; pt < sPt; pt++)
+		for (unsigned py = 0; py < sPx; py++)
+		for (unsigned px = 0; px < sPx; px++)
+		{
+			for (unsigned c = 0; c < chnls; c++)
+			{
+				const unsigned ij = ind  + c * wh;
+				io_im(ij + pt * whc + py * w + px) += 
+					i_group3d[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
+			}
+			io_weight(ind1 + pt * wh + py * w + px)++;
+		}
+	}
+
+	for (unsigned n = 0; n < p_nSimP; n++)
+	{
+		const unsigned ind = i_index[n];
+		const unsigned ind1 = (ind / whc) * wh + ind % wh;
+
+		//! Use Paste Trick
+		unsigned px, py, pt;
+		io_mask.sz.coords(ind1, px, py, pt);
+
+		if (io_mask(ind1)) masked++;
+		io_mask(ind1) = false;
+
+		if (p_params.doPasteBoost)
+		{
+			if ((py >     2*sPx) && io_mask(ind1 - w)) masked++;
+			if ((py < h - 2*sPx) && io_mask(ind1 + w)) masked++;
+			if ((px >     2*sPx) && io_mask(ind1 - 1)) masked++;
+			if ((px < w - 2*sPx) && io_mask(ind1 + 1)) masked++;
+
+			if (py >     2*sPx) io_mask(ind1 - w) = false;
+			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
+			if (px >     2*sPx) io_mask(ind1 - 1) = false;
+			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
+		}
+	}
+#endif
+
+	return masked;
+}
+
+/**
+ * @brief Aggregate estimates of all similar patches contained in the 3D group.
+ *
+ * @param io_im: update the image with estimate values;
+ * @param io_weight: update corresponding weight, used later in the weighted aggregation;
+ * @param io_mask: update values of mask: set to true the index of an used patch;
+ * @param i_group3d: contains estimated values of all similar patches in the 3D group;
+ * @param i_index: contains index of all similar patches contained in i_group3d;
+ * @param p_imSize: size of io_im;
  * @param p_params: see processStep2 for more explanation;
  * @param p_nSimP: number of similar patches.
  *
- * @return none.
+ * @return masked: number of processable pixels that were flaged non-processable.
  **/
-void computeAggregationStep2(
+int computeAggregationStep2(
 	Video<float> &io_im
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
@@ -1889,6 +1929,7 @@ void computeAggregationStep2(
 	const unsigned whc = io_im.sz.whc;
 
 	//! Aggregate estimates
+	int masked = 0;
 	for (unsigned n = 0; n < p_nSimP; n++)
 	{
 		const unsigned ind = i_index[n];
@@ -1912,10 +1953,16 @@ void computeAggregationStep2(
 		unsigned px, py, pt;
 		io_mask.sz.coords(ind1, px, py, pt);
 
+		if (io_mask(ind1)) masked++;
 		io_mask(ind1) = false;
 
 		if (p_params.doPasteBoost)
 		{
+			if ((py >     2*sPx) && io_mask(ind1 - w)) masked++;
+			if ((py < h - 2*sPx) && io_mask(ind1 + w)) masked++;
+			if ((px >     2*sPx) && io_mask(ind1 - 1)) masked++;
+			if ((px < w - 2*sPx) && io_mask(ind1 + 1)) masked++;
+
 			if (py >     2*sPx) io_mask(ind1 - w) = false;
 			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
 			if (px >     2*sPx) io_mask(ind1 - 1) = false;
@@ -1929,6 +1976,8 @@ void computeAggregationStep2(
 #endif
 		}
 	}
+
+	return masked;
 }
 
 /**
