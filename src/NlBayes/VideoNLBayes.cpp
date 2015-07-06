@@ -750,7 +750,7 @@ void processNlBayes(
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
-					variance(ij) = 200.f * (p_params.rank > patch_dim)
+					variance(ij) = 200.f * (p_params.rank < patch_dim)
 						? computeBayesEstimateStep2_LR(group3dNoisy, group3dBasic, mat,
 								nInverseFailed, sz, p_params, nSimP)
 						: computeBayesEstimateStep2_FR(group3dNoisy, group3dBasic, mat,
@@ -1035,6 +1035,12 @@ unsigned estimateSimilarPatchesStep2(
 
 	//! Keep only the nSimilarPatches best similar patches
 	unsigned nSimP = std::min(p_params.nSimilarPatches, (unsigned)distance.size());
+	// FIXME There seems to be a bug here. We only sort the smallest nSimP
+	// FIXME distances. Afterwards, we go through all the vector (including 
+	// FIXME the unordered part of it) and for each distance smaller than the
+	// FIXME threshold we increase the nSimP. Afterwards we keep the first 
+	// FIXME nSimP vectors of the group. This does not make sence since the 
+	// FIXME distance vector is not ordered!
 	std::partial_sort(distance.begin(), distance.begin() + nSimP,
 	                  distance.end(), comparaisonFirst);
 
