@@ -360,7 +360,31 @@ int computeHomogeneousAreaStep2(
  *
  * @return none.
  **/
-void computeBayesEstimateStep1(
+float computeBayesEstimateStep1_FR(
+	std::vector<std::vector<float> > &io_group
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+);
+
+/**
+ * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
+ *
+ * @param io_group: contains all similar patches. Will contain estimates for all similar patches;
+ * @param i_mat: contains :
+ *		- groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
+ *		- baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
+ *		- covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
+ *		- covMatTmp: allocated memory. Used to process the Bayes estimate;
+ *		- tmpMat: allocated memory. Used to process the Bayes estimate;
+ * @param io_nInverseFailed: update the number of failed matrix inversion;
+ * @param p_params: see processStep1 for more explanation.
+ * @param p_nSimP: number of similar patches.
+ *
+ * @return none.
+ **/
+float computeBayesEstimateStep1_LR(
 	std::vector<std::vector<float> > &io_group
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed

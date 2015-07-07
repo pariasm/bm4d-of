@@ -35,7 +35,7 @@
 
 // choose implementation for low-rank Bayes estimate 
 //#define USE_SVD_LAPACK
-#define USE_SVD_IDDIST
+//#define USE_SVD_IDDIST
 
 #define DEBUG_SHOW_WEIGHT
 //#define DEBUG_SHOW_PATCH_GROUPS
@@ -662,7 +662,7 @@ void processNlBayes(
 		vector<vector<float> > group(sz.channels, vector<float>(patch_num * patch_dim));
 
 		int remaining_groups = n_groups;
-		unsigned group_counter;
+		unsigned group_counter = 0;
 		for (unsigned pt = 0; pt < sz.frames; pt++)
 		for (unsigned py = 0; py < sz.height; py++)
 		for (unsigned px = 0; px < sz.width ; px++)
@@ -699,8 +699,11 @@ void processNlBayes(
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
-					computeBayesEstimateStep1(group, mat, nInverseFailed,
-							p_params, nSimP);
+					float variance = 200.f * (p_params.rank < patch_dim)
+						? computeBayesEstimateStep1_LR(group, mat, nInverseFailed,
+								p_params, nSimP)
+						: computeBayesEstimateStep1_FR(group, mat, nInverseFailed,
+								p_params, nSimP);
 
 				//! Aggregation
 				remaining_groups -=
@@ -1215,7 +1218,7 @@ int computeHomogeneousAreaStep2(
  *
  * @return none.
  **/
-void computeBayesEstimateStep1(
+float computeBayesEstimateStep1_FR(
 	std::vector<std::vector<float> > &io_group
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
@@ -1304,6 +1307,390 @@ void computeBayesEstimateStep1(
 		}
 	}
 #endif
+
+	return 0;
+}
+
+/**
+ * @brief Implementation of computeBayesEstimateStep1_LR computing the
+ * principal directions of the a priori covariance matrix. This functions
+ * computes the eigenvectors/values of the data covariance matrix using LAPACK.
+ *
+ * See computeBayesEstimateStep1_LR for information about the arguments.
+ **/
+float computeBayesEstimateStep1_LR_EIG_LAPACK(
+	std::vector<std::vector<float> > &io_group
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+){
+	//! Parameters initialization
+	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
+	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
+	                    * p_params.sizePatchTime;
+	const unsigned r    = p_params.rank;
+
+	//! Variances
+	float  rank_variance = 0.f;
+	float total_variance = 0.f;
+
+	for (unsigned c = 0; c < io_group.size(); c++)
+	{
+		//! Center 3D group
+		centerData(io_group[c], i_mat.baricenter, p_nSimP, sPC);
+
+		//! Compute the covariance matrix of the set of similar patches
+		covarianceMatrix(io_group[c], i_mat.covMat, p_nSimP, sPC);
+
+		//! Compute leading eigenvectors
+		int info = matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
+
+		//! Substract sigma2 and compute variance captured by the r leading eigenvectors
+		float sigma2 = p_params.sigma * p_params.sigma;
+		for (int i = 0; i < r; ++i)
+		{
+			i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
+			rank_variance  += i_mat.covEigVals[i];
+			total_variance += i_mat.covEigVals[i];
+		}
+
+		for (int i = r; i < sPC; ++i)
+		{
+			i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
+			total_variance += i_mat.covEigVals[i];
+		}
+
+		//! Compute eigenvalues-based coefficients of Bayes' filter
+		for (unsigned k = 0; k < r; ++k)
+			i_mat.covEigVals[k] = 1.f / sqrtf( 1. + sigma2 / i_mat.covEigVals[k] );
+
+		//! Scale eigenvectors using the filter coefficients
+		float *eigVecs = i_mat.covEigVecs.data();
+		for (unsigned k = 0; k < r  ; ++k)
+		for (unsigned i = 0; i < sPC; ++i)
+			*eigVecs++ *= i_mat.covEigVals[k];
+
+		/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
+		 * row a patch. Thus, in column-major storage it corresponds to X^T, where
+		 * each column of X contains a centered data point.
+		 *
+		 * We need to compute the noiseless estimage hX as 
+		 * hX = U * U' * X
+		 * where U is the matrix with the normalized eigenvectors.
+		 *
+		 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
+		 * we compute 
+		 * hX' = X' * U * U'
+		 */
+
+		//! Z' = X'*U
+		productMatrix(i_mat.groupTranspose,
+						  io_group[c],
+						  i_mat.covEigVecs,
+						  p_nSimP, r, sPC,
+						  false, false);
+
+		//! hX' = Z'*U'
+		productMatrix(io_group[c],
+						  i_mat.groupTranspose,
+						  i_mat.covEigVecs,
+						  p_nSimP, sPC, r,
+						  false, true);
+
+		//! Add baricenter
+		for (unsigned j = 0, k = 0; j < sPC; j++)
+			for (unsigned i = 0; i < p_nSimP; i++, k++)
+				io_group[c][k] += i_mat.baricenter[j];
+	}
+
+	// return percentage of captured variance
+	return rank_variance / total_variance;
+}
+
+/**
+ * @brief Implementation of computeBayesEstimateStep1_LR computing the
+ * principal directions of the a priori covariance matrix. This functions
+ * computes the full SVD of the data matrix using LAPACK.
+ *
+ * See computeBayesEstimateStep1_LR for information about the arguments.
+ **/
+float computeBayesEstimateStep1_LR_SVD_LAPACK(
+	std::vector<std::vector<float> > &io_group
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+){
+	//! Parameters initialization
+	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
+	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
+	                    * p_params.sizePatchTime;
+	const unsigned r    = p_params.rank;
+	const unsigned mdim = std::min(sPC, p_nSimP);
+
+	//! Variances
+	float  rank_variance = 0.f;
+	float total_variance = 0.f;
+
+	for (unsigned c = 0; c < io_group.size(); c++)
+	{
+		//! Center group of patches
+		centerData(io_group[c], i_mat.baricenter, p_nSimP, sPC);
+
+		//! Compute SVD
+		int info = matrixSVD(io_group[c], sPC, p_nSimP,
+				i_mat.svd_S, i_mat.svd_VT, i_mat.svd_U,
+				i_mat.svd_work, i_mat.svd_iwork);
+
+		/* NOTE: What does matrixSVD return?
+		 *
+		 * matrixSVD assumes that matrices are stored by columns.
+		 * If X is the data matrix stored by rows, matrixSVD computes the SVD of
+		 * X' = V*S*U', and returns V and UT in column-major layout. If we consider
+		 * them in row-major layout, we actually have U and VT. This explains
+		 * the names of the variables.
+		 *
+		 * Therefore, in column-major layout, we have that:
+		 *
+		 * svd_VT - p_nSimP x mdim - columns are left  sing. vectors of X'
+		 * svd_U  - mdim x sPC     - rows    are right sing. vectors of X'
+		 *
+		 */
+
+		//! Substract sigma2 and compute variance captured by the r leading eigenvectors
+		float sigma2 = p_params.sigma * p_params.sigma;
+		for (int i = 0; i < r; ++i)
+		{
+			// transform sing. val of noisy data matrix into eig. val of cov. matrix
+			i_mat.svd_S[i] *= i_mat.svd_S[i]/(float)p_nSimP;
+			i_mat.svd_S[i] -= std::min(i_mat.svd_S[i], sigma2);
+			rank_variance  += i_mat.svd_S[i];
+			total_variance += i_mat.svd_S[i];
+		}
+
+		for (int i = r; i < mdim; ++i)
+		{
+			i_mat.svd_S[i] *= i_mat.svd_S[i]/(float)p_nSimP;
+			i_mat.svd_S[i] -= std::min(i_mat.svd_S[i], sigma2);
+			total_variance += i_mat.svd_S[i];
+		}
+
+		/* NOTE: How do we perform the filtering?
+		 *
+		 * The filtering can be done by modifying the singular values only. Thus
+		 * fX' = V*fS*U'.
+		 */
+
+		//! Apply Bayes' filter to singular values
+		for (unsigned k = 0; k < r; ++k)
+			i_mat.svd_S[k] = sqrtf( (float)p_nSimP * i_mat.svd_S[k] ) 
+			               / ( 1. + sigma2 / i_mat.svd_S[k] );
+
+		//! Multiply svd_S times svd_U or svd_VT depending which is smaller
+		if (p_nSimP < sPC)
+		{
+			// Multiply first k cols of svd_VT (left sing. vectors of X')
+			float *svdVT = i_mat.svd_VT.data();
+			for (unsigned k = 0; k < r      ; ++k)
+			for (unsigned i = 0; i < p_nSimP; ++i)
+				*svdVT++ *= i_mat.svd_S[k];
+		}
+		else
+		{
+			// Multiply first k rows of svd_U (right sing. vectors of X')
+			for (unsigned k = 0; k < r; ++k)
+			{
+				float *svdU = i_mat.svd_U.data() + k;
+				for (unsigned i = 0; i < sPC; ++i, svdU += sPC)
+					*svdU *= i_mat.svd_S[k];
+			}
+		}
+
+		//! Multiply svd_VT*svd_S*svd_U = filtered(data)'
+		productMatrix(io_group[c],
+		              i_mat.svd_VT,
+		              i_mat.svd_U,
+		              p_nSimP, sPC, r,
+		              false, false, true,
+		              p_nSimP, mdim);
+
+		//! Add baricenter
+		for (unsigned j = 0, k = 0; j < sPC; j++)
+			for (unsigned i = 0; i < p_nSimP; i++, k++)
+				io_group[c][k] += i_mat.baricenter[j];
+	}
+
+	// return percentage of captured variance
+	return rank_variance / total_variance;
+}
+
+/**
+ * @brief Implementation of computeBayesEstimateStep1_LR computing the
+ * principal directions of the a priori covariance matrix. This functions
+ * computes an approximate partial SVD of the data matrix using id_dist.
+ *
+ * See computeBayesEstimateStep1_LR for information about the arguments.
+ **/
+float computeBayesEstimateStep1_LR_SVD_IDDIST(
+	std::vector<std::vector<float> > &io_group
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+){
+	//! Parameters initialization
+	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
+	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
+	                    * p_params.sizePatchTime;
+	const unsigned r    = p_params.rank;
+
+	//! Variances
+	float  rank_variance = 0.f;
+	float total_variance = 0.f;
+
+	for (unsigned c = 0; c < io_group.size(); c++)
+	{
+		//! Center 3D groups around their baricenter
+		centerData(io_group[c], i_mat.baricenter, p_nSimP, sPC);
+
+		//! Compute SVD
+		{
+			// convert data to double
+			i_mat.svd_ddata.resize(io_group[c].size());
+			std::vector<double>::iterator ddata = i_mat.svd_ddata.begin();
+			std::vector<float >::iterator fdata =  io_group[c].begin();
+			for (int i = 0; i < io_group[c].size(); ++i)
+				*ddata++ = (double)*fdata++;
+
+			// compute low rand SVD
+			int info = matrixLRSVD(i_mat.svd_ddata, sPC, p_nSimP, r,
+					i_mat.svd_dS, i_mat.svd_dV, i_mat.svd_dU,
+					i_mat.svd_dwork);
+
+			/* NOTE: What does matrixLRSVD return?
+			 *
+			 * matrixSVD assumes that matrices are stored by columns.
+			 * If X is the data matrix stored by rows, matrixSVD computes the SVD of
+			 * X' = V*S*U', and returns V and U in column-major layout. If we consider
+			 * them in row-major layout, we actually have UT and VT.
+			 *
+			 * Therefore, in column-major layout, we have that:
+			 *
+			 * svd_V - p_nSimP x r - columns are left  sing. vectors of X'
+			 * svd_U - sPC     x r - rows    are right sing. vectors of X'
+			 *
+			 */
+
+			// convert SVD matrices to float
+			i_mat.svd_S.resize(i_mat.svd_dS.size());
+			i_mat.svd_V.resize(i_mat.svd_dV.size());
+			i_mat.svd_U.resize(i_mat.svd_dU.size());
+
+			std::vector<float >::iterator to;
+			std::vector<double>::iterator from;
+
+			to   = i_mat.svd_S .begin();
+			from = i_mat.svd_dS.begin();
+			for (int i = 0; i < i_mat.svd_dS.size(); ++i) *to++ = *from++;
+
+			to   = i_mat.svd_V .begin();
+			from = i_mat.svd_dV.begin();
+			for (int i = 0; i < i_mat.svd_dV.size(); ++i) *to++ = *from++;
+
+			to   = i_mat.svd_U .begin();
+			from = i_mat.svd_dU.begin();
+			for (int i = 0; i < i_mat.svd_dU.size(); ++i) *to++ = *from++;
+		}
+
+		//! Substract sigma2 and compute variance captured by the r leading eigenvectors
+		float sigma2 = p_params.sigma * p_params.sigma;
+		for (int i = 0; i < r; ++i)
+		{
+			i_mat.svd_S[i] *= i_mat.svd_S[i]/(float)p_nSimP;
+			i_mat.svd_S[i] -= std::min(i_mat.svd_S[i], sigma2);
+			rank_variance  += i_mat.svd_S[i];
+			total_variance += i_mat.svd_S[i];
+		}
+
+		//! Estimate total variance, assuming that the rest of the eigvals are sigma2 
+		total_variance += sigma2 * (float)(sPC - r);
+
+		//! Apply Bayes' filter to singular values
+		for (unsigned k = 0; k < r; ++k)
+			i_mat.svd_S[k] = sqrtf( (float)p_nSimP * i_mat.svd_S[k] ) 
+			               / ( 1. + sigma2 / i_mat.svd_S[k] );
+
+		//! Multiply svd_S times svd_U or svd_V depending which is smaller
+		if (p_nSimP < sPC)
+		{
+			// Multiply first k cols of svd_V (left sing. vectors of X')
+			float *svdV = i_mat.svd_V.data();
+			for (unsigned k = 0; k < r      ; ++k)
+			for (unsigned i = 0; i < p_nSimP; ++i)
+				*svdV++ *= i_mat.svd_S[k];
+		}
+		else
+		{
+			// Multiply first k cols of svd_U (left sing. vectors of X')
+			float *svdU = i_mat.svd_U.data();
+			for (unsigned k = 0; k < r  ; ++k)
+			for (unsigned i = 0; i < sPC; ++i)
+				*svdU++ *= i_mat.svd_S[k];
+		}
+
+		//! Multiply svd_V*svd_S*svd_U' = filtered(data)'
+		productMatrix(io_group[c],
+		              i_mat.svd_V,
+		              i_mat.svd_U,
+		              p_nSimP, sPC, r,
+		              false, true);
+
+		//! Add baricenter
+		for (unsigned j = 0, k = 0; j < sPC; j++)
+			for (unsigned i = 0; i < p_nSimP; i++, k++)
+				io_group[c][k] += i_mat.baricenter[j];
+	}
+
+	// return percentage of captured variance
+	return rank_variance / total_variance;
+}
+
+/**
+ * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
+ *
+ * @param io_group: contains all similar patches. Will contain estimates for all similar patches;
+ * @param i_mat: contains :
+ *		- groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
+ *		- baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
+ *		- covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
+ *		- covMatTmp: allocated memory. Used to process the Bayes estimate;
+ *		- tmpMat: allocated memory. Used to process the Bayes estimate;
+ * @param io_nInverseFailed: update the number of failed matrix inversion;
+ * @param p_params: see processStep1 for more explanation.
+ * @param p_nSimP: number of similar patches.
+ *
+ * @return none.
+ **/
+float computeBayesEstimateStep1_LR(
+	std::vector<std::vector<float> > &io_group
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+){
+	return
+#if defined(USE_SVD_IDDIST)
+		computeBayesEstimateStep1_LR_SVD_IDDIST(io_group, i_mat,
+			io_nInverseFailed, p_params, p_nSimP);
+#elif defined(USE_SVD_LAPACK)
+		computeBayesEstimateStep1_LR_SVD_LAPACK(io_group, i_mat,
+			io_nInverseFailed, p_params, p_nSimP);
+#else
+		computeBayesEstimateStep1_LR_EIG_LAPACK(io_group, i_mat,
+			io_nInverseFailed, p_params, p_nSimP);
+#endif
+
 }
 
 /**
