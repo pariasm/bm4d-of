@@ -644,7 +644,7 @@ void processNlBayes(
 	//! Matrices used for Bayes' estimate
 	vector<unsigned> index(patch_num);
 	matWorkspace mat;
-	mat.group3dTranspose.resize(patch_num * patch_dim);
+	mat.groupTranspose.resize(patch_num * patch_dim);
 	mat.tmpMat          .resize(patch_dim * patch_dim);
 	mat.covMat          .resize(patch_dim * patch_dim);
 	mat.covMatTmp       .resize(patch_dim * patch_dim);
@@ -659,7 +659,7 @@ void processNlBayes(
 		io_imBasic.resize(sz);
 
 		//! Matrices used for Bayes' estimate
-		vector<vector<float> > group3d(sz.channels, vector<float>(patch_num * patch_dim));
+		vector<vector<float> > group(sz.channels, vector<float>(patch_num * patch_dim));
 
 		int remaining_groups = n_groups;
 		unsigned group_counter;
@@ -688,23 +688,23 @@ void processNlBayes(
 				}
 
 				//! Search for similar patches around the reference one
-				unsigned nSimP = estimateSimilarPatchesStep1(i_imNoisy, group3d,
+				unsigned nSimP = estimateSimilarPatchesStep1(i_imNoisy, group,
 						index, ij3, p_params);
 
 				//! If we use the homogeneous area trick
 				bool doBayesEstimate = true;
 				if (p_params.useHomogeneousArea)
-					doBayesEstimate = !computeHomogeneousAreaStep1(group3d, sPx,
+					doBayesEstimate = !computeHomogeneousAreaStep1(group, sPx,
 							patch_num, threshold, sz);
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
-					computeBayesEstimateStep1(group3d, mat, nInverseFailed,
+					computeBayesEstimateStep1(group, mat, nInverseFailed,
 							p_params, nSimP);
 
 				//! Aggregation
 				remaining_groups -=
-					computeAggregationStep1(io_imBasic, weight, mask, group3d, index,
+					computeAggregationStep1(io_imBasic, weight, mask, group, index,
 						p_params, nSimP);
 			}
 
@@ -733,8 +733,8 @@ void processNlBayes(
 		o_imFinal.resize(sz);
 
 		//! Matrices used for Bayes' estimate
-		vector<float> group3dNoisy(patch_num * patch_dim);
-		vector<float> group3dBasic(patch_num * patch_dim);
+		vector<float> groupNoisy(patch_num * patch_dim);
+		vector<float> groupBasic(patch_num * patch_dim);
 
 		int remaining_groups = n_groups;
 		unsigned group_counter = 0;
@@ -764,25 +764,25 @@ void processNlBayes(
 
 				//! Search for similar patches around the reference one
 				unsigned nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic,
-						group3dNoisy, group3dBasic, index, ij3, p_params);
+						groupNoisy, groupBasic, index, ij3, p_params);
 
 				//! If we use the homogeneous area trick
 				bool doBayesEstimate = true;
 				if (p_params.useHomogeneousArea)
-					doBayesEstimate = !computeHomogeneousAreaStep2(group3dNoisy,
-							group3dBasic, sPx, nSimP, threshold, sz);
+					doBayesEstimate = !computeHomogeneousAreaStep2(groupNoisy,
+							groupBasic, sPx, nSimP, threshold, sz);
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
 					variance(ij) = 200.f * (p_params.rank < patch_dim)
-						? computeBayesEstimateStep2_LR(group3dNoisy, group3dBasic, mat,
+						? computeBayesEstimateStep2_LR(groupNoisy, groupBasic, mat,
 								nInverseFailed, sz, p_params, nSimP)
-						: computeBayesEstimateStep2_FR(group3dNoisy, group3dBasic, mat,
+						: computeBayesEstimateStep2_FR(groupNoisy, groupBasic, mat,
 								nInverseFailed, sz, p_params, nSimP);
 
 				//! Aggregation
 				remaining_groups -=
-					computeAggregationStep2(o_imFinal, weight, mask, group3dNoisy,
+					computeAggregationStep2(o_imFinal, weight, mask, groupNoisy,
 						variance, index, p_params, nSimP);
 			}
 
@@ -835,7 +835,7 @@ void processNlBayes(
  * @brief Estimate the best similar patches to a reference one.
  *
  * @param i_im: contains the noisy image on which distances are processed;
- * @param o_group3d: will contain values of similar patches;
+ * @param o_group: will contain values of similar patches;
  * @param o_index: will contain index of similar patches;
  * @param p_ij: index of the reference patch;
  * @param p_params: see processStep1 for more explanation.
@@ -844,7 +844,7 @@ void processNlBayes(
  **/
 unsigned estimateSimilarPatchesStep1(
 	Video<float> const& i_im
-,	std::vector<std::vector<float> > &o_group3d
+,	std::vector<std::vector<float> > &o_group
 ,	std::vector<unsigned> &o_index
 ,	const unsigned pidx
 ,	const nlbParams &p_params
@@ -957,7 +957,7 @@ unsigned estimateSimilarPatchesStep1(
 	for (unsigned hy = 0;        hy < sPx; hy++)
 	for (unsigned hx = 0;        hx < sPx; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
-		o_group3d[c][k] = i_im(c * wh + o_index[n] + ht * whc + hy * w + hx);
+		o_group[c][k] = i_im(c * wh + o_index[n] + ht * whc + hy * w + hx);
 
 	/* 000  pixels from all patches
 	 * 001  pixels from all patches
@@ -973,8 +973,8 @@ unsigned estimateSimilarPatchesStep1(
  *
  * @param i_imNoisy: contains the original noisy image;
  * @param i_imBasic: contains the basic estimation;
- * @param o_group3dNoisy: will contain similar patches for all channels of i_imNoisy;
- * @param o_group3dBasic: will contain similar patches for all channels of i_imBasic;
+ * @param o_groupNoisy: will contain similar patches for all channels of i_imNoisy;
+ * @param o_groupBasic: will contain similar patches for all channels of i_imBasic;
  * @param o_index: will contain index of similar patches;
  * @param p_ij: index of the reference patch;
  * @param p_imSize: size of images;
@@ -985,8 +985,8 @@ unsigned estimateSimilarPatchesStep1(
 unsigned estimateSimilarPatchesStep2(
 	Video<float> const& i_imNoisy
 ,	Video<float> const& i_imBasic
-,	std::vector<float> &o_group3dNoisy
-,	std::vector<float> &o_group3dBasic
+,	std::vector<float> &o_groupNoisy
+,	std::vector<float> &o_groupBasic
 ,	std::vector<unsigned> &o_index
 ,	const unsigned pidx
 ,	const nlbParams &p_params
@@ -1097,8 +1097,8 @@ unsigned estimateSimilarPatchesStep2(
 	for (unsigned hx = 0; hx < sPx; hx++)
 	for (unsigned n = 0; n < nSimP; n++, k++)
 	{
-		o_group3dNoisy[k] = i_imNoisy(c * wh + o_index[n] + ht * whc + hy * w + hx);
-		o_group3dBasic[k] = i_imBasic(c * wh + o_index[n] + ht * whc + hy * w + hx);
+		o_groupNoisy[k] = i_imNoisy(c * wh + o_index[n] + ht * whc + hy * w + hx);
+		o_groupBasic[k] = i_imBasic(c * wh + o_index[n] + ht * whc + hy * w + hx);
 	}
 
 	return nSimP;
@@ -1107,7 +1107,7 @@ unsigned estimateSimilarPatchesStep2(
 /**
  * @brief Detect if we are in an homogeneous area. In this case, compute the mean.
  *
- * @param io_group3d: contains for each channels values of similar patches. If an homogeneous area
+ * @param io_group: contains for each channels values of similar patches. If an homogeneous area
  *			is detected, will contain the average of all pixels in similar patches;
  * @param p_sP2: size of each patch (sP x sP);
  * @param p_nSimP: number of similar patches;
@@ -1118,7 +1118,7 @@ unsigned estimateSimilarPatchesStep2(
  * @return 1 if an homogeneous area is detected, 0 otherwise.
  **/
 int computeHomogeneousAreaStep1(
-	std::vector<std::vector<float> > &io_group3d
+	std::vector<std::vector<float> > &io_group
 ,	const unsigned p_sP
 ,	const unsigned p_nSimP
 ,	const float p_threshold
@@ -1130,7 +1130,7 @@ int computeHomogeneousAreaStep1(
 	//! Compute the standard deviation of the set of patches
 	float stdDev = 0.f;
 	for (unsigned c = 0; c < p_imSize.channels; c++)
-		stdDev += computeStdDeviation(io_group3d[c], p_sP * p_sP, p_nSimP, 1);
+		stdDev += computeStdDeviation(io_group[c], p_sP * p_sP, p_nSimP, 1);
 
 	//! If we are in an homogeneous area
 	if (stdDev < p_threshold)
@@ -1139,10 +1139,10 @@ int computeHomogeneousAreaStep1(
 		{
 			float mean = 0.f;
 
-			for (unsigned k = 0; k < N; k++) mean += io_group3d[c][k];
+			for (unsigned k = 0; k < N; k++) mean += io_group[c][k];
 			mean /= (float) N;
 
-			for (unsigned k = 0; k < N; k++) io_group3d[c][k] = mean;
+			for (unsigned k = 0; k < N; k++) io_group[c][k] = mean;
 		}
 		return 1;
 	}
@@ -1152,10 +1152,10 @@ int computeHomogeneousAreaStep1(
 /**
  * @brief Detect if we are in an homogeneous area. In this case, compute the mean.
  *
- * @param io_group3dNoisy: inputs values of similar patches for the noisy video;
+ * @param io_groupNoisy: inputs values of similar patches for the noisy video;
  *                         if the area is classified as homogeneous, outputs the
  *                         average of all pixels in all patches.
- * @param i_group3dBasic: contains values of similar patches for the basic video.
+ * @param i_groupBasic: contains values of similar patches for the basic video.
  * @param p_sP2: size of each patch (sP x sP);
  * @param p_nSimP: number of similar patches;
  * @param p_threshold: threshold below which an area is declared homogeneous;
@@ -1164,8 +1164,8 @@ int computeHomogeneousAreaStep1(
  * @return 1 if an homogeneous area is detected, 0 otherwise.
  **/
 int computeHomogeneousAreaStep2(
-	std::vector<float> &io_group3dNoisy
-,	std::vector<float> const &i_group3dBasic
+	std::vector<float> &io_groupNoisy
+,	std::vector<float> const &i_groupBasic
 ,	const unsigned p_sP
 ,	const unsigned p_nSimP
 ,	const float p_threshold
@@ -1176,7 +1176,7 @@ int computeHomogeneousAreaStep2(
 	const unsigned sPC = sP2 * p_imSize.channels;
 
 	//! Compute the standard deviation of the set of patches
-	const float stdDev = computeStdDeviation(io_group3dNoisy, sP2, p_nSimP, p_imSize.channels);
+	const float stdDev = computeStdDeviation(io_groupNoisy, sP2, p_nSimP, p_imSize.channels);
 
 	//! If we are in an homogeneous area
 	if (stdDev < p_threshold)
@@ -1186,13 +1186,13 @@ int computeHomogeneousAreaStep2(
 				float mean = 0.f;
 				for (unsigned n = 0; n < p_nSimP; n++)
 				for (unsigned k = 0; k < sP2; k++)
-					mean += i_group3dBasic[n * sPC + c * sP2 + k];
+					mean += i_groupBasic[n * sPC + c * sP2 + k];
 
 				mean /= float(sP2 * p_nSimP);
 
 				for (unsigned n = 0; n < p_nSimP; n++)
 				for (unsigned k = 0; k < sP2; k++)
-					io_group3dNoisy[n * sPC + c * sP2 + k] = mean;
+					io_groupNoisy[n * sPC + c * sP2 + k] = mean;
 		}
 		return 1;
 	}
@@ -1202,10 +1202,10 @@ int computeHomogeneousAreaStep2(
 /**
  * @brief Compute the Bayes estimation.
  *
- * @param io_group3d: contains all similar patches. Will contain estimates for all similar patches;
+ * @param io_group: contains all similar patches. Will contain estimates for all similar patches;
  * @param i_mat: contains :
- *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
- *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+ *    - groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
+ *    - baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
  *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
  *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
  *    - tmpMat: allocated memory. Used to process the Bayes estimate;
@@ -1216,14 +1216,14 @@ int computeHomogeneousAreaStep2(
  * @return none.
  **/
 void computeBayesEstimateStep1(
-	std::vector<std::vector<float> > &io_group3d
+	std::vector<std::vector<float> > &io_group
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
 ){
 	//! Parameters
-	const unsigned chnls = io_group3d.size();
+	const unsigned chnls = io_group.size();
 	const unsigned sP2   = p_params.sizePatch * p_params.sizePatch * p_params.sizePatchTime;
 	const float valDiag  = p_params.beta * p_params.sigma * p_params.sigma;
 
@@ -1234,25 +1234,25 @@ void computeBayesEstimateStep1(
 		for (unsigned c = 0; c < chnls; c++)
 		{
 			//! Center data around the baricenter
-			centerData(io_group3d[c], i_mat.baricenter, p_nSimP, sP2);
+			centerData(io_group[c], i_mat.baricenter, p_nSimP, sP2);
 
 			//! Compute the covariance matrix of the set of similar patches
-			covarianceMatrix(io_group3d[c], i_mat.covMat, p_nSimP, sP2);
+			covarianceMatrix(io_group[c], i_mat.covMat, p_nSimP, sP2);
 
 			//! Bayes' Filtering
 			if (inverseMatrix(i_mat.covMat, sP2) == EXIT_SUCCESS)
 			{
-				productMatrix(i_mat.group3dTranspose, i_mat.covMat, io_group3d[c],
+				productMatrix(i_mat.groupTranspose, i_mat.covMat, io_group[c],
 								  sP2, sP2, p_nSimP);
 				for (unsigned k = 0; k < sP2 * p_nSimP; k++)
-					io_group3d[c][k] -= valDiag * i_mat.group3dTranspose[k];
+					io_group[c][k] -= valDiag * i_mat.groupTranspose[k];
 			}
 			else io_nInverseFailed++;
 
 			//! Add baricenter
 			for (unsigned j = 0, k = 0; j < sP2; j++)
 				for (unsigned i = 0; i < p_nSimP; i++, k++)
-					io_group3d[c][k] += i_mat.baricenter[j];
+					io_group[c][k] += i_mat.baricenter[j];
 		}
 	}
 	else io_nInverseFailed++;
@@ -1269,10 +1269,10 @@ void computeBayesEstimateStep1(
 		for (unsigned c = 0; c < chnls; c++)
 		{
 			//! Center data around the baricenter
-			centerData(io_group3d[c], i_mat.baricenter, p_nSimP, sP2);
+			centerData(io_group[c], i_mat.baricenter, p_nSimP, sP2);
 
 			//! Compute the covariance matrix of the set of similar patches
-			covarianceMatrix(io_group3d[c], i_mat.covMat, p_nSimP, sP2);
+			covarianceMatrix(io_group[c], i_mat.covMat, p_nSimP, sP2);
 
 			//! Bayes' Filtering
 			if (inverseMatrix(i_mat.covMat, sP2) == EXIT_FAILURE)
@@ -1287,9 +1287,9 @@ void computeBayesEstimateStep1(
 
 		for (unsigned k = 0; k < sP2 * p_nSimP; k++)
 		{
-			io_group3d[0][k] =  color[0];
-			io_group3d[1][k] =  color[1];
-			io_group3d[2][k] =  color[2];
+			io_group[0][k] =  color[0];
+			io_group[1][k] =  color[1];
+			io_group[2][k] =  color[2];
 		}
 	}
 	else
@@ -1298,9 +1298,9 @@ void computeBayesEstimateStep1(
 		for (unsigned k = 0; k < sP2 * p_nSimP; k++)
 		{
 			// red
-			io_group3d[0][k] = 147.2243f;
-			io_group3d[1][k] = 180.3122f;
-			io_group3d[2][k] = 104.1033f;
+			io_group[0][k] = 147.2243f;
+			io_group[1][k] = 180.3122f;
+			io_group[2][k] = 104.1033f;
 		}
 	}
 #endif
@@ -1309,12 +1309,12 @@ void computeBayesEstimateStep1(
 /**
  * @brief Compute the Bayes estimation.
  *
- * @param io_group3dNoisy: inputs all similar patches in the noisy image,
+ * @param io_groupNoisy: inputs all similar patches in the noisy image,
  *                         outputs their denoised estimates.
- * @param i_group3dBasic: contains all similar patches in the basic image.
+ * @param i_groupBasic: contains all similar patches in the basic image.
  * @param i_mat: contains :
- *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
- *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+ *    - groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
+ *    - baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
  *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
  *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
  *    - tmpMat: allocated memory. Used to process the Bayes estimate;
@@ -1326,8 +1326,8 @@ void computeBayesEstimateStep1(
  * @return none.
  **/
 float computeBayesEstimateStep2_FR(
-	std::vector<float> &io_group3dNoisy
-,	std::vector<float>  &i_group3dBasic
+	std::vector<float> &io_groupNoisy
+,	std::vector<float>  &i_groupBasic
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
 ,	const VideoSize &p_imSize
@@ -1340,11 +1340,11 @@ float computeBayesEstimateStep2_FR(
 	                    * p_params.sizePatchTime * p_imSize.channels;
 
 	//! Center 3D groups around their baricenter
-	centerData( i_group3dBasic, i_mat.baricenter, p_nSimP, sPC);
-	centerData(io_group3dNoisy, i_mat.baricenter, p_nSimP, sPC);
+	centerData( i_groupBasic, i_mat.baricenter, p_nSimP, sPC);
+	centerData(io_groupNoisy, i_mat.baricenter, p_nSimP, sPC);
 
 	//! Compute the covariance matrix of the set of similar patches
-	covarianceMatrix(i_group3dBasic, i_mat.covMat, p_nSimP, sPC);
+	covarianceMatrix(i_groupBasic, i_mat.covMat, p_nSimP, sPC);
 
 	//! Bayes' Filtering
 	for (unsigned k = 0; k < sPC; k++)
@@ -1353,9 +1353,9 @@ float computeBayesEstimateStep2_FR(
 	//! Compute the estimate
 	if (inverseMatrix(i_mat.covMat, sPC) == EXIT_SUCCESS)
 	{
-		productMatrix(i_group3dBasic, i_mat.covMat, io_group3dNoisy, sPC, sPC, p_nSimP);
+		productMatrix(i_groupBasic, i_mat.covMat, io_groupNoisy, sPC, sPC, p_nSimP);
 		for (unsigned k = 0; k < sPC * p_nSimP; k++)
-			io_group3dNoisy[k] -= diagVal * i_group3dBasic[k];
+			io_groupNoisy[k] -= diagVal * i_groupBasic[k];
 	}
 	else 
 		io_nInverseFailed++;
@@ -1363,7 +1363,7 @@ float computeBayesEstimateStep2_FR(
 	//! Add baricenter
 	for (unsigned j = 0, k = 0; j < sPC; j++)
 		for (unsigned i = 0; i < p_nSimP; i++, k++)
-			io_group3dNoisy[k] += i_mat.baricenter[j];
+			io_groupNoisy[k] += i_mat.baricenter[j];
 
 	return 1.f;
 }
@@ -1376,8 +1376,8 @@ float computeBayesEstimateStep2_FR(
  * See computeBayesEstimateStep2_LR for information about the arguments.
  **/
 float computeBayesEstimateStep2_LR_EIG_LAPACK(
-	std::vector<float> &io_group3dNoisy
-,	std::vector<float>  &i_group3dBasic
+	std::vector<float> &io_groupNoisy
+,	std::vector<float>  &i_groupBasic
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
 ,	const VideoSize &p_imSize
@@ -1391,11 +1391,11 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 	const unsigned r    = p_params.rank;
 
 	//! Center 3D groups around their baricenter
-	centerData( i_group3dBasic, i_mat.baricenter, p_nSimP, sPC);
-	centerData(io_group3dNoisy, i_mat.baricenter, p_nSimP, sPC);
+	centerData( i_groupBasic, i_mat.baricenter, p_nSimP, sPC);
+	centerData(io_groupNoisy, i_mat.baricenter, p_nSimP, sPC);
 
 	//! Compute the covariance matrix of the set of similar patches
-	covarianceMatrix(i_group3dBasic, i_mat.covMat, p_nSimP, sPC);
+	covarianceMatrix(i_groupBasic, i_mat.covMat, p_nSimP, sPC);
 
 	//! Compute total variance
 	float total_variance = 0.f;
@@ -1416,13 +1416,12 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 		i_mat.covEigVals[k] = 1.f / sqrtf( 1. + sigma2 / i_mat.covEigVals[k] );
 
 	//! Scale eigenvectors using the filter coefficients
-	//  TODO: can we do this more efficiently using BLAS o LAPACK?
 	float *eigVecs = i_mat.covEigVecs.data();
 	for (unsigned k = 0; k < r  ; ++k)
 	for (unsigned i = 0; i < sPC; ++i)
 		*eigVecs++ *= i_mat.covEigVals[k];
 
-	/* NOTE: io_group3dNoisy, if read as a column-major matrix, contains in each
+	/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
 	 * row a patch. Thus, in column-major storage it corresponds to X^T, where
 	 * each column of X contains a centered data point.
 	 *
@@ -1436,15 +1435,15 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 	 */
 
 	//! Z' = X'*U
-	productMatrix(i_mat.group3dTranspose,
-	              io_group3dNoisy,
+	productMatrix(i_mat.groupTranspose,
+	              io_groupNoisy,
 	              i_mat.covEigVecs,
 	              p_nSimP, r, sPC,
 	              false, false);
 
 	//! hX' = Z'*U'
-	productMatrix(io_group3dNoisy,
-	              i_mat.group3dTranspose,
+	productMatrix(io_groupNoisy,
+	              i_mat.groupTranspose,
 	              i_mat.covEigVecs,
 	              p_nSimP, sPC, r,
 	              false, true);
@@ -1452,7 +1451,7 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 	//! Add baricenter
 	for (unsigned j = 0, k = 0; j < sPC; j++)
 		for (unsigned i = 0; i < p_nSimP; i++, k++)
-			io_group3dNoisy[k] += i_mat.baricenter[j];
+			io_groupNoisy[k] += i_mat.baricenter[j];
 
 	// return percentage of captured variance
 	return r_variance / total_variance;
@@ -1467,8 +1466,8 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
  * See computeBayesEstimateStep2_LR for information about the arguments.
  **/
 float computeBayesEstimateStep2_LR_SVD_LAPACK(
-	std::vector<float> &io_group3dNoisy
-,	std::vector<float>  &i_group3dBasic
+	std::vector<float> &io_groupNoisy
+,	std::vector<float>  &i_groupBasic
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
 ,	const VideoSize &p_imSize
@@ -1483,11 +1482,11 @@ float computeBayesEstimateStep2_LR_SVD_LAPACK(
 	const unsigned mdim = std::min(sPC, p_nSimP);
 
 	//! Center 3D groups around their baricenter
-	centerData( i_group3dBasic, i_mat.baricenter, p_nSimP, sPC);
-	centerData(io_group3dNoisy, i_mat.baricenter, p_nSimP, sPC);
+	centerData( i_groupBasic, i_mat.baricenter, p_nSimP, sPC);
+	centerData(io_groupNoisy, i_mat.baricenter, p_nSimP, sPC);
 
 	//! Compute SVD
-	int info = matrixSVD(i_group3dBasic, sPC, p_nSimP,
+	int info = matrixSVD(i_groupBasic, sPC, p_nSimP,
 			i_mat.svd_S, i_mat.svd_VT, i_mat.svd_U,
 			i_mat.svd_work, i_mat.svd_iwork);
 
@@ -1513,14 +1512,12 @@ float computeBayesEstimateStep2_LR_SVD_LAPACK(
 		i_mat.svd_S[k] = 1.f / sqrtf( 1. + sigma2 / i_mat.svd_S[k] );
 
 	//! Scale eigenvectors using the filter coefficients
-	//  TODO: can we do this more efficiently using BLAS o LAPACK?
 	float *svdU = i_mat.svd_U.data();
 	for (unsigned k = 0; k < r  ; ++k)
 	for (unsigned i = 0; i < sPC; ++i)
 		svdU[mdim*i + k] *= i_mat.svd_S[k];
 
-
-	/* NOTE: io_group3dNoisy, if read as a column-major matrix, contains in each
+	/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
 	 * row a patch. Thus, in column-major storage it corresponds to X^T, where
 	 * each column of X contains a centered data point.
 	 *
@@ -1534,16 +1531,16 @@ float computeBayesEstimateStep2_LR_SVD_LAPACK(
 	 */
 
 	//! Z' = X'*U
-	productMatrix(i_mat.group3dTranspose,
-	              io_group3dNoisy,
+	productMatrix(i_mat.groupTranspose,
+	              io_groupNoisy,
 	              i_mat.svd_U,
 	              p_nSimP, r, sPC,
 	              false, true, true,
 	              p_nSimP, mdim);
 
 	//! hX' = Z'*U'
-	productMatrix(io_group3dNoisy,
-	              i_mat.group3dTranspose,
+	productMatrix(io_groupNoisy,
+	              i_mat.groupTranspose,
 	              i_mat.svd_U,
 	              p_nSimP, sPC, r,
 	              false, false, true,
@@ -1552,34 +1549,10 @@ float computeBayesEstimateStep2_LR_SVD_LAPACK(
 	//! Add baricenter
 	for (unsigned j = 0, k = 0; j < sPC; j++)
 		for (unsigned i = 0; i < p_nSimP; i++, k++)
-			io_group3dNoisy[k] += i_mat.baricenter[j];
+			io_groupNoisy[k] += i_mat.baricenter[j];
 
 	// return percentage of captured variance
 	return r_variance / total_variance;
-
-/* TODO use this for the first step
-//	if (p_nSimP < sPC)
-//	{
-//		float *svdV = i_mat.svd_V.data();
-//		for (unsigned k = 0; k < r      ; ++k)
-//		for (unsigned i = 0; i < p_nSimP; ++i)
-//			*svdV++ *= i_mat.svd_S[k];
-//	}
-//	else
-//	{
-//		float *svdUT = i_mat.svd_UT.data();
-//		for (unsigned k = 0; k < r  ; ++k, svdUT += 1 - sPC*p_nSimP)
-//		for (unsigned i = 0; i < sPC; ++i, svdUT += p_nSimP)
-//			*svdUT *= i_mat.svd_S[k];
-//	}
-//
-//	productMatrix(io_group3dNoisy,
-//	              i_mat.svd_V,
-//	              i_mat.svd_UT,
-//	              p_nSimP, sPC, r,
-//	              false, false, true,
-//	              p_nSimP, std::min(p_nSimP, sPC)); */
-
 }
 
 /**
@@ -1590,8 +1563,8 @@ float computeBayesEstimateStep2_LR_SVD_LAPACK(
  * See computeBayesEstimateStep2_LR for information about the arguments.
  **/
 float computeBayesEstimateStep2_LR_SVD_IDDIST(
-	std::vector<float> &io_group3dNoisy
-,	std::vector<float>  &i_group3dBasic
+	std::vector<float> &io_groupNoisy
+,	std::vector<float>  &i_groupBasic
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
 ,	const VideoSize &p_imSize
@@ -1604,17 +1577,17 @@ float computeBayesEstimateStep2_LR_SVD_IDDIST(
 	                    * p_params.sizePatchTime * p_imSize.channels;
 	const unsigned r    = p_params.rank;
 
-//	printMatrix(i_group3dBasic, sPC, p_nSimP, "/tmp/data_matrix_uncentered.asc");
+//	printMatrix(i_groupBasic, sPC, p_nSimP, "/tmp/data_matrix_uncentered.asc");
 
 	//! Center 3D groups around their baricenter
-	centerData( i_group3dBasic, i_mat.baricenter, p_nSimP, sPC);
-	centerData(io_group3dNoisy, i_mat.baricenter, p_nSimP, sPC);
+	centerData( i_groupBasic, i_mat.baricenter, p_nSimP, sPC);
+	centerData(io_groupNoisy, i_mat.baricenter, p_nSimP, sPC);
 
 	//XXX DEBUG
-//	printMatrix(i_group3dBasic, sPC, p_nSimP, "/tmp/data_matrix.asc");
+//	printMatrix(i_groupBasic, sPC, p_nSimP, "/tmp/data_matrix.asc");
 
 	//XXX DEBUG: Compute the covariance matrix of the set of similar patches
-//	covarianceMatrix(i_group3dBasic, i_mat.covMat, p_nSimP, sPC);
+//	covarianceMatrix(i_groupBasic, i_mat.covMat, p_nSimP, sPC);
 //	printMatrix(i_mat.covMat, sPC, sPC, "/tmp/covariance_matrix.asc");
 //	matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
 //	printMatrix(i_mat.covEigVals, 1, r  , "/tmp/eigenvals.asc");
@@ -1626,10 +1599,10 @@ float computeBayesEstimateStep2_LR_SVD_IDDIST(
 	//! Compute SVD
 	{
 		// convert data to double
-		i_mat.svd_ddata.resize(i_group3dBasic.size());
+		i_mat.svd_ddata.resize(i_groupBasic.size());
 		std::vector<double>::iterator ddata = i_mat.svd_ddata.begin();
-		std::vector<float >::iterator fdata =  i_group3dBasic.begin();
-		for (int i = 0; i < i_group3dBasic.size(); ++i)
+		std::vector<float >::iterator fdata =    i_groupBasic.begin();
+		for (int i = 0; i < i_groupBasic.size(); ++i)
 			*ddata++ = (double)*fdata++;
 
 		// compute low rand SVD
@@ -1691,7 +1664,7 @@ float computeBayesEstimateStep2_LR_SVD_IDDIST(
 //	printMatrix(i_mat.svd_U , mdim, sPC    , "/tmp/svdU.asc");
 //	while (1) int a = 1;
 
-	/* NOTE: io_group3dNoisy, if read as a column-major matrix, contains in each
+	/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
 	 * row a patch. Thus, in column-major storage it corresponds to X^T, where
 	 * each column of X contains a centered data point.
 	 *
@@ -1706,15 +1679,15 @@ float computeBayesEstimateStep2_LR_SVD_IDDIST(
 
 
 	//! Z' = X'*V
-	productMatrix(i_mat.group3dTranspose,
-	              io_group3dNoisy,
+	productMatrix(i_mat.groupTranspose,
+	              io_groupNoisy,
 	              i_mat.svd_U,
 	              p_nSimP, r, sPC,
 	              false, false);
 
 	//! hX' = Z'*V'
-	productMatrix(io_group3dNoisy,
-	              i_mat.group3dTranspose,
+	productMatrix(io_groupNoisy,
+	              i_mat.groupTranspose,
 	              i_mat.svd_U,
 	              p_nSimP, sPC, r,
 	              false, true);
@@ -1722,7 +1695,7 @@ float computeBayesEstimateStep2_LR_SVD_IDDIST(
 	//! Add baricenter
 	for (unsigned j = 0, k = 0; j < sPC; j++)
 		for (unsigned i = 0; i < p_nSimP; i++, k++)
-			io_group3dNoisy[k] += i_mat.baricenter[j];
+			io_groupNoisy[k] += i_mat.baricenter[j];
 
 	// return percentage of captured variance
 	return r_variance / total_variance;
@@ -1732,12 +1705,12 @@ float computeBayesEstimateStep2_LR_SVD_IDDIST(
 /**
  * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
  *
- * @param io_group3dNoisy: inputs all similar patches in the noisy image,
+ * @param io_groupNoisy: inputs all similar patches in the noisy image,
  *                         outputs their denoised estimates.
- * @param i_group3dBasic: contains all similar patches in the basic image.
+ * @param i_grougroup contains all similar patches in the basic image.
  * @param i_mat: contains :
- *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
- *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+ *    - groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
+ *    - baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
  *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
  *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
  *    - tmpMat: allocated memory. Used to process the Bayes estimate;
@@ -1777,8 +1750,8 @@ float computeBayesEstimateStep2_LR(
  * @param io_im: update the image with estimate values;
  * @param io_weight: update corresponding weight, used later in the weighted aggregation;
  * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group3d: contains estimated values of all similar patches in the 3D group;
- * @param i_index: contains index of all similar patches contained in i_group3d;
+ * @param i_group: contains estimated values of all similar patches in the 3D group;
+ * @param i_index: contains index of all similar patches contained in i_group;
  * @param p_imSize: size of io_im;
  * @param p_params: see processStep1 for more explanation.
  * @param p_nSimP: number of similar patches.
@@ -1789,7 +1762,7 @@ int computeAggregationStep1(
 	Video<float> &io_im
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
-,	std::vector<std::vector<float> > const& i_group3d
+,	std::vector<std::vector<float> > const& i_group
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
 ,	const unsigned p_nSimP
@@ -1820,7 +1793,7 @@ int computeAggregationStep1(
 			{
 				const unsigned ij = ind  + c * wh;
 				io_im(ij + pt * whc + py * w + px) += 
-					i_group3d[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
+					i_group[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
 			}
 			io_weight(ind1 + pt * wh + py * w + px)++;
 		}
@@ -1858,7 +1831,7 @@ int computeAggregationStep1(
 			{
 				const unsigned ij = ind  + c * wh;
 				io_im(ij + pt * whc + py * w + px) += 
-					i_group3d[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
+					i_group[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
 			}
 			io_weight(ind1 + pt * wh + py * w + px)++;
 		}
@@ -1900,8 +1873,8 @@ int computeAggregationStep1(
  * @param io_im: update the image with estimate values;
  * @param io_weight: update corresponding weight, used later in the weighted aggregation;
  * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group3d: contains estimated values of all similar patches in the 3D group;
- * @param i_index: contains index of all similar patches contained in i_group3d;
+ * @param i_group: contains estimated values of all similar patches in the 3D group;
+ * @param i_index: contains index of all similar patches contained in i_group;
  * @param p_imSize: size of io_im;
  * @param p_params: see processStep2 for more explanation;
  * @param p_nSimP: number of similar patches.
@@ -1912,7 +1885,7 @@ int computeAggregationStep2(
 	Video<float> &io_im
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
-,	std::vector<float> const& i_group3d
+,	std::vector<float> const& i_group
 ,	Video<float> &variance
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
@@ -1940,7 +1913,7 @@ int computeAggregationStep2(
 			for (unsigned py = 0; py < sPx; py++)
 			for (unsigned px = 0; px < sPx; px++, k++)
 				io_im(ij + pt * whc + py * w + px) +=
-					i_group3d[k * p_nSimP + n];
+					i_group[k * p_nSimP + n];
 		}
 
 		const unsigned ind1 = (ind / whc) * wh + ind % wh;
@@ -1990,8 +1963,8 @@ int computeAggregationStep2(
  * @param io_im: update the image with estimate values;
  * @param io_weight: update corresponding weight, used later in the weighted aggregation;
  * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group3d: contains estimated values of all similar patches in the 3D group;
- * @param i_index: contains index of all similar patches contained in i_group3d;
+ * @param i_group: contains estimated values of all similar patches in the 3D group;
+ * @param i_index: contains index of all similar patches contained in i_group;
  * @param p_imSize: size of io_im;
  * @param p_params: see processStep1 for more explanation.
  * @param p_nSimP: number of similar patches.
@@ -2002,7 +1975,7 @@ void computeTemporalAggregationStep1(
 	Video<float> &io_im
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
-,	std::vector<std::vector<float> > const& i_group3d
+,	std::vector<std::vector<float> > const& i_group
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
 ,	const unsigned p_nSimP
@@ -2030,7 +2003,7 @@ void computeTemporalAggregationStep1(
 			for (unsigned c = 0; c < chnls; c++)
 			{
 				const unsigned ij = ind  + c * width * height;
-				io_im(ij + p * width + q) += i_group3d[c][(p * sP + q) * p_nSimP + n];
+				io_im(ij + p * width + q) += i_group[c][(p * sP + q) * p_nSimP + n];
 			}
 			io_weight(ind1 + p * width + q)++;
 		}
@@ -2064,7 +2037,7 @@ void computeTemporalAggregationStep1(
 			for (unsigned c = 0; c < chnls; c++)
 			{
 				const unsigned ij = ind  + c * width * height;
-				io_im(ij + p * width + q) += i_group3d[c][(p * sP + q) * p_nSimP + n];
+				io_im(ij + p * width + q) += i_group[c][(p * sP + q) * p_nSimP + n];
 			}
 			io_weight(ind1 + p * width + q)++;
 		}
@@ -2106,8 +2079,8 @@ void computeTemporalAggregationStep1(
  * @param io_im: update the image with estimate values;
  * @param io_weight: update corresponding weight, used later in the weighted aggregation;
  * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group3d: contains estimated values of all similar patches in the 3D group;
- * @param i_index: contains index of all similar patches contained in i_group3d;
+ * @param i_group: contains estimated values of all similar patches in the 3D group;
+ * @param i_index: contains index of all similar patches contained in i_group;
  * @param p_imSize: size of io_im;
  * @param p_params: see processStep2 for more explanation;
  * @param p_nSimP: number of similar patches.
@@ -2118,7 +2091,7 @@ void computeTemporalAggregationStep2(
 	Video<float> &io_im
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
-,	std::vector<float> const& i_group3d
+,	std::vector<float> const& i_group
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
 ,	const unsigned p_nSimP
@@ -2143,7 +2116,7 @@ void computeTemporalAggregationStep2(
 			const unsigned ij = ind + c * wh;
 			for (unsigned p = 0; p < sP; p++)
 			for (unsigned q = 0; q < sP; q++, k++)
-				io_im(ij + p * width + q) += i_group3d[k * p_nSimP + n];
+				io_im(ij + p * width + q) += i_group[k * p_nSimP + n];
 		}
 
 		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;

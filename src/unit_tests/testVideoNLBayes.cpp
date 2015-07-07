@@ -82,7 +82,7 @@ namespace VideoNLB
 {
 	std::vector<std::pair<float, unsigned> > estimateSimilarPatchesStep1_debug(
 		Video<float> const& i_im
-	,	std::vector<std::vector<float> > &o_group3d
+	,	std::vector<std::vector<float> > &o_group
 	,	std::vector<unsigned> &o_index
 	,	const unsigned pidx
 	,	const nlbParams &p_params
@@ -140,7 +140,7 @@ namespace VideoNLB
 		for (unsigned hy = 0, k = 0; hy < sP; hy++)
 		for (unsigned hx = 0;        hx < sP; hx++)
 		for (unsigned n  = 0; n < nSimP; n++, k++)
-			o_group3d[c][k] = i_im.data[o_index[n] + hy * w + hx + c * wh];
+			o_group[c][k] = i_im.data[o_index[n] + hy * w + hx + c * wh];
 
 		return distance;
 	
@@ -156,12 +156,12 @@ namespace VideoNLB
 	 * VideoNLB::computeBayesEstimateStep2_LRSVD that uses iddist to compute
 	 * a truncated SVD.
 	 *
-	 * @param io_group3dNoisy: inputs all similar patches in the noisy image,
+	 * @param io_groupNoisy: inputs all similar patches in the noisy image,
 	 *                         outputs their denoised estimates.
-	 * @param i_group3dBasic: contains all similar patches in the basic image.
+	 * @param i_groupBasic: contains all similar patches in the basic image.
 	 * @param i_mat: contains :
-	 *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
-	 *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+	 *    - groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
+	 *    - baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
 	 *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
 	 *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
 	 *    - tmpMat: allocated memory. Used to process the Bayes estimate;
@@ -173,8 +173,8 @@ namespace VideoNLB
 	 * @return none.
 	 **/
 	float computeBayesEstimateStep2_LRSVD_id(
-		std::vector<float> &io_group3dNoisy
-	,	std::vector<float>  &i_group3dBasic
+		std::vector<float> &io_groupNoisy
+	,	std::vector<float>  &i_groupBasic
 	,	matWorkspace &i_mat
 	,	unsigned &io_nInverseFailed
 	,	const VideoSize &p_imSize
@@ -188,8 +188,8 @@ namespace VideoNLB
 		const unsigned r    = p_params.rank;
 	
 		//! Center 3D groups around their baricenter
-		centerData( i_group3dBasic, i_mat.baricenter, p_nSimP, sPC);
-		centerData(io_group3dNoisy, i_mat.baricenter, p_nSimP, sPC);
+		centerData( i_groupBasic, i_mat.baricenter, p_nSimP, sPC);
+		centerData(io_groupNoisy, i_mat.baricenter, p_nSimP, sPC);
 	
 		//! Compute total variance HOW?
 		float total_variance = 0.f;
@@ -197,10 +197,10 @@ namespace VideoNLB
 		//! Compute SVD
 		{
 			// convert data to double
-			i_mat.svd_ddata.resize(i_group3dBasic.size());
+			i_mat.svd_ddata.resize(i_groupBasic.size());
 			std::vector<double>::iterator ddata = i_mat.svd_ddata.begin();
-			std::vector<float >::iterator fdata =  i_group3dBasic.begin();
-			for (int i = 0; i < i_group3dBasic.size(); ++i)
+			std::vector<float >::iterator fdata =  i_groupBasic.begin();
+			for (int i = 0; i < i_groupBasic.size(); ++i)
 				*ddata++ = (double)*fdata++;
 
 			print_matrix(i_mat.svd_ddata, sPC, p_nSimP, "/tmp/Xt.asc");
@@ -257,15 +257,15 @@ namespace VideoNLB
 		}
 	
 		//! Z' = X'*V
-		productMatrix(i_mat.group3dTranspose,
-		              io_group3dNoisy,
+		productMatrix(i_mat.groupTranspose,
+		              io_groupNoisy,
 		              i_mat.svd_U,
 		              p_nSimP, r, sPC,
 		              false, false);
 	
 		//! hX' = Z'*V'
-		productMatrix(io_group3dNoisy,
-		              i_mat.group3dTranspose,
+		productMatrix(io_groupNoisy,
+		              i_mat.groupTranspose,
 		              i_mat.svd_U,
 		              p_nSimP, sPC, r,
 		              false, true);
@@ -273,7 +273,7 @@ namespace VideoNLB
 		//! Add baricenter
 		for (unsigned j = 0, k = 0; j < sPC; j++)
 			for (unsigned i = 0; i < p_nSimP; i++, k++)
-				io_group3dNoisy[k] += i_mat.baricenter[j];
+				io_groupNoisy[k] += i_mat.baricenter[j];
 	
 		// return percentage of captured variance
 		return r_variance / total_variance;
@@ -282,7 +282,7 @@ namespace VideoNLB
 }
 
 void print_patch_group(
-	std::vector<std::vector<float> > &group3d
+	std::vector<std::vector<float> > &group
 ,	std::vector<std::pair<float, unsigned> > &patch_dists
 ,	VideoNLB::nlbParams prms
 ,	VideoSize sz
@@ -303,9 +303,9 @@ void print_patch_group(
 	{
 		for (unsigned hx = 0; hx < sP; hx++, k++)
 		{
-			printf("% 3f,% 3f,% 3f   ", group3d[0][k*nSimP + 0], 
-			                            group3d[1][k*nSimP + 0],
-			                            group3d[2][k*nSimP + 0]);
+			printf("% 3f,% 3f,% 3f   ", group[0][k*nSimP + 0], 
+			                            group[1][k*nSimP + 0],
+			                            group[2][k*nSimP + 0]);
 		}
 		printf("\n");
 	}
@@ -317,9 +317,9 @@ void print_patch_group(
 	{
 		for (unsigned hx = 0; hx < sP; hx++, k++)
 		{
-			printf("% 3f,% 3f,% 3f   ", group3d[0][k*nSimP + idx], 
-			                            group3d[1][k*nSimP + idx],
-			                            group3d[2][k*nSimP + idx]);
+			printf("% 3f,% 3f,% 3f   ", group[0][k*nSimP + idx], 
+			                            group[1][k*nSimP + idx],
+			                            group[2][k*nSimP + idx]);
 		}
 		printf("\n");
 	}
@@ -632,11 +632,11 @@ int main(int argc, char **argv)
 
 			//! Matrices used for Bayes' estimate
 			VideoNLB::matWorkspace mat;
-			mat.group3dTranspose.resize(patch_num * patch_dim);
-			mat.tmpMat          .resize(patch_dim * patch_dim);
-			mat.covMat          .resize(patch_dim * patch_dim);
-			mat.covMatTmp       .resize(patch_dim * patch_dim);
-			mat.baricenter      .resize(patch_dim);
+			mat.groupTranspose.resize(patch_num * patch_dim);
+			mat.tmpMat        .resize(patch_dim * patch_dim);
+			mat.covMat        .resize(patch_dim * patch_dim);
+			mat.covMatTmp     .resize(patch_dim * patch_dim);
+			mat.baricenter    .resize(patch_dim);
 	
 			//! Matrices used for Bayes' estimate
 			vector<unsigned> index(patch_num);

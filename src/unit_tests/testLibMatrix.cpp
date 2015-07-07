@@ -138,11 +138,11 @@ int main(int argc, char **argv)
 		vector<unsigned> index(patch_num);
 		VideoNLB::matWorkspace mat;
 		{
-			mat.group3dTranspose.resize(patch_num * patch_dim);
-			mat.tmpMat          .resize(patch_dim * patch_dim);
-			mat.covMat          .resize(patch_dim * patch_dim);
-			mat.covMatTmp       .resize(patch_dim * patch_dim);
-			mat.baricenter      .resize(patch_dim);
+			mat.groupTranspose.resize(patch_num * patch_dim);
+			mat.tmpMat        .resize(patch_dim * patch_dim);
+			mat.covMat        .resize(patch_dim * patch_dim);
+			mat.covMatTmp     .resize(patch_dim * patch_dim);
+			mat.baricenter    .resize(patch_dim);
 		}
 
 		//! Matrices used for Bayes' estimate

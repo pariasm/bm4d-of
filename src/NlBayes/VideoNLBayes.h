@@ -63,15 +63,15 @@ struct nlbParams
 /**
  * @brief Structure containing matrices used in the Bayesian estimation.
  *
- * @param group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
- * @param baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+ * @param groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
+ * @param baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
  * @param covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
  * @param covMatTmp: allocated memory. Used to process the Bayes estimate;
  * @param tmpMat: allocated memory. Used to process the Bayes estimate.
  **/
 struct matWorkspace
 {
-	std::vector<float> group3dTranspose;
+	std::vector<float> groupTranspose;
 	std::vector<float> baricenter;
 	std::vector<float> covMat;
 	std::vector<float> covMatTmp;
@@ -263,7 +263,7 @@ void processNlBayes(
  * @brief Estimate the best similar patches to a reference one.
  *
  * @param i_im: contains the noisy video on which distances are processed;
- * @param o_group3d: will contain values of similar patches;
+ * @param o_group: will contain values of similar patches;
  * @param o_index: will contain index of similar patches;
  * @param p_ij: index of the reference patch;
  * @param p_params: see processStep1 for more explanation.
@@ -272,7 +272,7 @@ void processNlBayes(
  **/
 unsigned estimateSimilarPatchesStep1(
 	Video<float> const& i_im
-,	std::vector<std::vector<float> > &o_group3d
+,	std::vector<std::vector<float> > &o_group
 ,	std::vector<unsigned> &o_index
 ,	const unsigned p_ij
 ,	const nlbParams &p_params
@@ -283,8 +283,8 @@ unsigned estimateSimilarPatchesStep1(
  *
  * @param i_imNoisy: contains the original noisy video;
  * @param i_imBasic: contains the basic estimation;
- * @param o_group3dNoisy: will contain similar patches for all channels of i_imNoisy;
- * @param o_group3dBasic: will contain similar patches for all channels of i_imBasic;
+ * @param o_groupNoisy: will contain similar patches for all channels of i_imNoisy;
+ * @param o_groupBasic: will contain similar patches for all channels of i_imBasic;
  * @param o_index: will contain index of similar patches;
  * @param p_ij: index of the reference patch;
  * @param p_params: see processStep2 for more explanations.
@@ -294,8 +294,8 @@ unsigned estimateSimilarPatchesStep1(
 unsigned estimateSimilarPatchesStep2(
 	Video<float> const& i_imNoisy
 ,	Video<float> const& i_imBasic
-,	std::vector<float> &o_group3dNoisy
-,	std::vector<float> &o_group3dBasic
+,	std::vector<float> &o_groupNoisy
+,	std::vector<float> &o_groupBasic
 ,	std::vector<unsigned> &o_index
 ,	const unsigned p_ij
 ,	const nlbParams &p_params
@@ -304,7 +304,7 @@ unsigned estimateSimilarPatchesStep2(
 /**
  * @brief Detect if we are in an homogeneous area. In this case, compute the mean.
  *
- * @param io_group3d: contains for each channels values of similar patches. If an homogeneous area
+ * @param io_group: contains for each channels values of similar patches. If an homogeneous area
  *			is detected, will contain the average of all pixels in similar patches;
  * @param p_sP2: size of each patch (sP x sP);
  * @param p_nSimP: number of similar patches;
@@ -314,7 +314,7 @@ unsigned estimateSimilarPatchesStep2(
  * @return 1 if an homogeneous area is detected, 0 otherwise.
  **/
 int computeHomogeneousAreaStep1(
-	std::vector<std::vector<float> > &io_group3d
+	std::vector<std::vector<float> > &io_group
 ,	const unsigned p_sP
 ,	const unsigned p_nSimP
 ,	const float p_threshold
@@ -324,10 +324,10 @@ int computeHomogeneousAreaStep1(
 /**
  * @brief Detect if we are in an homogeneous area. In this case, compute the mean.
  *
- * @param io_group3dNoisy: inputs values of similar patches for the noisy video;
+ * @param io_groupNoisy: inputs values of similar patches for the noisy video;
  *                         if the area is classified as homogeneous, outputs the
  *                         average of all pixels in all patches.
- * @param i_group3dBasic: contains values of similar patches for the basic video.
+ * @param i_groupBasic: contains values of similar patches for the basic video.
  * @param p_sP2: size of each patch (sP x sP);
  * @param p_nSimP: number of similar patches;
  * @param p_threshold: threshold below which an area is declared homogeneous;
@@ -336,8 +336,8 @@ int computeHomogeneousAreaStep1(
  * @return 1 if an homogeneous area is detected, 0 otherwise.
  **/
 int computeHomogeneousAreaStep2(
-	std::vector<float> & io_group3dNoisy
-,	std::vector<float> const &i_group3dBasic
+	std::vector<float> & io_groupNoisy
+,	std::vector<float> const &i_groupBasic
 ,	const unsigned p_sP
 ,	const unsigned p_nSimP
 ,	const float p_threshold
@@ -347,10 +347,10 @@ int computeHomogeneousAreaStep2(
 /**
  * @brief Compute the Bayes estimation.
  *
- * @param io_group3d: contains all similar patches. Will contain estimates for all similar patches;
+ * @param io_group: contains all similar patches. Will contain estimates for all similar patches;
  * @param i_mat: contains :
- *		- group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
- *		- baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+ *		- groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
+ *		- baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
  *		- covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
  *		- covMatTmp: allocated memory. Used to process the Bayes estimate;
  *		- tmpMat: allocated memory. Used to process the Bayes estimate;
@@ -361,7 +361,7 @@ int computeHomogeneousAreaStep2(
  * @return none.
  **/
 void computeBayesEstimateStep1(
-	std::vector<std::vector<float> > &io_group3d
+	std::vector<std::vector<float> > &io_group
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
 ,	nlbParams const& p_params
@@ -371,12 +371,12 @@ void computeBayesEstimateStep1(
 /**
  * @brief Compute the Bayes estimation.
  *
- * @param i_group3dNoisy: contains all similar patches in the noisy video;
- * @param io_group3dBasic: contains all similar patches in the basic video. Will contain estimates
+ * @param i_groupNoisy: contains all similar patches in the noisy video;
+ * @param io_groupBasic: contains all similar patches in the basic video. Will contain estimates
  *			for all similar patches;
  * @param i_mat: contains :
- *		- group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
- *		- baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+ *		- groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
+ *		- baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
  *		- covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
  *		- covMatTmp: allocated memory. Used to process the Bayes estimate;
  *		- tmpMat: allocated memory. Used to process the Bayes estimate;
@@ -388,8 +388,8 @@ void computeBayesEstimateStep1(
  * @return none.
  **/
 float computeBayesEstimateStep2_FR(
-	std::vector<float> &io_group3dNoisy
-,	std::vector<float>  &i_group3dBasic
+	std::vector<float> &io_groupNoisy
+,	std::vector<float>  &i_groupBasic
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
 ,	const VideoSize &p_imSize
@@ -400,12 +400,12 @@ float computeBayesEstimateStep2_FR(
 /**
  * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
  *
- * @param io_group3dNoisy: inputs all similar patches in the noisy image,
+ * @param io_groupNoisy: inputs all similar patches in the noisy image,
  *                         outputs their denoised estimates.
- * @param i_group3dBasic: contains all similar patches in the basic image.
+ * @param i_groupBasic: contains all similar patches in the basic image.
  * @param i_mat: contains :
- *    - group3dTranspose: allocated memory. Used to contain the transpose of io_group3dNoisy;
- *    - baricenter: allocated memory. Used to contain the baricenter of io_group3dBasic;
+ *    - groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
+ *    - baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
  *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
  *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
  *    - tmpMat: allocated memory. Used to process the Bayes estimate;
@@ -417,8 +417,8 @@ float computeBayesEstimateStep2_FR(
  * @return none.
  **/
 float computeBayesEstimateStep2_LR(
-	std::vector<float> &io_group3dNoisy
-,	std::vector<float>  &i_group3dBasic
+	std::vector<float> &io_groupNoisy
+,	std::vector<float>  &i_groupBasic
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
 ,	const VideoSize &p_imSize
@@ -432,8 +432,8 @@ float computeBayesEstimateStep2_LR(
  * @param io_im: update the video with estimate values;
  * @param io_weight: update corresponding weight, used later in the weighted aggregation;
  * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group3d: contains estimated values of all similar patches in the 3D group;
- * @param i_index: contains index of all similar patches contained in i_group3d;
+ * @param i_group: contains estimated values of all similar patches in the 3D group;
+ * @param i_index: contains index of all similar patches contained in i_group;
  * @param p_params: see processStep1 for more explanation.
  * @param p_nSimP: number of similar patches.
  *
@@ -443,7 +443,7 @@ int computeAggregationStep1(
 	Video<float> &io_im
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
-,	std::vector<std::vector<float> > const& i_group3d
+,	std::vector<std::vector<float> > const& i_group
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams& p_params
 ,	const unsigned p_nSimP
@@ -455,8 +455,8 @@ int computeAggregationStep1(
  * @param io_im: update the video with estimate values;
  * @param io_weight: update corresponding weight, used later in the weighted aggregation;
  * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group3d: contains estimated values of all similar patches in the 3D group;
- * @param i_index: contains index of all similar patches contained in i_group3d;
+ * @param i_group: contains estimated values of all similar patches in the 3D group;
+ * @param i_index: contains index of all similar patches contained in i_group;
  * @param p_params: see processStep2 for more explanation;
  * @param p_nSimP: number of similar patches.
  *
@@ -467,7 +467,7 @@ int computeAggregationStep2(
 	Video<float> &io_im
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
-,	std::vector<float> const& i_group3d
+,	std::vector<float> const& i_group
 ,	Video<float> &variance
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams& p_params
@@ -484,8 +484,8 @@ int computeAggregationStep2(
  * @param io_im: update the image with estimate values;
  * @param io_weight: update corresponding weight, used later in the weighted aggregation;
  * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group3d: contains estimated values of all similar patches in the 3D group;
- * @param i_index: contains index of all similar patches contained in i_group3d;
+ * @param i_group: contains estimated values of all similar patches in the 3D group;
+ * @param i_index: contains index of all similar patches contained in i_group;
  * @param p_imSize: size of io_im;
  * @param p_params: see processStep1 for more explanation.
  * @param p_nSimP: number of similar patches.
@@ -496,7 +496,7 @@ void computeTemporalAggregationStep1(
 	Video<float> &io_im
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
-,	std::vector<std::vector<float> > const& i_group3d
+,	std::vector<std::vector<float> > const& i_group
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
 ,	const unsigned p_nSimP
@@ -512,8 +512,8 @@ void computeTemporalAggregationStep1(
  * @param io_im: update the image with estimate values;
  * @param io_weight: update corresponding weight, used later in the weighted aggregation;
  * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group3d: contains estimated values of all similar patches in the 3D group;
- * @param i_index: contains index of all similar patches contained in i_group3d;
+ * @param i_group: contains estimated values of all similar patches in the 3D group;
+ * @param i_index: contains index of all similar patches contained in i_group;
  * @param p_imSize: size of io_im;
  * @param p_params: see processStep2 for more explanation;
  * @param p_nSimP: number of similar patches.
@@ -524,7 +524,7 @@ void computeTemporalAggregationStep2(
 	Video<float> &io_im
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
-,	std::vector<float> const& i_group3d
+,	std::vector<float> const& i_group
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
 ,	const unsigned p_nSimP
