@@ -1,6 +1,20 @@
+=====
+FILES
+=====
+
+callgrind.out.s??-inv        original version, inverting a full rank covariance matrix
+callgrind.out.s??-eigs       low rank assumption using k eigenvecs of cov. matrix (step 2)
+callgrind.out.s??-eigs-12    low rank assumption using k eigenvecs of cov. matrix (step 1 & 2)
+callgrind.out.s??-idsvd      low rank assumption using k sing. vecs. of data matrix (step 1)
+callgrind.out.s??-idsvd-12   low rank assumption using k sing. vecs. of data matrix (step 1 & 2)
+
+
 ==================
 PROFILING ANALYSIS
 ==================
+
+inv vs eigs
+-----------
 
 (1) Reduction factors for Bayesian estimate in the second step 
 
@@ -18,4 +32,5 @@ PROFILING ANALYSIS
 	groups in step 2	| 24481	| 24778	| 31426
 
 (4) Figures in (3) are the same for both low rank and full rank implementations
+
 
