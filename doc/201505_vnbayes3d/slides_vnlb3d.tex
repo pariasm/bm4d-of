@@ -161,8 +161,8 @@
 %gets rid of navigation symbols
 \setbeamertemplate{navigation symbols}{}
 
-\title[NLB3D]{$\,$ \\ $\,$ \\ Preliminary results for NL-Bayes 3D}
-\author[Pablo Arias]{May 11, 2015}
+\title[VNLB]{$\,$ \\ $\,$ \\ Preliminary results for Video NL-Bayes}
+\author[Pablo Arias]{V0: May 11, 2015\\V1: July 10, 2015}
 \institute[CMLA]{}
 \date[]{}
 
@@ -474,6 +474,340 @@
 \end{frame}
 % 
 % 
+
+\begin{frame}{Update}
+
+	We now present updated results. Relevant commits since the original results: 
+	\begin{description}
+		\item[{\tt 9f65b63}] Three implementations of low-rank Bayesian estimation in the first stage.
+		\item[{\tt 40d8858}] Number of eigenvecs is a command line parameter. Skip pixels in x and y directions.
+		\item[{\tt 289505c}] computeBayesEstimateStep2 using only leading eigenvectors
+	\end{description}
+
+	\bigskip
+
+	\bigskip
+
+	\bigskip
+
+	Before presenting definite tables of PSNR, we will first analyze the new
+	parameters: the rank of the covariance matrix in the first and second stages.
+
+\end{frame}
+% 
+% 
+
+
+
+\multipleframe
+\begin{frame}{PSNR tables - rank vs. number of patches, stage 2}
+
+	We set the following parameters fixed, and vary the rank and the number of similar
+	patches in the second step.
+
+	\begin{center}
+	\begin{tabular}{l | c c | c c | c c }
+		& \multicolumn{2}{c|}{$\sigma = 10$} 
+		& \multicolumn{2}{c|}{$\sigma = 20$} 
+		& \multicolumn{2}{c}{$\sigma = 40$} \\
+		                            & 1st  & 2nd  & 1st  & 2nd  & 1st  & 2nd \\\hline\hline
+		Patch size (spatial)        &  5   &   5  &  5   &   5  &  5   &   5 \\
+		Patch size (temporal)       &  4   &   4  &  4   &   4  &  4   &   4 \\
+		Number of patches           & 375  &      & 375  &      & 375  &     \\
+		Rank of cov. matrix         & full &      & full &      & full &     \\
+		Distance threshold $\tau$   & n/a  & 432  & n/a  & 432  & n/a  & 432 \\
+		Spatial search window       & 13   & 37   & 37   & 37   & 37   & 37  \\
+		Temporal search range       & 5    & 5    & 5    & 5    & 5    & 5   \\\hline
+		Beta                        & 1    & 1    & 1    & 1    & 1    & 1   \\\hline
+	\end{tabular}
+	\end{center}
+
+\end{frame}
+
+\begin{frame}{PSNR tables - rank vs. number of patches, stage 2}
+
+	\begin{center}
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s10_army.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s10_dogdance.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s10_evergreen.eps}\\
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s10_mequon.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s10_walking.eps}
+	\end{center}
+
+\end{frame}
+
+\begin{frame}{PSNR tables - rank vs. number of patches, stage 2}
+
+	\begin{center}
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s20_army.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s20_dogdance.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s20_evergreen.eps}\\
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s20_mequon.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s20_walking.eps}
+	\end{center}
+
+\end{frame}
+
+\begin{frame}{PSNR tables - rank vs. number of patches, stage 2}
+
+	\begin{center}
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s40_army.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s40_dogdance.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s40_evergreen.eps}\\
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s40_mequon.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r2-np2-bars_s40_walking.eps}
+	\end{center}
+
+\end{frame}
+\restoreframe
+
+\multipleframe
+\begin{frame}{Running time tables - rank vs. number of patches, stage 2}
+
+	\begin{center}
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s10_army.eps}%
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s10_dogdance.eps}%
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s10_evergreen.eps}\\
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s10_mequon.eps}%
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s10_walking.eps}
+	\end{center}
+
+\end{frame}
+
+\begin{frame}{Running time tables - rank vs. number of patches, stage 2}
+
+	\begin{center}
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s20_army.eps}%
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s20_dogdance.eps}%
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s20_evergreen.eps}\\
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s20_mequon.eps}%
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s20_walking.eps}
+	\end{center}
+
+\end{frame}
+
+\begin{frame}{Running time tables - rank vs. number of patches, stage 2}
+
+	\begin{center}
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s40_army.eps}%
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s40_dogdance.eps}%
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s40_evergreen.eps}\\
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s40_mequon.eps}%
+		\includegraphics[width=.33\textwidth]{time_r2-np2-bars_s40_walking.eps}
+	\end{center}
+
+\end{frame}
+
+\begin{frame}{Conclusions - rank vs. number of patches, stage 2}
+
+	From the preceeding results, we conclude that a good trade-off between PSNR and running time
+	is given by:
+
+	\[\text{rank} = 16 \quad\text{ and }\quad n_{\text{sim}} = 160.\]
+
+\end{frame}
+\restoreframe
+
+\multipleframe
+\begin{frame}{PSNR tables - rank vs. number of patches, stage 1}
+
+	We set the following parameters fixed, and vary the rank and the number of similar
+	patches in the second step.
+
+	\begin{center}
+	\begin{tabular}{l | c c | c c | c c }
+		& \multicolumn{2}{c|}{$\sigma = 10$} 
+		& \multicolumn{2}{c|}{$\sigma = 20$} 
+		& \multicolumn{2}{c}{$\sigma = 40$} \\
+		                            & 1st  & 2nd  & 1st  & 2nd  & 1st  & 2nd \\\hline\hline
+		Patch size (spatial)        &  5   &   5  &  5   &   5  &  5   &   5 \\
+		Patch size (temporal)       &  4   &   4  &  4   &   4  &  4   &   4 \\
+		Number of patches           &      & 160  &      & 160  &      & 160 \\
+		Rank of cov. matrix         &      &  16  &      &  16  &      & 16  \\
+		Distance threshold $\tau$   & n/a  & 432  & n/a  & 432  & n/a  & 432 \\
+		Spatial search window       & 13   & 37   & 37   & 37   & 37   & 37  \\
+		Temporal search range       & 5    & 5    & 5    & 5    & 5    & 5   \\\hline
+		Beta                        & 1    & 1    & 1    & 1    & 1    & 1   \\\hline
+	\end{tabular}
+	\end{center}
+
+	\bigskip
+
+	\structure{In the following plots, the values of PSNR for the basic and
+		final estimates, obtained with the previous settings for the stage 1 (full
+		rank and $n_{\text{sim}} = 375$) are shown by two horizontal dashed
+		lines.}
+
+\end{frame}
+
+\begin{frame}{PSNR tables - rank vs. number of patches, stage 1}
+
+	\begin{center}
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s10_army.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s10_dogdance.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s10_evergreen.eps}\\
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s10_mequon.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s10_walking.eps}
+	\end{center}
+
+\end{frame}
+
+\begin{frame}{PSNR tables - rank vs. number of patches, stage 1}
+
+	\begin{center}
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s20_army.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s20_dogdance.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s20_evergreen.eps}\\
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s20_mequon.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s20_walking.eps}
+	\end{center}
+
+\end{frame}
+
+\begin{frame}{PSNR tables - rank vs. number of patches, stage 1}
+
+	\begin{center}
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s40_army.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s40_dogdance.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s40_evergreen.eps}\\
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s40_mequon.eps}%
+		\includegraphics[width=.33\textwidth]{psnr_r1-np1-bars_s40_walking.eps}
+	\end{center}
+
+\end{frame}
+\restoreframe
+
+\multipleframe
+\begin{frame}{Running time tables - rank vs. number of patches, stage 1}
+
+	\begin{center}
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s10_army.eps}%
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s10_dogdance.eps}%
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s10_evergreen.eps}\\
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s10_mequon.eps}%
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s10_walking.eps}
+	\end{center}
+
+\end{frame}
+
+\begin{frame}{Running time tables - rank vs. number of patches, stage 1}
+
+	\begin{center}
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s20_army.eps}%
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s20_dogdance.eps}%
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s20_evergreen.eps}\\
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s20_mequon.eps}%
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s20_walking.eps}
+	\end{center}
+
+\end{frame}
+
+\begin{frame}{Running time tables - rank vs. number of patches, stage 1}
+
+	\begin{center}
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s40_army.eps}%
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s40_dogdance.eps}%
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s40_evergreen.eps}\\
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s40_mequon.eps}%
+		\includegraphics[width=.33\textwidth]{time_r1-np1-bars_s40_walking.eps}
+	\end{center}
+
+\end{frame}
+
+\begin{frame}{Conclusions - rank vs. number of patches, stage 1}
+	\begin{itemize}\itemsep=2cm
+		\item We can improve the basic estimate, but we cannot improve the final estimate.
+		\item The qualitative behaviour depends on the noise level.
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{Conclusions - rank vs. number of patches, stage 1}
+	For $\sigma = 40$:
+	\begin{itemize}\itemsep=.3cm
+		\item The basic and final PSNRs increase with $n_{\text{sim}}$.
+		\item For a fixed $n_{\text{sim}}$, the basic PSRN incease when the
+			rank decreases until $r = 8$, \textbf{but the final PSNR does not change!}
+		\item The basic estimate can improve substantially w.r.t. to the
+			full rank reference, but the final estimate cannot be improved.
+		\item Best basic results seem to be obtained with $n_{\text{sim}} = 
+			600$ and $r = 8$.
+		\item Best final results seem to be obtained with $n_{\text{sim}}\in
+			[300,600]$ and $r > 8$.
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{Conclusions - rank vs. number of patches, stage 1}
+	For $\sigma = 20$:
+	\begin{itemize}\itemsep=.3cm
+		\item Excluding $n_{\text{sim}} = 600$, for a fixed
+			$n_{\text{sim}}$, the basic PSRN inceases when the rank decreases
+			until $r = 8$ (and until $r = 12$ for $n_{\text{sim}} = 300$.
+			The final PSNR does not have a clear behaviour.
+		\item For fixed $r > 8$, increasing $n_{\text{sim}}$ is beneficial for the
+			basic estimate, but not for the final estimate.
+		\item The basic estimate can improve w.r.t. to the
+			full rank reference, but the final estimate cannot be improved.
+		\item Best basic results seem to be obtained with $n_{\text{sim}} = 
+			600$ and $r = 12$.
+		\item Best final results seem to be obtained with $n_{\text{sim}}=
+			160$ and $r = 12$, or $n_{\text{sim}}=
+			300$ and $r = 16$.
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{Conclusions - rank vs. number of patches, stage 1}
+	For $\sigma = 10$:
+	\begin{itemize}\itemsep=.3cm
+		\item Since the data has more details, one cannot model large sets of patches
+			with low rank covariances as before. Increasing $n_{\text{sim}}$ now can drops
+			the quality, and this happens earlier the lower the rank.
+		\item For a fixed $n_{\text{sim}}$, decreasing the rank does not
+			improve the basic PSRN any more.
+		\item The basic and final estimates have opposing behaviours w.r.t. $n_{\text{sim}}$.
+		\item Best basic results seem to be obtained with $n_{\text{sim}} > 
+			160$ and $r > 8$.
+		\item Best final results seem to be obtained with $n_{\text{sim}}<
+			300$ and $r > 4$.
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{Conclusions - rank vs. number of patches, stage 1}
+	Based on this observations, we propose the following parameters:
+	\[r = 160\quad\quad n_{\text{sim}} = \max(15\sigma,cr).\]
+
+	Notes:
+	\begin{itemize}\itemsep=.3cm
+		\item The rank $r$ could be smaller, but there is not much difference in
+			computational time nor in PSNR. We therefore choose a more
+			conservative higher rank.
+		\item The linear relation $n_{\text{sim}} = 15\sigma$ comes from observing that
+			for good results are obtained at
+			\begin{center}
+				\begin{tabular}{l | c c c}
+					$\sigma$         &  10 &  20 &  40 \\ 
+					$n_{\text{sim}}$ & 150 & 300 & 600 
+				\end{tabular}
+			\end{center}
+		\item $c\geqslant1$ is a constant multiplying the rank. When $15\sigma$
+			is too small, we ignore the linear relation and take a fixed number of
+			patches which depend on the rank. \textbf{We should do more experiments
+			to determine an appropriate value for $c$. For the moment, we will choose
+         5.} With this choice,
+			\[
+				n_{\text{sim}} =
+				\left\{
+				\begin{array}{l l}
+					15\sigma & \text{if }\sigma \geqslant r/3\\
+					5r       & \text{if }\sigma < r/3
+				\end{array}
+				\right.
+			\]
+			For $r = 16$, $5r = 80$ and $r/3 \approx 5.33$.
+	\end{itemize}
+\end{frame}
+
+
+\restoreframe
 
 \end{document}
 
