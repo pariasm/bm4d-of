@@ -154,8 +154,9 @@ void initializeNlbParameters(
 	}
 	else
 	{
-		if(s1) o_params.beta = 1.f;
-		else   o_params.beta = (p_sigma < 50.f ? 1.2f : 1.f);
+		o_params.beta = 1.f;
+//		if(s1) o_params.beta = 1.f;
+//		else   o_params.beta = (p_sigma < 50.f ? 1.2f : 1.f);
 	}
 
 	// maximum rank of covariance matrix
@@ -570,7 +571,7 @@ void processNlBayes(
 	const float threshold = p_params.sigma * p_params.sigma * p_params.gamma *
 	                       (p_params.isFirstStep ? i_imNoisy.sz.channels : 1.f);
 
-	//! Weight sum per pixel // FIXME: only one channel
+	//! Weight sum per pixel
 	Video<float> weight(sz.width, sz.height, sz.frames, 1, 0.f);
 
 	//! Mask: true for pixels that still need to be processed
@@ -1065,12 +1066,6 @@ unsigned estimateSimilarPatchesStep2(
 
 	//! Keep only the nSimilarPatches best similar patches
 	unsigned nSimP = std::min(p_params.nSimilarPatches, (unsigned)distance.size());
-	// FIXME There seems to be a bug here. We only sort the smallest nSimP
-	// FIXME distances. Afterwards, we go through all the vector (including 
-	// FIXME the unordered part of it) and for each distance smaller than the
-	// FIXME threshold we increase the nSimP. Afterwards we keep the first 
-	// FIXME nSimP vectors of the group. This does not make sence since the 
-	// FIXME distance vector is not ordered!
 	std::partial_sort(distance.begin(), distance.begin() + nSimP,
 	                  distance.end(), comparaisonFirst);
 
@@ -1326,7 +1321,7 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 ,	const unsigned p_nSimP
 ){
 	//! Parameters initialization
-	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
+	const float sigma2 = p_params.beta * p_params.sigma * p_params.sigma;
 	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
 	                    * p_params.sizePatchTime;
 	const unsigned r    = p_params.rank;
@@ -1347,7 +1342,6 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 		int info = matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
 
 		//! Substract sigma2 and compute variance captured by the r leading eigenvectors
-		float sigma2 = p_params.sigma * p_params.sigma;
 		for (int i = 0; i < r; ++i)
 		{
 			i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
@@ -1423,7 +1417,7 @@ float computeBayesEstimateStep1_LR_SVD_LAPACK(
 ,	const unsigned p_nSimP
 ){
 	//! Parameters initialization
-	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
+	const float sigma2 = p_params.beta * p_params.sigma * p_params.sigma;
 	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
 	                    * p_params.sizePatchTime;
 	const unsigned r    = p_params.rank;
@@ -1459,7 +1453,6 @@ float computeBayesEstimateStep1_LR_SVD_LAPACK(
 		 */
 
 		//! Substract sigma2 and compute variance captured by the r leading eigenvectors
-		float sigma2 = p_params.sigma * p_params.sigma;
 		for (int i = 0; i < r; ++i)
 		{
 			// transform sing. val of noisy data matrix into eig. val of cov. matrix
@@ -1540,7 +1533,7 @@ float computeBayesEstimateStep1_LR_SVD_IDDIST(
 ,	const unsigned p_nSimP
 ){
 	//! Parameters initialization
-	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
+	const float sigma2 = p_params.beta * p_params.sigma * p_params.sigma;
 	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
 	                    * p_params.sizePatchTime;
 	const unsigned r    = p_params.rank;
@@ -1604,7 +1597,6 @@ float computeBayesEstimateStep1_LR_SVD_IDDIST(
 		}
 
 		//! Substract sigma2 and compute variance captured by the r leading eigenvectors
-		float sigma2 = p_params.sigma * p_params.sigma;
 		for (int i = 0; i < r; ++i)
 		{
 			i_mat.svd_S[i] *= i_mat.svd_S[i]/(float)p_nSimP;
@@ -1772,7 +1764,7 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 ,	const unsigned p_nSimP
 ){
 	//! Parameters initialization
-	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
+	const float sigma2 = p_params.beta * p_params.sigma * p_params.sigma;
 	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
 	                    * p_params.sizePatchTime * p_imSize.channels;
 	const unsigned r    = p_params.rank;
@@ -1798,7 +1790,6 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 		r_variance += i_mat.covEigVals[i];
 
 	//! Compute eigenvalues-based coefficients of Bayes' filter
-	float sigma2 = p_params.sigma * p_params.sigma;
 	for (unsigned k = 0; k < r; ++k)
 		i_mat.covEigVals[k] = 1.f / sqrtf( 1. + sigma2 / i_mat.covEigVals[k] );
 
@@ -1862,7 +1853,7 @@ float computeBayesEstimateStep2_LR_SVD_LAPACK(
 ,	const unsigned p_nSimP
 ){
 	//! Parameters initialization
-	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
+	const float sigma2 = p_params.beta * p_params.sigma * p_params.sigma;
 	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
 	                    * p_params.sizePatchTime * p_imSize.channels;
 	const unsigned r    = p_params.rank;
@@ -1894,7 +1885,6 @@ float computeBayesEstimateStep2_LR_SVD_LAPACK(
 	}
 
 	//! Compute eigenvalues-based coefficients of Bayes' filter
-	float sigma2 = p_params.sigma * p_params.sigma;
 	for (unsigned k = 0; k < r; ++k)
 		i_mat.svd_S[k] = 1.f / sqrtf( 1. + sigma2 / i_mat.svd_S[k] );
 
@@ -1959,7 +1949,7 @@ float computeBayesEstimateStep2_LR_SVD_IDDIST(
 ,	const unsigned p_nSimP
 ){
 	//! Parameters initialization
-	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
+	const float sigma2 = p_params.beta * p_params.sigma * p_params.sigma;
 	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
 	                    * p_params.sizePatchTime * p_imSize.channels;
 	const unsigned r    = p_params.rank;
@@ -2035,7 +2025,6 @@ float computeBayesEstimateStep2_LR_SVD_IDDIST(
 	}
 
 	//! Compute eigenvalues-based coefficients of Bayes' filter
-	float sigma2 = p_params.sigma * p_params.sigma;
 	for (unsigned k = 0; k < r; ++k)
 		i_mat.svd_S[k] = 1.f / sqrtf( 1.f + sigma2 / i_mat.svd_S[k] );
 
