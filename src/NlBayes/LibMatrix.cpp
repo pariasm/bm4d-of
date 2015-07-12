@@ -425,7 +425,7 @@ int matrixLRSVD(
 ,	std::vector<double> &i_work
 ){
 
-	int k2 = p_k;
+	int k2 = p_k + 16;
 
 	int lwinit = (2*k2 + 17)*p_n + 27*p_m + 100;
 	int lwwork = (2*k2 + 28)*p_m + (6*k2 + 21)*p_n + 25*k2*k2 + 100;
