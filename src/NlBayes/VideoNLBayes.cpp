@@ -313,9 +313,9 @@ void printNlbParameters(
  * @param p_sigma : standard deviation of the noise;
  * @param p_verbose : if true, print some informations.
  *
- * @return EXIT_FAILURE if something wrong happens during the whole process.
+ * @return Percentage of processed groups over number of pixels.
  **/
-int runNlBayes(
+std::vector<float> runNlBayes(
 	Video<float> const& i_noisy
 ,	Video<float> &o_basic
 ,	Video<float> &o_final
@@ -350,9 +350,9 @@ int runNlBayes(
  * @param p_prms1  : parameters for first  step;
  * @param p_prms2  : parameters for second step;
  *
- * @return EXIT_FAILURE if something wrong happens during the whole process.
+ * @return Percentage of processed groups over number of pixels.
  **/
-int runNlBayes(
+std::vector<float> runNlBayes(
 	Video<float> const& i_imNoisy
 ,	Video<float> &o_imBasic
 ,	Video<float> &o_imFinal
@@ -384,6 +384,9 @@ int runNlBayes(
 	if (p_prms1.verbose) printNlbParameters(p_prms1);
 	if (p_prms2.verbose) printNlbParameters(p_prms2);
 
+	//! Percentage of processed groups over total number of pixels
+	std::vector<float> groupsRatio(2,0.f);
+
 	//! Step 1
 	{
 		if (p_prms1.verbose)
@@ -404,6 +407,7 @@ int runNlBayes(
 		//! Process all sub-images
 		std::vector<Video<float> > imBasicSub(nParts);
 		std::vector<Video<float> > imFinalSub(nParts);
+		std::vector<unsigned> groupsProcessedSub(nParts);
 #ifdef _OPENMP
 		// we make a copy of prms structure because, since it is constant,
 		// it causes a compilation error with OpenMP (only on IPOL server)
@@ -413,13 +417,17 @@ int runNlBayes(
 		firstprivate (prms1)
 #endif
 		for (int n = 0; n < (int)nParts; n++)
-			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms1, imCrops[n]);
+			groupsProcessedSub[n] = 
+				processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms1, imCrops[n]);
 
 		//! Get the basic estimate
 		VideoUtils::subBuildTight(imBasicSub, o_imBasic, p_prms1.boundary);
 
 		//! YUV to RGB
 		VideoUtils::transformColorSpace(o_imBasic, false);
+
+		for (int n = 0; n < (int)nParts; n++)
+			groupsRatio[0] += 100.f * (float)groupsProcessedSub[n]/(float)imSize.whf;
 
 #ifdef DEBUG_SHOW_WEIGHT
 		{
@@ -468,6 +476,7 @@ int runNlBayes(
 
 		//! Process all sub-images
 		std::vector<Video<float> > imFinalSub(nParts);
+		std::vector<float> groupsProcessedSub(nParts);
 #ifdef _OPENMP
 		// we make a copy of prms structure because, since it is constant,
 		// it causes a compilation error with OpenMP (only on IPOL server)
@@ -477,10 +486,14 @@ int runNlBayes(
 		firstprivate (prms2)
 #endif
 		for (int n = 0; n < (int) nParts; n++)
-			processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms2, imCrops[n]);
+			groupsProcessedSub[n] = 
+				processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms2, imCrops[n]);
 
 		//! Get the final result
 		VideoUtils::subBuildTight(imFinalSub, o_imFinal, p_prms2.boundary);
+
+		for (int n = 0; n < (int)nParts; n++)
+			groupsRatio[1] += 100.f * (float)groupsProcessedSub[n]/(float)imSize.whf;
 
 #ifdef DEBUG_SHOW_WEIGHT
 		{
@@ -536,7 +549,7 @@ int runNlBayes(
 		if (p_prms2.verbose) printf("\n");
 	}
 
-	return EXIT_SUCCESS;
+	return groupsRatio;
 }
 
 /**
@@ -547,9 +560,9 @@ int runNlBayes(
  * @param o_imFinal: will contain the denoised image after the second step;
  * @param p_params: see nlbParams.
  *
- * @return none.
+ * @return Number of processed groups of similar patches.
  **/
-void processNlBayes(
+unsigned processNlBayes(
 	Video<float> const& i_imNoisy
 ,	Video<float> &io_imBasic
 ,	Video<float> &o_imFinal
@@ -654,6 +667,9 @@ void processNlBayes(
 	//! Variance captured by the principal components
 	Video<float> variance(mask.sz);
 
+	//! Total number of groups of similar patches processed
+	unsigned group_counter = 0;
+
 	if (step1)
 	{
 		//! Allocate Sizes
@@ -663,17 +679,18 @@ void processNlBayes(
 		vector<vector<float> > group(sz.channels, vector<float>(patch_num * patch_dim));
 
 		int remaining_groups = n_groups;
-		unsigned group_counter = 0;
 		for (unsigned pt = 0; pt < sz.frames; pt++)
 		for (unsigned py = 0; py < sz.height; py++)
 		for (unsigned px = 0; px < sz.width ; px++)
 			if (mask(px,py,pt)) //< Only non-seen patches are processed
 			{
+				group_counter++;
+
 				const unsigned ij  = sz.index(px,py,pt);
 				const unsigned ij3 = sz.index(px,py,pt, 0);
 				//const unsigned ij3 = (ij / sz.wh) * sz.whc + ij % sz.wh;
 
-				if (p_params.verbose && (group_counter++ % 100 == 0))
+				if (p_params.verbose && (group_counter % 100 == 0))
 				{
 					int ntiles = p_crop.ntiles_t * p_crop.ntiles_x * p_crop.ntiles_y;
 					int part_idx = p_crop.tile_t * p_crop.ntiles_x * p_crop.ntiles_y +
@@ -741,17 +758,18 @@ void processNlBayes(
 		vector<float> groupBasic(patch_num * patch_dim);
 
 		int remaining_groups = n_groups;
-		unsigned group_counter = 0;
 		for (unsigned pt = 0; pt < sz.frames; pt++)
 		for (unsigned py = 0; py < sz.height; py++)
 		for (unsigned px = 0; px < sz.width ; px++)
 			if (mask(px,py,pt)) //< Only non-seen patches are processed
 			{
+				group_counter++;
+
 				const unsigned ij  = sz.index(px,py,pt);
 				const unsigned ij3 = sz.index(px,py,pt, 0);
 				//const unsigned ij3 = (ij / sz.wh) * sz.whc + ij % sz.wh;
 
-				if (p_params.verbose && (group_counter++ % 100 == 0))
+				if (p_params.verbose && (group_counter % 100 == 0))
 				{
 					int ntiles = p_crop.ntiles_t * p_crop.ntiles_x * p_crop.ntiles_y;
 					int part_idx = p_crop.tile_t * p_crop.ntiles_x * p_crop.ntiles_y +
@@ -805,10 +823,9 @@ void processNlBayes(
 					p_crop.tile_t, 100.f, ntiles - part_idx);
 
 			std::cout << std::flush;
-
-			//printf("Processed %d groups\n", group_counter);
 		}
 	}
+
 
 	if (nInverseFailed > 0 && p_params.verbose)
 		std::cout << "nInverseFailed = " << nInverseFailed << std::endl;
@@ -833,6 +850,8 @@ void processNlBayes(
 		variance.saveVideo(name, 1, 1);
 	}
 #endif
+
+	return group_counter;
 }
 
 /**

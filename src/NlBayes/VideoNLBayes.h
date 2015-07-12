@@ -197,9 +197,9 @@ void printNlbParameters(
  * @param p_sigma : standard deviation of the noise;
  * @param p_verbose : if true, print some informations.
  *
- * @return EXIT_FAILURE if something wrong happens during the whole process.
+ * @return Percentage of processed groups over number of pixels.
  **/
-int runNlBayes(
+std::vector<float> runNlBayes(
 	Video<float> const& i_imNoisy
 ,	Video<float> &o_imBasic
 ,	Video<float> &o_imFinal
@@ -220,9 +220,9 @@ int runNlBayes(
  * @param p_params1 : parameters for first step
  * @param p_params1 : parameters for second step
  *
- * @return EXIT_FAILURE if something wrong happens during the whole process.
+ * @return Percentage of processed groups over number of pixels.
  **/
-int runNlBayes(
+std::vector<float> runNlBayes(
 	Video<float> const& i_imNoisy
 ,	Video<float> &o_imBasic
 ,	Video<float> &o_imFinal
@@ -249,9 +249,9 @@ int runNlBayes(
  *			- isFirstStep: true if it's the first step of the algorithm which is needed;
  *			- verbose: if true, print some informations, do nothing otherwise.
  *
- * @return none.
+ * @return Percentage of processed groups over number of pixels.
  **/
-void processNlBayes(
+unsigned processNlBayes(
 	Video<float> const& i_imNoisy
 ,	Video<float> &io_imBasic
 ,	Video<float> &o_imFinal

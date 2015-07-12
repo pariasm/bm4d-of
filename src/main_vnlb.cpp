@@ -151,9 +151,11 @@ int main(int argc, char **argv)
 	prms1.rank = rank1;
 	prms2.rank = rank2;
 
+	//! Percentage or processed groups of patches over total number of pixels
+	std::vector<float> groupsRatio;
 
 	//! Run denoising algorithm
-	VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2);
+	groupsRatio = VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2);
 
 	//! Compute PSNR and RMSE
 	float final_psnr, final_rmse, basic_psnr, basic_rmse;
@@ -167,8 +169,8 @@ int main(int argc, char **argv)
     }
 
 	//! Write measures
-	writingMeasures("measures.txt", sigma, basic_psnr, basic_rmse, true  , "_basic");
-	writingMeasures("measures.txt", sigma, final_psnr, final_rmse, false , "_final");
+	writingMeasures("measures.txt", sigma, basic_psnr, basic_rmse, groupsRatio[0], true  , "_basic");
+	writingMeasures("measures.txt", sigma, final_psnr, final_rmse, groupsRatio[1], false , "_final");
 
 	//! Compute Difference
 	VideoUtils::computeDiff(original, final, diff, sigma);
