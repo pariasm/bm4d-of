@@ -8,10 +8,10 @@
 % parameters
 prms.wx = 37;
 prms.wt = 2;
-prms.px = 13;
+prms.px = 9;
 prms.pt = 4;
 prms.np = 160;
-sigma = '40';
+sigma = '0';
 
 % binary that computes patch distances
 pgbin = '/home/pariasm/Work/denoising/projects/video_nlbayes3d/build/bin/patch_group';
@@ -33,7 +33,11 @@ clear seqnames first last
 seq = sequences(1);
 
 ori_pat = [orig_path seq.name '/%03d.png'];                     % ground truth
-nsy_pat = [nlb3_path seq.name '_s' sigma '_pt4/nisy_%03d.png']; % noisy
+if strcat(sigma,'0'),
+	nsy_pat = ori_pat; % noisy
+else
+	nsy_pat = [nlb3_path seq.name '_s' sigma '_pt4/nisy_%03d.png']; % noisy
+end
 bsc_pat = [nlb3_path seq.name '_s' sigma '_pt4/bsic_%03d.png']; % nlb3 pt2
 
 command = [pgbin ...
@@ -197,7 +201,7 @@ while (goon)
 	imagesc(nisy(:,:,:,frame)/255);
 	axis equal, axis off, axis(current_axes)
 	hold on
-	plot(pax, pay, '*r')
+	%plot(pax, pay, '*r')
 	hold off
 
 
