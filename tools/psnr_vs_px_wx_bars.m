@@ -1,19 +1,20 @@
 % load data
 
-basedir1 = '/media/pariasm/tera/funes/denoising/projects/video_nlbayes3d/results/vnlbayes/table_rank1_1ps5x5x4_2ps5x5x4_2wx37/';
-basedir2 = '/media/pariasm/tera/funes/denoising/projects/video_nlbayes3d/results/vnlbayes/table_rank2_1ps5x5x4_2ps5x5x4_2wx37/';
-ranks1 = [  4,   8,  12,  16,  20];
-ranks2 = [  4,   8,  12,  16,  20];
-nsim1  = [ 80, 120, 160, 300, 600];
-nsim2  = [ 40,  80, 120, 160, 375];
+rank = '64';
+basedir2 = ['/media/pariasm/tera/funes/denoising/projects/video_nlbayes3d/results/vnlbayes/'...
+            'table_sizes2_1ps5x5x4_2pt4_2r' rank '_2np160/'];
+basedir1 = ['/media/pariasm/tera/funes/denoising/projects/video_nlbayes3d/results/vnlbayes/'...
+            'table_sizes1_1ps5x5x4_2pt4_2r' rank '_2np160/'];
+searchx = [ 13, 25, 37, 49];
+patchx  = [  3,  5,  7,  9];
 
 ylims = [33,41;  % sigma 10
-         30,38;  % sigma 25
+         30,38;  % sigma 20
          28,36]; % sigma 40
 
-ylimstime = [70,400;  % sigma 10
-             70,400;  % sigma 25
-             70,400]; % sigma 40
+ylimstime = [0,2000;  % sigma 10
+             0,2000;  % sigma 20
+             0,2000]; % sigma 40
 
 % PSNR point cloud plots
 seqs = {'army', 'dogdance', 'evergreen', 'mequon', 'walking'};
@@ -23,9 +24,9 @@ step = 2;
 plot_average = true;
 plot_sequences = true;
 
-mean_final = zeros(5,5,length(sigmas));
-mean_basic = zeros(5,5,length(sigmas));
-mean_times = zeros(5,5,length(sigmas));
+mean_final = zeros(4,4,length(sigmas));
+mean_basic = zeros(4,4,length(sigmas));
+mean_times = zeros(4,4,length(sigmas));
 if step == 1,
 	mean_final_ref = zeros(1,length(sigmas));
 	mean_basic_ref = zeros(1,length(sigmas));
@@ -35,21 +36,14 @@ end
 for i = 1:length(seqs),
 for p = 1:length(sigmas),
 
-	if step == 1,
-		basedir = basedir1;
-		ranks = ranks1;
-		nsim = nsim1;
-	else
-		basedir = basedir2;
-		ranks = ranks2;
-		nsim = nsim2;
+	if step == 1, basedir = basedir1;
+	else          basedir = basedir2;
 	end
 
 	% plots of psnr
-	% rows in final indicate fixed rank, columns fixed num of patches
-	final = load([basedir 'table_fpsnr_' seqs{i} '_s' sigmas{p}]);
-	basic = load([basedir 'table_bpsnr_' seqs{i} '_s' sigmas{p}]);
-	times = load([basedir 'table_time_' seqs{i} '_s' sigmas{p}]);
+	final = load([basedir 'table_fpsnr_' seqs{i} '_s' sigmas{p}])';
+	basic = load([basedir 'table_bpsnr_' seqs{i} '_s' sigmas{p}])';
+	times = load([basedir 'table_time_' seqs{i} '_s' sigmas{p}])';
 
 	mean_final(:,:,p) = mean_final(:,:,p) + final/length(seqs);
 	mean_basic(:,:,p) = mean_basic(:,:,p) + basic/length(seqs);
@@ -58,9 +52,9 @@ for p = 1:length(sigmas),
 
 	% load reference values using default values for step 1
 	if step == 1,
-		basic2 = load([basedir2 'table_bpsnr_' seqs{i} '_s' sigmas{p}]);
-		final2 = load([basedir2 'table_fpsnr_' seqs{i} '_s' sigmas{p}]);
-		rtime2 = load([basedir2 'table_time_' seqs{i} '_s' sigmas{p}]);
+		basic2 = load([basedir2 'table_bpsnr_' seqs{i} '_s' sigmas{p}])';
+		final2 = load([basedir2 'table_fpsnr_' seqs{i} '_s' sigmas{p}])';
+		rtime2 = load([basedir2 'table_time_' seqs{i} '_s' sigmas{p}])';
 		basic_ref = basic2(4,4);
 		final_ref = final2(4,4);
 		rtime_ref = rtime2(4,4);
@@ -74,17 +68,16 @@ for p = 1:length(sigmas),
 	% plots of psnrs
 	if plot_sequences,
 		f = figure(p);
-%		set(f,'WindowStyle','docked');
+		set(f,'WindowStyle','docked');
 %		bar(final')
-%		set(gca, 'XTick', [1;2;3;4;5])
-%		set(gca, 'XTickLabel', nsim)
-%		legend(['r = ' num2str(ranks(1))],...
-%		       ['r = ' num2str(ranks(2))],...
-%		       ['r = ' num2str(ranks(3))],...
-%		       ['r = ' num2str(ranks(4))],...
-%		       ['r = ' num2str(ranks(5))],...
+%		set(gca, 'XTick', [1;2;3;4])
+%		set(gca, 'XTickLabel', patchx)
+%		legend(['r = ' num2str(searchx(1))],...
+%		       ['r = ' num2str(searchx(2))],...
+%		       ['r = ' num2str(searchx(3))],...
+%		       ['r = ' num2str(searchx(4))],...
 %				 'Location', 'Southwest');
-%		xlabel('n_{sim}')
+%		xlabel('s_x')
 		bar(final,1), hold on
 		bar(basic, .6), 
 		if step == 1,
@@ -104,17 +97,16 @@ for p = 1:length(sigmas),
 			set(bars_h(ii+size(basic,2)), 'FaceColor', final_color)
 		end
 
-		set(gca, 'XTick', [1;2;3;4;5])
-		set(gca, 'XTickLabel', ranks)
+		set(gca, 'XTick', [1;2;3;4])
+		set(gca, 'XTickLabel', searchx)
 		[legend_h, object_h, plot_h, text_h] = ...
-		legend(['n_{sim} = ' num2str(nsim(1))],...
-				 ['n_{sim} = ' num2str(nsim(2))],...
-				 ['n_{sim} = ' num2str(nsim(3))],...
-				 ['n_{sim} = ' num2str(nsim(4))],...
-				 ['n_{sim} = ' num2str(nsim(5))],...
+		legend(['s_x = ' num2str(patchx(1))],...
+				 ['s_x = ' num2str(patchx(2))],...
+				 ['s_x = ' num2str(patchx(3))],...
+				 ['s_x = ' num2str(patchx(4))],...
 				 'Location', 'North',...
 				 'Orientation', 'horizontal');
-		xlabel('rank')
+		xlabel('w_x')
 		ylabel('PSNR')
 		ylim(ylims(p,:))
 		title(['sigma ' sigmas{p} ' ' seqs{i}])
@@ -122,25 +114,24 @@ for p = 1:length(sigmas),
 		box on
 
 
-		if step == 1, print(gcf, '-depsc2', ['psnr_r1-np1-bars' '_s' sigmas{p} '_' seqs{i} ])
-		else          print(gcf, '-depsc2', ['psnr_r2-np2-bars' '_s' sigmas{p} '_' seqs{i} ])
+		if step == 1, print(gcf, '-depsc2', ['psnr_wx1-px1-bars_r' rank '_s' sigmas{p} '_' seqs{i} ])
+		else          print(gcf, '-depsc2', ['psnr_wx2-px2-bars_r' rank '_s' sigmas{p} '_' seqs{i} ])
 		end
 
 
 
 		% plots of times
 		f = figure(p + length(sigmas));
-%		set(f,'WindowStyle','docked');
+		set(f,'WindowStyle','docked');
 %		bar(times')
-%		set(gca, 'XTick', [1;2;3;4;5])
-%		set(gca, 'XTickLabel', nsim)
-%		legend(['r = ' num2str(ranks(1))],...
-%		       ['r = ' num2str(ranks(2))],...
-%		       ['r = ' num2str(ranks(3))],...
-%		       ['r = ' num2str(ranks(4))],...
-%		       ['r = ' num2str(ranks(5))],...
+%		set(gca, 'XTick', [1;2;3;4])
+%		set(gca, 'XTickLabel', patchx)
+%		legend(['r = ' num2str(searchx(1))],...
+%		       ['r = ' num2str(searchx(2))],...
+%		       ['r = ' num2str(searchx(3))],...
+%		       ['r = ' num2str(searchx(4))],...
 %				 'Location', 'Northwest');
-%		xlabel('n_{sim}')
+%		xlabel('s_x')
 		bar_h = bar(times,1);
 		if step == 1,
 			hold on
@@ -155,30 +146,28 @@ for p = 1:length(sigmas),
 			set(bars_h(ii), 'FaceColor', final_color)
 		end
 
-		set(gca, 'XTick', [1;2;3;4;5])
-		set(gca, 'XTickLabel', ranks)
-		legend(bar_h, 5, ['n_{sim} = ' num2str(nsim(1))],...
-					  ['n_{sim} = ' num2str(nsim(2))],...
-					  ['n_{sim} = ' num2str(nsim(3))],...
-					  ['n_{sim} = ' num2str(nsim(4))],...
-					  ['n_{sim} = ' num2str(nsim(5))],...
+		set(gca, 'XTick', [1;2;3;4])
+		set(gca, 'XTickLabel', searchx)
+		legend(bar_h, 4, ['s_x = ' num2str(patchx(1))],...
+		                 ['s_x = ' num2str(patchx(2))],...
+		                 ['s_x = ' num2str(patchx(3))],...
+		                 ['s_x = ' num2str(patchx(4))],...
 					  'Location', 'north',...
 					  'Orientation', 'horizontal');
-%		legend(['n_{sim} = ' num2str(nsim(1))],...
-%		       ['n_{sim} = ' num2str(nsim(2))],...
-%		       ['n_{sim} = ' num2str(nsim(3))],...
-%		       ['n_{sim} = ' num2str(nsim(4))],...
-%		       ['n_{sim} = ' num2str(nsim(5))],...
+%		legend(['s_x = ' num2str(patchx(1))],...
+%		       ['s_x = ' num2str(patchx(2))],...
+%		       ['s_x = ' num2str(patchx(3))],...
+%		       ['s_x = ' num2str(patchx(4))],...
 %				 'Location', 'Northwest');
-		xlabel('rank')
+		xlabel('w_x')
 		ylim(ylimstime(p,:))
 		ylabel('computation time')
 		title(['sigma ' sigmas{p} ' ' seqs{i}])
 		grid on
 		box on
 
-		if step == 1, print(gcf, '-depsc2', ['time_r1-np1-bars' '_s' sigmas{p} '_' seqs{i} ])
-		else          print(gcf, '-depsc2', ['time_r2-np2-bars' '_s' sigmas{p} '_' seqs{i} ])
+		if step == 1, print(gcf, '-depsc2', ['time_wx1-px1-bars_r' rank '_s' sigmas{p} '_' seqs{i} ])
+		else          print(gcf, '-depsc2', ['time_wx2-px2-bars_r' rank '_s' sigmas{p} '_' seqs{i} ])
 		end
 	end
 
@@ -191,21 +180,21 @@ if plot_average,
 if step == 1,
 
 	ylims = [34,39;  % sigma 10
-				31,36;  % sigma 25
+				31,36;  % sigma 20
 				28,33]; % sigma 40
 
-	ylimstime = [50,350;  % sigma 10
-					 50,350;  % sigma 25
-					 50,350]; % sigma 40
+	ylimstime = [0,2000;  % sigma 10
+					 0,2000;  % sigma 20
+					 0,2000]; % sigma 40
 else
 
 	ylims = [34,39;  % sigma 10
-				32,37;  % sigma 25
+				32,37;  % sigma 20
 				29,34]; % sigma 40
 
-	ylimstime = [100,400;  % sigma 10
-					 100,400;  % sigma 25
-					 100,400]; % sigma 40
+	ylimstime = [0,2000;  % sigma 10
+					 0,2000;  % sigma 20
+					 0,2000]; % sigma 40
 end
 
 for p = 1:length(sigmas),
@@ -235,8 +224,8 @@ for p = 1:length(sigmas),
 		set(bars_h(ii+size(basic,2)), 'FaceColor', final_color)
 	end
 
-	set(gca, 'XTick', [1;2;3;4;5])
-	set(gca, 'XTickLabel', ranks)
+	set(gca, 'XTick', [1;2;3;4])
+	set(gca, 'XTickLabel', searchx)
 
 	ylim(ylims(p,:))
 	yticks = get(gca,'YTickLabel');
@@ -251,18 +240,17 @@ for p = 1:length(sigmas),
 	box on
 
 	[legend_h, object_h, plot_h, text_h] = ...
-	legend(['n_{sim} = ' num2str(nsim(1))],...
-	       ['n_{sim} = ' num2str(nsim(2))],...
-	       ['n_{sim} = ' num2str(nsim(3))],...
-	       ['n_{sim} = ' num2str(nsim(4))],...
-	       ['n_{sim} = ' num2str(nsim(5))],...
+	legend(['s_x = ' num2str(patchx(1))],...
+	       ['s_x = ' num2str(patchx(2))],...
+	       ['s_x = ' num2str(patchx(3))],...
+	       ['s_x = ' num2str(patchx(4))],...
 			 'Location', 'North',...
 	       'Orientation', 'horizontal');
-	xlabel('rank')
+	xlabel('w_x')
 	ylabel('PSNR')
 
-	if step == 1, print(gcf, '-depsc2', ['psnr_r1-np1-bars' '_s' sigmas{p} '_average' ])
-	else          print(gcf, '-depsc2', ['psnr_r2-np2-bars' '_s' sigmas{p} '_average' ])
+	if step == 1, print(gcf, '-depsc2', ['psnr_wx1-px1-bars_r' rank '_s' sigmas{p} '_average' ])
+	else          print(gcf, '-depsc2', ['psnr_wx2-px2-bars_r' rank '_s' sigmas{p} '_average' ])
 	end
 
 	% plots of times
@@ -281,23 +269,22 @@ for p = 1:length(sigmas),
 		set(bars_h(ii), 'FaceColor', final_color)
 	end
 
-	set(gca, 'XTick', [1;2;3;4;5])
-	set(gca, 'XTickLabel', ranks)
-	legend(bar_h, 5, ['n_{sim} = ' num2str(nsim(1))],...
-	           ['n_{sim} = ' num2str(nsim(2))],...
-	           ['n_{sim} = ' num2str(nsim(3))],...
-	           ['n_{sim} = ' num2str(nsim(4))],...
-	           ['n_{sim} = ' num2str(nsim(5))],...
-			     'Location', 'north',...
-				  'Orientation', 'horizontal');
-	xlabel('rank')
+	set(gca, 'XTick', [1;2;3;4])
+	set(gca, 'XTickLabel', searchx)
+	legend(bar_h, ['s_x = ' num2str(patchx(1))],...
+	              ['s_x = ' num2str(patchx(2))],...
+	              ['s_x = ' num2str(patchx(3))],...
+	              ['s_x = ' num2str(patchx(4))],...
+	              'Location', 'north',...
+	              'Orientation', 'horizontal');
+	xlabel('w_x')
 	ylim(ylimstime(p,:))
 	ylabel('computation time')
 	set(gca, 'ygrid', 'on')
 	box on
 
-	if step == 1, print(gcf, '-depsc2', ['time_r1-np1-bars' '_s' sigmas{p} '_average' ])
-	else          print(gcf, '-depsc2', ['time_r2-np2-bars' '_s' sigmas{p} '_average' ])
+	if step == 1, print(gcf, '-depsc2', ['time_wx1-px1-bars_r' rank '_s' sigmas{p} '_average' ])
+	else          print(gcf, '-depsc2', ['time_wx2-px2-bars_r' rank '_s' sigmas{p} '_average' ])
 	end
 
 end
