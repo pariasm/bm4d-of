@@ -37,7 +37,7 @@
 //#define USE_SVD_LAPACK
 //#define USE_SVD_IDDIST
 
-#define DEBUG_SHOW_WEIGHT
+//#define DEBUG_SHOW_WEIGHT
 //#define DEBUG_SHOW_PATCH_GROUPS
 //#define CENTRED_SEARCH
 
@@ -126,7 +126,8 @@ void initializeNlbParameters(
 
 	//! Offset: step between two similar patches
 	o_params.offSet     = std::max((unsigned)1, o_params.sizePatch     / 2);
-	o_params.offSetTime = std::max((unsigned)1, o_params.sizePatchTime / 2);
+//	o_params.offSetTime = std::max((unsigned)1, o_params.sizePatchTime / 2);
+	o_params.offSetTime = 1;
 
 	//! Use the homogeneous area detection trick
 	o_params.useHomogeneousArea = p_flatArea;
@@ -1354,67 +1355,81 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 		//! Center 3D group
 		centerData(io_group[c], i_mat.baricenter, p_nSimP, sPC);
 
-		//! Compute the covariance matrix of the set of similar patches
-		covarianceMatrix(io_group[c], i_mat.covMat, p_nSimP, sPC);
-
-		//! Compute leading eigenvectors
-		int info = matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
-
-		//! Substract sigma2 and compute variance captured by the r leading eigenvectors
-		for (int i = 0; i < r; ++i)
+		if (r > 0)
 		{
-			i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
-			rank_variance  += i_mat.covEigVals[i];
-			total_variance += i_mat.covEigVals[i];
+			//! Compute the covariance matrix of the set of similar patches
+			covarianceMatrix(io_group[c], i_mat.covMat, p_nSimP, sPC);
+
+			//! Compute leading eigenvectors
+			int info = matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
+
+			//! Substract sigma2 and compute variance captured by the r leading eigenvectors
+			for (int i = 0; i < r; ++i)
+			{
+				i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
+				rank_variance  += i_mat.covEigVals[i];
+				total_variance += i_mat.covEigVals[i];
+			}
+
+			for (int i = r; i < sPC; ++i)
+			{
+				i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
+				total_variance += i_mat.covEigVals[i];
+			}
+
+			//! Compute eigenvalues-based coefficients of Bayes' filter
+			for (unsigned k = 0; k < r; ++k)
+				i_mat.covEigVals[k] = 1.f / sqrtf( 1. + sigma2 / i_mat.covEigVals[k] );
+
+			//! Scale eigenvectors using the filter coefficients
+			float *eigVecs = i_mat.covEigVecs.data();
+			for (unsigned k = 0; k < r  ; ++k)
+			for (unsigned i = 0; i < sPC; ++i)
+				*eigVecs++ *= i_mat.covEigVals[k];
+
+			/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
+			 * row a patch. Thus, in column-major storage it corresponds to X^T, where
+			 * each column of X contains a centered data point.
+			 *
+			 * We need to compute the noiseless estimage hX as 
+			 * hX = U * U' * X
+			 * where U is the matrix with the normalized eigenvectors.
+			 *
+			 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
+			 * we compute 
+			 * hX' = X' * U * U'
+			 */
+
+			//! Z' = X'*U
+			productMatrix(i_mat.groupTranspose,
+							  io_group[c],
+							  i_mat.covEigVecs,
+							  p_nSimP, r, sPC,
+							  false, false);
+
+			//! hX' = Z'*U'
+			productMatrix(io_group[c],
+							  i_mat.groupTranspose,
+							  i_mat.covEigVecs,
+							  p_nSimP, sPC, r,
+							  false, true);
+
+			//! Add baricenter
+			for (unsigned j = 0, k = 0; j < sPC; j++)
+				for (unsigned i = 0; i < p_nSimP; i++, k++)
+					io_group[c][k] += i_mat.baricenter[j];
+		}
+		else
+		{
+			//! rank = 0: set as baricenter
+			for (unsigned j = 0, k = 0; j < sPC; j++)
+				for (unsigned i = 0; i < p_nSimP; i++, k++)
+					io_group[c][k] = i_mat.baricenter[j];
+
+			//! Avoid 0/0 in return statement
+			total_variance = 1.f;
 		}
 
-		for (int i = r; i < sPC; ++i)
-		{
-			i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
-			total_variance += i_mat.covEigVals[i];
-		}
-
-		//! Compute eigenvalues-based coefficients of Bayes' filter
-		for (unsigned k = 0; k < r; ++k)
-			i_mat.covEigVals[k] = 1.f / sqrtf( 1. + sigma2 / i_mat.covEigVals[k] );
-
-		//! Scale eigenvectors using the filter coefficients
-		float *eigVecs = i_mat.covEigVecs.data();
-		for (unsigned k = 0; k < r  ; ++k)
-		for (unsigned i = 0; i < sPC; ++i)
-			*eigVecs++ *= i_mat.covEigVals[k];
-
-		/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
-		 * row a patch. Thus, in column-major storage it corresponds to X^T, where
-		 * each column of X contains a centered data point.
-		 *
-		 * We need to compute the noiseless estimage hX as 
-		 * hX = U * U' * X
-		 * where U is the matrix with the normalized eigenvectors.
-		 *
-		 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
-		 * we compute 
-		 * hX' = X' * U * U'
-		 */
-
-		//! Z' = X'*U
-		productMatrix(i_mat.groupTranspose,
-						  io_group[c],
-						  i_mat.covEigVecs,
-						  p_nSimP, r, sPC,
-						  false, false);
-
-		//! hX' = Z'*U'
-		productMatrix(io_group[c],
-						  i_mat.groupTranspose,
-						  i_mat.covEigVecs,
-						  p_nSimP, sPC, r,
-						  false, true);
-
-		//! Add baricenter
-		for (unsigned j = 0, k = 0; j < sPC; j++)
-			for (unsigned i = 0; i < p_nSimP; i++, k++)
-				io_group[c][k] += i_mat.baricenter[j];
 	}
 
 	// return percentage of captured variance
@@ -1792,63 +1807,74 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 	centerData( i_groupBasic, i_mat.baricenter, p_nSimP, sPC);
 	centerData(io_groupNoisy, i_mat.baricenter, p_nSimP, sPC);
 
-	//! Compute the covariance matrix of the set of similar patches
-	covarianceMatrix(i_groupBasic, i_mat.covMat, p_nSimP, sPC);
-
-	//! Compute total variance
-	float total_variance = 0.f;
-	for (int i = 0; i < sPC; ++i)
-		total_variance += i_mat.covMat[i*sPC + i];
-
-	//! Compute leading eigenvectors
-	int info = matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
-
-	//! Compute variance captured by the r leading eigenvectors
 	float r_variance = 0.f;
-	for (int i = 0; i < r; ++i)
-		r_variance += i_mat.covEigVals[i];
+	float total_variance = 1.f;
 
-	//! Compute eigenvalues-based coefficients of Bayes' filter
-	for (unsigned k = 0; k < r; ++k)
-		i_mat.covEigVals[k] = 1.f / sqrtf( 1. + sigma2 / i_mat.covEigVals[k] );
+	if (r > 0)
+	{
+		//! Compute the covariance matrix of the set of similar patches
+		covarianceMatrix(i_groupBasic, i_mat.covMat, p_nSimP, sPC);
 
-	//! Scale eigenvectors using the filter coefficients
-	float *eigVecs = i_mat.covEigVecs.data();
-	for (unsigned k = 0; k < r  ; ++k)
-	for (unsigned i = 0; i < sPC; ++i)
-		*eigVecs++ *= i_mat.covEigVals[k];
+		//! Compute total variance
+		total_variance = 0.f;
+		for (int i = 0; i < sPC; ++i)
+			total_variance += i_mat.covMat[i*sPC + i];
 
-	/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
-	 * row a patch. Thus, in column-major storage it corresponds to X^T, where
-	 * each column of X contains a centered data point.
-	 *
-	 * We need to compute the noiseless estimage hX as 
-	 * hX = U * U' * X
-	 * where U is the matrix with the normalized eigenvectors.
-	 *
-	 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
-	 * we compute 
-	 * hX' = X' * U * U'
-	 */
+		//! Compute leading eigenvectors
+		int info = matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
 
-	//! Z' = X'*U
-	productMatrix(i_mat.groupTranspose,
-	              io_groupNoisy,
-	              i_mat.covEigVecs,
-	              p_nSimP, r, sPC,
-	              false, false);
+		//! Compute variance captured by the r leading eigenvectors
+		for (int i = 0; i < r; ++i)
+			r_variance += i_mat.covEigVals[i];
 
-	//! hX' = Z'*U'
-	productMatrix(io_groupNoisy,
-	              i_mat.groupTranspose,
-	              i_mat.covEigVecs,
-	              p_nSimP, sPC, r,
-	              false, true);
+		//! Compute eigenvalues-based coefficients of Bayes' filter
+		for (unsigned k = 0; k < r; ++k)
+			i_mat.covEigVals[k] = 1.f / sqrtf( 1. + sigma2 / i_mat.covEigVals[k] );
 
-	//! Add baricenter
-	for (unsigned j = 0, k = 0; j < sPC; j++)
-		for (unsigned i = 0; i < p_nSimP; i++, k++)
-			io_groupNoisy[k] += i_mat.baricenter[j];
+		//! Scale eigenvectors using the filter coefficients
+		float *eigVecs = i_mat.covEigVecs.data();
+		for (unsigned k = 0; k < r  ; ++k)
+		for (unsigned i = 0; i < sPC; ++i)
+			*eigVecs++ *= i_mat.covEigVals[k];
+
+		/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
+		 * row a patch. Thus, in column-major storage it corresponds to X^T, where
+		 * each column of X contains a centered data point.
+		 *
+		 * We need to compute the noiseless estimage hX as 
+		 * hX = U * U' * X
+		 * where U is the matrix with the normalized eigenvectors.
+		 *
+		 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
+		 * we compute 
+		 * hX' = X' * U * U'
+		 */
+
+		//! Z' = X'*U
+		productMatrix(i_mat.groupTranspose,
+						  io_groupNoisy,
+						  i_mat.covEigVecs,
+						  p_nSimP, r, sPC,
+						  false, false);
+
+		//! hX' = Z'*U'
+		productMatrix(io_groupNoisy,
+						  i_mat.groupTranspose,
+						  i_mat.covEigVecs,
+						  p_nSimP, sPC, r,
+						  false, true);
+
+		//! Add baricenter
+		for (unsigned j = 0, k = 0; j < sPC; j++)
+			for (unsigned i = 0; i < p_nSimP; i++, k++)
+				io_groupNoisy[k] += i_mat.baricenter[j];
+	}
+	else
+		//! r = 0: set all patches as baricenter
+		for (unsigned j = 0, k = 0; j < sPC; j++)
+			for (unsigned i = 0; i < p_nSimP; i++, k++)
+				io_groupNoisy[k] = i_mat.baricenter[j];
+
 
 	// return percentage of captured variance
 	return r_variance / total_variance;
