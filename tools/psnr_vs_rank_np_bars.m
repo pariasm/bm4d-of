@@ -1,13 +1,11 @@
 % load data
 
-% basedir = '/media/pariasm/tera/funes/denoising/projects/video_nlbayes3d/results/vnlbayes/table_rank2_1ps5x5x4_2ps5x5x4_2wx37/';
-% ranks = [  4,   8,  12,  16,  20];
-% nsim  = [ 40,  80, 120, 160, 375];
-
-basedir2 = '/media/pariasm/tera/funes/denoising/projects/video_nlbayes3d/results/vnlbayes/table_rank2_1ps5x5x4_2ps5x5x4_2wx37/';
 basedir1 = '/media/pariasm/tera/funes/denoising/projects/video_nlbayes3d/results/vnlbayes/table_rank1_1ps5x5x4_2ps5x5x4_2wx37/';
-ranks = [  4,   8,  12,  16,  20];
-nsim  = [ 80, 120, 160, 300, 600];
+basedir2 = '/media/pariasm/tera/funes/denoising/projects/video_nlbayes3d/results/vnlbayes/table_rank2_1ps5x5x4_2ps5x5x4_2wx37/';
+ranks1 = [  4,   8,  12,  16,  20];
+ranks2 = [  4,   8,  12,  16,  20];
+nsim1  = [ 80, 120, 160, 300, 600];
+nsim2  = [ 40,  80, 120, 160, 375];
 
 ylims = [33,41;  % sigma 10
          30,38;  % sigma 25
@@ -21,9 +19,9 @@ ylimstime = [70,400;  % sigma 10
 seqs = {'army', 'dogdance', 'evergreen', 'mequon', 'walking'};
 sigmas = {'10', '20', '40'};
 
-step = 1;
+step = 2;
 plot_average = true;
-plot_sequences = false;
+plot_sequences = true;
 
 mean_final = zeros(5,5,length(sigmas));
 mean_basic = zeros(5,5,length(sigmas));
@@ -37,8 +35,14 @@ end
 for i = 1:length(seqs),
 for p = 1:length(sigmas),
 
-	if step == 1, basedir = basedir1;
-	else          basedir = basedir2;
+	if step == 1,
+		basedir = basedir1;
+		ranks = ranks1;
+		nsim = nsim1;
+	else
+		basedir = basedir2;
+		ranks = ranks2;
+		nsim = nsim2;
 	end
 
 	% plots of psnr
