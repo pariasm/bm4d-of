@@ -622,10 +622,11 @@ that need to be processed by a factor of $N_{\text{sim}}$.
 \subsection{Computational complexity}
 \label{sec:complexity}
 
-Let us consider the complexity associated to the building and filtering of a
-group of $N_{\text{sim}}$ similar patches. Due to the speed-ups described in
-the previous section, the actual number of groups of similar patches processed
-might vary, but it is typically a fraction of the number of pixels in the video.
+Let us consider the complexity of constructing and filtering a group of
+$N_{\text{sim}}$ similar patches. Due to the speed-ups described in the
+previous section, the actual number of groups of similar patches processed
+might vary between a $1\%$ and a $10\%$ of the total number of pixels in the
+video. 
 
 Processing each group of similar patches is of asymptotic order $\mathcal
 O(n_x^2 n_t s_x^2 s_t + s_x^4s_t^2r + N_{\text{sim}}s_x^4s_t^2)$.
@@ -635,7 +636,7 @@ The second term comes from the computation of the truncated eigen-decomposition
 of the covariance matrix, and the last term contemplates computing the
 covariance matrix.
 
-The more expensive operations are the computation of the covariance matrix and
+The most expensive operations are the computation of the covariance matrix and
 of its principal directions.
 Let us note that there are methods for computing the $r$ principal directions
 of a set of points that do not require computing the covariance matrix\todo{referencia}. Instead
@@ -648,8 +649,8 @@ s_t + s_x^2s_trN_{\text{sim}})$.
 \subsection{Selection of parameters}
 \label{sec:parameters}
 
-Each stage of the algorithm has the following 6 parameters: the spatial and temporal patch sizes
-$s_x$ and $s_t$, the spatial and temporal sizes of the search region $w_x$ and
+Each stage of the algorithm has the following 6 parameters: the spatial and temporal components of the patch size
+$s_x$ and $s_t$, the spatial and temporal components of the search region $w_x$ and
 $w_t$, the number of similar patches $n_{\text{sim}}$ and the rank of the a priori
 covariance matrix $r$. Each of these parameters needs to be determined for both
 stages.
@@ -666,40 +667,59 @@ w_x = 37 \quad \text{ and } \quad w_t = 5.
 If the patch in the center of the search region moves slower than $37/5 = 7.4$
 pixels/frame, then it stays in the search region for the $5$ frames.
 
-\paragraph{Patch size} We have found that the
+\paragraph{Patch size} Let us consider first the spatial patch
+size $s_x$. The impact of a variation of the $s_x$ in the results
+depends on the value of the rank parameter. For instance, if the rank is set
+too low, then increasing the patch size has a negative effect on the results.
+For sufficiently high rank, increasing the size of the patch leads on average
+to an improvement of the results. This improvement however comes at a considerable
+increase in the computation time, since our current implementation is $\mathcal
+O(s_x^4)$.  We have found that a good trade-off between computation time and
+quality is given by $s_x = 5$.
 
-\paragraph{Patch size, rank and number of similar patches} We have found that the
-final PSNR has a non-trivial behaviour with respect to any of these parameters.
-To set them, we explore the parameter space varying the rank $r$, the spatial
-patch size $s_x$ and the number of similar patches $n_{\text{sim}}$. The reduce
-the dimensionality of the parameter space, for the moment we fix the temporal
-patch size at $s_t = 3$.
+The impact of the temporal patch size $s_t$ will be discussed later in Section \ref{sec:results}.
 
-First we fix the parameters of the second stage at 
-\[r = 16,\,\, n_{\text{sim}} = 160,\,\, s_x = 5,\,\, s_t = 3,\,\, w_x = 37,\,\, w_t = 5,\]
-and vary the parameters of the first stage. We considered ranks $r = 8, 16, 32, 64$,   
-patch sizes $s_x = 3,5,7,9$ and number of patches $n_{\text{sim}} = 80, 160, 320, 640$.
-For all $4^3 = 64$ combinations, we considered three levels of noise $\sigma = 10, 20, 40$
-and run our method on four sequences. The
-sequences used were \emph{army, dog dance, evergreen} and \emph{walking} from
-the Middlebury optical flow benchmark \cite{middleburyOflow}.
-The sequences have 8 frames of size $584 \times 388$ (\emph{army}) and $640
-\times 480$ (\emph{dog dance, evergreen} and \emph{walking}).
-These sequences were chosen to have some variety of motions, textures, etc.
+\paragraph{Rank and number of similar patches} These parameters are intimately linked.
+Intuitively, smaller groups obtained by keeping only the most similar patches have 
+only a few modes of variation and thus are better modelled with a low rank
+covariance matrix. As the group of patches grows bigger, patches in the group
+are not as similar anymore, and a higher rank is needed to model these additional 
+variation.
+To find appropriate values for these parameters, we compute denoising results
+varying the rank $r$ and the number of similar patches $n_{\text{sim}}$, while
+keeping all other parameters fixed. Results are computed for four 20 frames clips
+extracted from the sequences \emph{bus}, \emph{foreman}, \emph{football} and
+\emph{tennis}, adding noise of $\sigma = 10, 20, 40$.
+%
+We do this for each stage, starting by the second.
 
-Figure \ref{fig:rank-px-nsim-table-stage1} shows for each configuration of
-parameters and level of noise, the average PSNR over the four sequences. The
-cyan bars correspond to the basic estimate and the ones in magenta to the final
-estimate.
+On this first experiment, the parameters of the first stage are fixed at:
+\[w_x = 37,\,\,w_t = 5\,\,s_x = 5,\,\,s_t = 4,\,\,n_{\text{sim}} = 375,\,\,r = 100.\]
+\todo{Check these parameters}
+Note that $r = 100$ is the full rank.
+For the second stage, we fix $w_x = 37$, $w_t = 5$, $s_x = 5$ and $s_t = 3$, while varying 
+$r$ in $10,20,\dots,80$ and $n_{\text{sim}}$ in $50, 150,200,250$.
+The results can be visualized in Figure \ref{fig:rank-nsim-image-stage2}. The images in the 
+figure show the PSNR loss in dB with respect to the maximum value attained at each noise level.
+White means 0dB (\ie the set of parameters where the maximum was attained) and black means a loss
+greater or equal than 1dB.
 
-It can be observed that several parameter configurations can give very similar
-results. For example, with $\sigma = 10$, equivalent results can be obtained 
-with $s_x = 3, r = 16, n_{\text{sim}} = 80$, $s_x = 5, r = 32, n_{\text{sim}} = 160$
-or  $s_x = 7, r = 64, n_{\text{sim}} = 320$.
-The one with the least computational cost is chosen. This means,
-smaller patches sizes, smaller ranks, and a larger number of similar patches.
+We can observe that, at constant $n_{\text{sim}}$ there is an optimal value for the rank. Bellow
+these value the PSNR drops sharply, and above it, the decay is slower. The
+optimal rank for a given $n_{\text{sim}}$ increases with $n_{\text{sim}}$ and decreases with $\sigma$.
+Best results are obtained for small $n_{\text{sim}}$. However, this also entails a higher running time, 
+since it increases the number of groups of similar patches that need to be
+processed. We found a good compromise by setting $n_{\text{sim}} = 150$ and $r$ as a decreasing function of $\sigma$:
+\[r(\sigma) = 40 - \frac1{10}(\sigma - 40),\]
+which corresponds to a line through $(s=10, r = 40)$ and $(s=40, r = 30)$.
 
-Another thing to notice is that the final and the basic PSNRs do not always
+We now perform a similar search for the first stage, setting the second step parameters as:
+\[w_x = 37,\,\,w_t = 5\,\,s_x = 5,\,\,s_t = 3,\,\,n_{\text{sim}} = 150,\,\,r(\sigma).\]
+The first stage parameters are as before, expect that we now vary $r$ in $10,20,\dots,100$
+and $n_{\text{sim}}$ in $50,100,\dots,650$. Results are shown in Figure
+\ref{fig:rank-nsim-image-stage1}. Note that since our objective is to maximize
+the final PSNR, we show here the final PSNR. 
+The final and the basic PSNRs do not always
 have the same behaviour. Improving the basic PSNR does not always lead to an
 improvement in the final one. The reason for this is that it is preferable to
 apply a conservative noise reduction leaving some noise in the basic estimate
@@ -709,40 +729,84 @@ matrix. On the other hand, applying a more aggressive denoising in first step
 might increase the basic PSNR, but the second step cannot recover the lost
 signal components.
 
-The strength of the denoising is controlled through the rank and the number of
-patches in the group. For lower levels of noise, \ie $\sigma = 10$, better
-PSRNs can be achieved with a higher rank and using a smaller number of similar
-patches. When increasing the noise, the rank should be decreased and the number 
-of similar patches increased.
-
-In accordance to these observations, we will set the parameters as a function of
-$\sigma$ as follows:
+In fact, best results are obtained using the full rank covariance matrix. 
+In accordance to these observations, we will set the first values for $r$ and $n_{\text{sim}}$ as:
 \begin{equation}
-	s_t = 5,\quad\quad r = \min(640/\sigma, r_{\text{max}}), \quad\quad n_{\text{sim}} = 16\sigma.
+	r = s_x^2s_t \quad\quad n_{\text{sim}} = 350.
 	\label{eq:stage1_parameters}
 \end{equation}
-%\begin{align}
-%	s_t &= 5\\
-%	r &= \min(640/\sigma, r_{\text{max}}) \\
-%	n_{\text{sim}} &= 16\sigma. 
+
+%
+%
+%
+%First we fix the parameters of the second stage at 
+%\[r = 16,\,\, n_{\text{sim}} = 160,\,\, s_x = 5,\,\, s_t = 3,\,\, w_x = 37,\,\, w_t = 5,\]
+%and vary the parameters of the first stage. We considered ranks $r = 8, 16, 32, 64$,   
+%patch sizes $s_x = 3,5,7,9$ and number of patches $n_{\text{sim}} = 80, 160, 320, 640$.
+%For all $4^3 = 64$ combinations, we considered three levels of noise $\sigma = 10, 20, 40$
+%and run our method on four sequences. The
+%sequences used were \emph{army, dog dance, evergreen} and \emph{walking} from
+%the Middlebury optical flow benchmark \cite{middleburyOflow}.
+%The sequences have 8 frames of size $584 \times 388$ (\emph{army}) and $640
+%\times 480$ (\emph{dog dance, evergreen} and \emph{walking}).
+%These sequences were chosen to have some variety of motions, textures, etc.
+%
+%Figure \ref{fig:rank-px-nsim-table-stage1} shows for each configuration of
+%parameters and level of noise, the average PSNR over the four sequences. The
+%cyan bars correspond to the basic estimate and the ones in magenta to the final
+%estimate.
+%
+%It can be observed that several parameter configurations can give very similar
+%results. For example, with $\sigma = 10$, equivalent results can be obtained 
+%with $s_x = 3, r = 16, n_{\text{sim}} = 80$, $s_x = 5, r = 32, n_{\text{sim}} = 160$
+%or  $s_x = 7, r = 64, n_{\text{sim}} = 320$.
+%The one with the least computational cost is chosen. This means,
+%smaller patches sizes, smaller ranks, and a larger number of similar patches.
+%
+%Another thing to notice is that the final and the basic PSNRs do not always
+%have the same behaviour. Improving the basic PSNR does not always lead to an
+%improvement in the final one. The reason for this is that it is preferable to
+%apply a conservative noise reduction leaving some noise in the basic estimate
+%(high variance but small bias). In the second step, this residual noise has
+%little effect on the estimation of the patch distances and the \emph{a priori} covariance
+%matrix. On the other hand, applying a more aggressive denoising in first step
+%might increase the basic PSNR, but the second step cannot recover the lost
+%signal components.
+%
+%The strength of the denoising is controlled through the rank and the number of
+%patches in the group. For lower levels of noise, \ie $\sigma = 10$, better
+%PSRNs can be achieved with a higher rank and using a smaller number of similar
+%patches. When increasing the noise, the rank should be decreased and the number 
+%of similar patches increased.
+%
+%In accordance to these observations, we will set the parameters as a function of
+%$\sigma$ as follows:
+%\begin{equation}
+%	s_t = 5,\quad\quad r = \min(640/\sigma, r_{\text{max}}), \quad\quad n_{\text{sim}} = 16\sigma.
 %	\label{eq:stage1_parameters}
-%\end{align}
-We set the maximum rank to be $r_{\text{max}} = \min(128,s_x^2s_t)$. Note that
-$r = s_x^2s_t$ corresponds to the full rank.
-
-We now search for the optimum parameters for the second stage, setting the 
-first stage parameters according to \eqref{eq:stage1_parameters}. The temporal
-patch size is again set as $s_t = 3$ for both stages and the search regions are
-kept as in \eqref{eq:search_region_parameters}. Figure
-\ref{fig:rank-px-nsim-table-stage2} shows the average PSNRs over the four
-sequences, obtained for each parameter configuration and each noise level.
-
-From these results, we fix the parameters as follows:
-\begin{equation}
-	s_x = 5,\quad r = \max( \min(320/\sigma, r_{\text{max}}), r_{\text{min}}), \quad n_{\text{sim}} = 160.
-	\label{eq:stage1_parameters}
-\end{equation}
-For the second stage, we set $r_{\text{max}} = \min(64,s_x^2s_t)$ and $r_{\text{min}} = 16$.
+%\end{equation}
+%%\begin{align}
+%%	s_t &= 5\\
+%%	r &= \min(640/\sigma, r_{\text{max}}) \\
+%%	n_{\text{sim}} &= 16\sigma. 
+%%	\label{eq:stage1_parameters}
+%%\end{align}
+%We set the maximum rank to be $r_{\text{max}} = \min(128,s_x^2s_t)$. Note that
+%$r = s_x^2s_t$ corresponds to the full rank.
+%
+%We now search for the optimum parameters for the second stage, setting the 
+%first stage parameters according to \eqref{eq:stage1_parameters}. The temporal
+%patch size is again set as $s_t = 3$ for both stages and the search regions are
+%kept as in \eqref{eq:search_region_parameters}. Figure
+%\ref{fig:rank-px-nsim-table-stage2} shows the average PSNRs over the four
+%sequences, obtained for each parameter configuration and each noise level.
+%
+%From these results, we fix the parameters as follows:
+%\begin{equation}
+%	s_x = 5,\quad r = \max( \min(320/\sigma, r_{\text{max}}), r_{\text{min}}), \quad n_{\text{sim}} = 160.
+%	\label{eq:stage1_parameters}
+%\end{equation}
+%For the second stage, we set $r_{\text{max}} = \min(64,s_x^2s_t)$ and $r_{\text{min}} = 16$.
 
 
 
@@ -881,8 +945,6 @@ For the second stage, we set $r_{\text{max}} = \min(64,s_x^2s_t)$ and $r_{\text{
 % tau
 % offset
 
-\paragraph{Temporal patch size} 
-
 \begin{table*}[htp!]
 	\begin{center}
 		{%\small
@@ -896,98 +958,60 @@ For the second stage, we set $r_{\text{max}} = \min(64,s_x^2s_t)$ and $r_{\text{
 			                      & V-BM3D               & \bsic{     } &       39.45  & \bsic{     } &       40.18  & \bsic{     } &       40.16  & \bsic{     } &       39.07  & \bsic{     } &              & \bsic{     } &              \\
 			                      & V-BM4D-tip           & \bsic{     } & \best{39.98} & \bsic{     } & \best{41.13} & \bsic{     } & \best{41.38} & \bsic{     } & \best{40.21} & \bsic{     } & \best{     } & \bsic{     } & \best{     } \\
 			                      & V-BM4D-mp            & \bsic{39.61} &       39.60  & \bsic{40.20} &       40.28  & \bsic{40.73} &       40.78  & \bsic{39.45} &       39.56  & \bsic{39.91} &       40.00  & \bsic{todo } &       todo   \\
-%			                      & V-BM4D-np            & \bsic{toto } &       31.67  & \bsic{toto } &       32.24  & \bsic{toto } &       33.34  & \bsic{toto } &       30.95  & \bsic{toto } &       30.95  & \bsic{toto } &       30.95  \\
-%			                      & VNLB $n_t = 0$       & \bsic{toto } &       30.65  & \bsic{toto } &       32.70  & \bsic{toto } &       33.64  & \bsic{toto } &       31.39  & \bsic{toto } &       31.39  & \bsic{toto } &       31.39  \\
-%			                      & VNLB $n_t = 3$       & \bsic{toto } &       31.26  & \bsic{toto } &       33.35  & \bsic{toto } &       34.25  & \bsic{toto } &       32.11  & \bsic{toto } &       32.11  & \bsic{toto } &       32.11  \\
-%			                      & VNLB $n_t = 5$       & \bsic{todo } &       todo   & \bsic{todo } & \best{todo } & \bsic{todo } &       todo   & \bsic{todo } & \best{todo } & \bsic{todo } & \best{todo } & \bsic{todo } & \best{todo } \\
-%			                      & VNLB   $s_t = 1$     & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   \\
-%			                      & VNLB   $s_t = 2$     & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   \\
-%			                      & VNLB   $s_t = 3$     & \bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   \\
-			                      & VNLB   $s_t = 4$     & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } \\\hline
+			                      & VNLB   $s_t = 1$     & \bsic{38.73} &       39.26  & \bsic{40.90} &       41.38  & \bsic{41.19} &       41.82  & \bsic{39.85} &       40.32  & \bsic{41.10} &       41.64  & \bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 2$     & \bsic{39.56} &       40.05  & \bsic{41.61} &       42.08  & \bsic{41.75} &       42.42  & \bsic{40.10} &       40.73  & \bsic{41.29} &       41.88  & \bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 3$     & \bsic{39.82} &       40.16  & \Bsic{41.75} &       42.39  & \Bsic{41.85} &       42.57  & \Bsic{40.16} &       40.96  & \Bsic{41.27} &       41.85  & \Bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 4$     & \Bsic{39.92} & \Best{40.03} & \Bsic{41.76} & \Best{42.41} & \Bsic{41.84} & \Best{42.48} & \Bsic{40.18} & \Best{40.92} & \Bsic{41.23} & \Best{41.67} & \Bsic{todo } & \Best{todo } \\\hline
 %                                                                                                                                                                                                                                         
 			\multirow{1}{*}{$10$}
 %			                      & CIFIC                & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              \\
 			                      & V-BM3D               & \bsic{     } &       36.04  & \bsic{     } &       36.82  & \bsic{     } &       37.52  & \bsic{     } &       34.96  & \bsic{     } &              & \bsic{     } &              \\
 			                      & V-BM4D-tip           & \bsic{     } & \best{36.42} & \bsic{     } & \best{37.27} & \bsic{     } &       37.92  & \bsic{     } &       36.23  & \bsic{     } &              & \bsic{     } &              \\
 			                      & V-BM4D-mp            & \bsic{35.64} &       35.90  & \bsic{36.06} &       36.30  & \bsic{36.96} &       37.21  & \bsic{35.10} &       35.38  & \bsic{35.79} &       36.08  & \bsic{todo } &       todo   \\
-%			                      & V-BM4D-np            & \bsic{toto } &       35.56  & \bsic{toto } &       36.20  & \bsic{toto } &       36.90  & \bsic{toto } &       35.09  & \bsic{toto } &       35.09  & \bsic{toto } &       35.09  \\
-%			                      & VNLB $n_t = 0$       & \bsic{toto } &       34.43  & \bsic{toto } &       36.70  & \bsic{toto } &       37.21  & \bsic{toto } &       35.58  & \bsic{toto } &       35.58  & \bsic{toto } &       35.58  \\
-%			                      & VNLB $n_t = 3$       & \bsic{toto } &       35.04  & \bsic{toto } &       37.19  & \bsic{toto } &       37.88  & \bsic{toto } &       36.19  & \bsic{toto } &       36.19  & \bsic{toto } &       36.19  \\
-%			                      & VNLB $n_t = 5$       & \bsic{34.51} &       35.28  & \bsic{36.80} & \best{37.30} & \bsic{37.22} & \best{38.11} & \bsic{35.43} & \best{36.37} & \bsic{todo } & \best{todo } & \bsic{todo } & \best{todo } \\
-%			                      & VNLB   $s_t = 1$     & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   \\
-%			                      & VNLB   $s_t = 2$     & \bsic{35.65} &       36.19  & \bsic{37.42} &       38.05  & \Bsic{37.86} &       38.74  & \Bsic{35.80} &       36.63  & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   \\
-%			                      & VNLB   $s_t = 3$     & \bsic{35.94} &       36.51  & \Bsic{37.57} &       38.35  & \Bsic{37.94} &       38.95  & \Bsic{35.86} &       36.79  & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   \\
-			                      & VNLB   $s_t = 4$     & \Bsic{36.02} & \Best{36.65} & \Bsic{37.53} & \Best{38.46} & \Bsic{37.85} & \Best{38.99} & \Bsic{35.86} & \Best{36.85} & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } \\\hline
+			                      & VNLB   $s_t = 1$     & \bsic{34.54} &       35.16  & \bsic{36.81} &       37.23  & \bsic{37.25} &       38.01  & \bsic{35.47} &       36.21  & \bsic{36.88} &       37.69  & \bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 2$     & \bsic{35.67} &       36.28  & \bsic{37.42} &       38.10  & \Bsic{37.87} &       38.82  & \Bsic{35.82} &       36.69  & \Bsic{37.11} &       38.02  & \Bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 3$     & \bsic{35.94} &       36.61  & \Bsic{37.56} &       38.50  & \Bsic{37.93} &       39.08  & \Bsic{35.88} &       36.98  & \Bsic{37.03} &       38.08  & \Bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 4$     & \Bsic{36.02} & \Best{36.73} & \Bsic{37.50} & \Best{38.64} & \Bsic{37.83} & \Best{39.12} & \Bsic{35.87} & \Best{37.11} & \Bsic{36.91} & \Best{38.03} & \Bsic{todo } & \Best{todo } \\\hline
 %                                                                                                                                                                                                                                         
 			\multirow{1}{*}{$15$}
 			                      & CIFIC                & \bsic{     } &       32.76  & \bsic{     } &              & \bsic{     } &              & \bsic{     } &       33.47  & \bsic{     } &       31.59  & \bsic{     } &              \\
 %			                      & V-BM3D               & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              \\
 %			                      & V-BM4D-tip           & \bsic{     } & \best{     } & \bsic{     } & \best{     } & \bsic{     } & \best{     } & \bsic{     } & \best{     } & \bsic{     } & \best{     } & \bsic{     } & \best{     } \\
 			                      & V-BM4D-mp            & \bsic{33.10} &       33.67  & \bsic{33.66} &       34.05  & \bsic{34.78} &       35.17  & \bsic{32.59} &       33.02  & \bsic{33.34} &       33.82  & \bsic{todo } &       todo   \\
-%			                      & V-BM4D-np            & \bsic{toto } &       31.67  & \bsic{toto } &       32.24  & \bsic{toto } &       33.34  & \bsic{toto } &       30.95  & \bsic{toto } &       30.95  & \bsic{toto } &       30.95  \\
-%			                      & VNLB $n_t = 0$       & \bsic{toto } &       30.65  & \bsic{toto } &       32.70  & \bsic{toto } &       33.64  & \bsic{toto } &       31.39  & \bsic{toto } &       31.39  & \bsic{toto } &       31.39  \\
-%			                      & VNLB $n_t = 3$       & \bsic{toto } &       31.26  & \bsic{toto } &       33.35  & \bsic{toto } &       34.25  & \bsic{toto } &       32.11  & \bsic{toto } &       32.11  & \bsic{toto } &       32.11  \\
-%			                      & VNLB $n_t = 5$       & \bsic{todo } &       todo   & \bsic{todo } & \best{todo } & \bsic{todo } &       todo   & \bsic{todo } & \best{todo } & \bsic{todo } & \best{todo } & \bsic{todo } & \best{todo } \\
-%			                      & VNLB   $s_t = 1$     & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   \\
-%			                      & VNLB   $s_t = 2$     & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   \\
-%			                      & VNLB   $s_t = 3$     & \bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   \\
-			                      & VNLB   $s_t = 4$     & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } \\\hline
+			                      & VNLB   $s_t = 1$     & \bsic{32.31} &       32.94  & \bsic{34.32} &       34.95  & \bsic{35.06} &       35.97  & \bsic{33.04} &       33.83  & \bsic{34.62} &       35.50  & \bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 2$     & \bsic{33.36} &       34.12  & \bsic{35.24} &       36.03  & \bsic{35.74} &       36.82  & \bsic{33.39} &       34.29  & \bsic{34.83} &       35.83  & \bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 3$     & \bsic{33.59} &       34.58  & \Bsic{35.33} &       36.38  & \Bsic{35.74} &       37.05  & \Bsic{33.42} &       34.57  & \Bsic{34.72} &       35.88  & \Bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 4$     & \Bsic{33.64} & \Best{34.78} & \Bsic{35.21} & \Best{36.52} & \Bsic{35.57} & \Best{37.11} & \Bsic{33.37} & \Best{34.76} & \Bsic{34.54} & \Best{35.86} & \Bsic{todo } & \Best{todo } \\\hline
 %                                                                                                                                                                                                                                         
 			\multirow{1}{*}{$20$}
 %			                      & CIFIC                & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              \\
 			                      & V-BM3D               & \bsic{     } &       32.54  & \bsic{     } &       33.39  & \bsic{     } &       34.49  & \bsic{     } &       31.03  & \bsic{     } &              & \bsic{     } &              \\
 			                      & V-BM4D-tip           & \bsic{     } & \best{32.88} & \bsic{     } & \best{33.61} & \bsic{     } & \best{34.62} & \bsic{     } & \best{32.27} & \bsic{     } & \best{     } & \bsic{     } & \best{     } \\
 			                      & V-BM4D-mp            & \bsic{31.33} &       31.98  & \bsic{31.91} &       32.44  & \bsic{33.16} &       33.70  & \bsic{30.81} &       31.34  & \bsic{31.58} &       32.22  & \bsic{todo } &       todo   \\
-%			                      & V-BM4D-np            & \bsic{toto } &       31.67  & \bsic{toto } &       32.24  & \bsic{toto } &       33.34  & \bsic{toto } &       30.95  & \bsic{toto } &       30.95  & \bsic{toto } &       30.95  \\
-%			                      & VNLB $n_t = 0$       & \bsic{toto } &       30.65  & \bsic{toto } &       32.70  & \bsic{toto } &       33.64  & \bsic{toto } &       31.39  & \bsic{toto } &       31.39  & \bsic{toto } &       31.39  \\
-%			                      & VNLB $n_t = 3$       & \bsic{toto } &       31.26  & \bsic{toto } &       33.35  & \bsic{toto } &       34.25  & \bsic{toto } &       32.11  & \bsic{toto } &       32.11  & \bsic{toto } &       32.11  \\
-%			                      & VNLB $n_t = 5$       & \bsic{30.76} &       31.49  & \bsic{32.94} & \best{33.55} & \bsic{33.69} &       34.45  & \bsic{31.58} & \best{32.35} & \bsic{todo } & \best{todo } & \bsic{todo } & \best{todo } \\
-%			                      & VNLB   $s_t = 1$     & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   \\
-%			                      & VNLB   $s_t = 2$     & \bsic{32.12} &       32.56  & \bsic{33.98} &       34.30  & \bsic{34.55} &       35.32  & \bsic{32.11} &       32.71  & \bsic{todo } &       todo   & \bsic{todo } &       todo   \\
-%			                      & VNLB   $s_t = 3$     & \bsic{32.52} &       33.00  & \Bsic{34.15} &       34.60  & \Bsic{34.71} &       35.64  & \Bsic{32.26} &       32.97  & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   \\
-			                      & VNLB   $s_t = 4$     & \Bsic{32.67} & \Best{33.22} & \Bsic{34.15} & \Best{34.78} & \Bsic{34.63} & \Best{35.75} & \Bsic{32.30} & \Best{33.12} & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } \\\hline
+			                      & VNLB   $s_t = 1$     & \bsic{30.78} &       31.38  & \bsic{32.95} &       33.45  & \bsic{33.71} &       34.37  & \bsic{31.60} &       32.19  & \bsic{33.20} &       33.85  & \bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 2$     & \bsic{32.13} &       32.69  & \bsic{33.98} &       34.36  & \bsic{34.55} &       35.41  & \bsic{32.13} &       32.80  & \bsic{33.52} &       34.27  & \bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 3$     & \bsic{32.53} &       33.12  & \Bsic{34.14} &       34.74  & \Bsic{34.69} &       35.75  & \Bsic{32.27} &       33.13  & \Bsic{33.50} &       34.35  & \Bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 4$     & \Bsic{32.67} & \Best{33.32} & \Bsic{34.13} & \Best{34.92} & \Bsic{34.60} & \Best{35.86} & \Bsic{32.31} & \Best{33.34} & \Bsic{33.41} & \Best{34.34} & \Bsic{todo } & \Best{todo } \\\hline
 %                                                                                                                                                                                                                                         
 			\multirow{1}{*}{$25$}
 			                      & CIFIC                & \bsic{     } &       29.74  & \bsic{     } &              & \bsic{     } &              & \bsic{     } &       30.48  & \bsic{     } &       28.82  & \bsic{     } &              \\
 %			                      & V-BM3D               & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              \\
 %			                      & V-BM4D-tip           & \bsic{     } & \best{     } & \bsic{     } & \best{     } & \bsic{     } & \best{     } & \bsic{     } & \best{     } & \bsic{     } & \best{     } & \bsic{     } & \best{     } \\
 			                      & V-BM4D-mp            & \bsic{30.01} &       30.73  & \bsic{30.60} &       31.24  & \bsic{31.91} &       32.59  & \bsic{29.46} &       30.07  & \bsic{30.22} &       30.96  & \bsic{todo } &       todo   \\
-%			                      & V-BM4D-np            & \bsic{toto } &       31.67  & \bsic{toto } &       32.24  & \bsic{toto } &       33.34  & \bsic{toto } &       30.95  & \bsic{toto } &       30.95  & \bsic{toto } &       30.95  \\
-%			                      & VNLB $n_t = 0$       & \bsic{toto } &       30.65  & \bsic{toto } &       32.70  & \bsic{toto } &       33.64  & \bsic{toto } &       31.39  & \bsic{toto } &       31.39  & \bsic{toto } &       31.39  \\
-%			                      & VNLB $n_t = 3$       & \bsic{toto } &       31.26  & \bsic{toto } &       33.35  & \bsic{toto } &       34.25  & \bsic{toto } &       32.11  & \bsic{toto } &       32.11  & \bsic{toto } &       32.11  \\
-%			                      & VNLB $n_t = 5$       & \bsic{todo } &       todo   & \bsic{todo } & \best{todo } & \bsic{todo } &       todo   & \bsic{todo } & \best{todo } & \bsic{todo } & \best{todo } & \bsic{todo } & \best{todo } \\
-%			                      & VNLB   $s_t = 1$     & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   \\
-%			                      & VNLB   $s_t = 2$     & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   \\
-%			                      & VNLB   $s_t = 3$     & \bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   \\
-			                      & VNLB   $s_t = 4$     & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } \\\hline
+			                      & VNLB   $s_t = 1$     & \bsic{29.67} &       30.27  & \bsic{31.51} &       32.18  & \bsic{32.43} &       33.30  & \bsic{30.39} &       30.95  & \bsic{31.92} &       32.74  & \bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 2$     & \bsic{30.88} &       31.57  & \bsic{32.79} &       33.40  & \bsic{33.46} &       34.30  & \bsic{30.89} &       31.50  & \bsic{32.34} &       33.16  & \bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 3$     & \bsic{31.30} &       32.05  & \Bsic{33.00} &       33.73  & \Bsic{33.60} &       34.61  & \Bsic{31.01} &       31.83  & \Bsic{32.32} &       33.22  & \Bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 4$     & \Bsic{31.44} & \Best{32.30} & \Bsic{32.97} & \Best{33.88} & \Bsic{33.51} & \Best{34.73} & \Bsic{31.02} & \Best{32.05} & \Bsic{32.20} & \Best{33.21} & \Bsic{todo } & \Best{todo } \\\hline
 %                                                                                                                                                                                                                                         
-%			\multirow{1}{*}{$30$}
-%			                      & CIFIC                & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              \\
-%			                      & V-BM3D               & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              \\
-%			                      & V-BM4D-tip           & \bsic{     } & \best{     } & \bsic{     } & \best{     } & \bsic{     } & \best{     } & \bsic{     } & \best{     } & \bsic{     } & \best{     } & \bsic{     } & \best{     } \\
-%			                      & V-BM4D-mp            & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   \\
-%%			                      & V-BM4D-np            & \bsic{toto } &       31.67  & \bsic{toto } &       32.24  & \bsic{toto } &       33.34  & \bsic{toto } &       30.95  & \bsic{toto } &       30.95  & \bsic{toto } &       30.95  \\
-%%			                      & VNLB $n_t = 0$       & \bsic{toto } &       30.65  & \bsic{toto } &       32.70  & \bsic{toto } &       33.64  & \bsic{toto } &       31.39  & \bsic{toto } &       31.39  & \bsic{toto } &       31.39  \\
-%%			                      & VNLB $n_t = 3$       & \bsic{toto } &       31.26  & \bsic{toto } &       33.35  & \bsic{toto } &       34.25  & \bsic{toto } &       32.11  & \bsic{toto } &       32.11  & \bsic{toto } &       32.11  \\
-%%			                      & VNLB $n_t = 5$       & \bsic{todo } &       todo   & \bsic{todo } & \best{todo } & \bsic{todo } &       todo   & \bsic{todo } & \best{todo } & \bsic{todo } & \best{todo } & \bsic{todo } & \best{todo } \\
-%%			                      & VNLB   $s_t = 1$     & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   \\
-%%			                      & VNLB   $s_t = 2$     & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   \\
-%%			                      & VNLB   $s_t = 3$     & \bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   \\
-%			                      & VNLB   $s_t = 4$     & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } \\\hline
-%%                                                                                                                                                                                                                                         
 			\multirow{1}{*}{$40$}
 %			                      & CIFIC                & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              & \bsic{     } &              \\
 			                      & V-BM3D               & \bsic{     } &       29.20  & \bsic{     } & \best{29.99} & \bsic{     } &       31.17  & \bsic{     } &       27.34  & \bsic{     } &              & \bsic{     } &              \\
 			                      & V-BM4D-tip           & \bsic{     } & \best{29.52} & \bsic{     } & \best{30.00} & \bsic{     } & \best{31.30} & \bsic{     } &       28.32  & \bsic{     } &              & \bsic{     } &              \\
 			                      & V-BM4D-mp            & \bsic{27.34} &       28.14  & \bsic{27.81} &       28.73  & \bsic{29.01} &       30.09  & \bsic{26.67} &       27.44  & \bsic{27.45} &       28.35  & \bsic{todo } &       todo   \\
-%			                      & V-BM4D-np            & \bsic{toto } &       27.97  & \bsic{toto } &       28.43  & \bsic{toto } &       29.69  & \bsic{toto } &       27.02  & \bsic{toto } &       27.02  & \bsic{toto } &       27.02  \\
-%			                      & VNLB $n_t = 0$       & \bsic{toto } &       27.43  & \bsic{toto } &       28.88  & \bsic{toto } &       30.15  & \bsic{toto } &       27.60  & \bsic{toto } &       27.60  & \bsic{toto } &       27.60  \\
-%			                      & VNLB $n_t = 3$       & \bsic{toto } &       27.97  & \bsic{toto } &       29.60  & \bsic{toto } &       30.72  & \bsic{toto } &       28.23  & \bsic{toto } &       28.23  & \bsic{toto } &       28.23  \\
-%			                      & VNLB $n_t = 5$       & \bsic{27.17} &       28.11  & \bsic{28.81} &       29.78  & \bsic{29.72} &       30.82  & \bsic{27.65} & \best{28.40} & \bsic{todo } & \best{todo } & \bsic{todo } & \best{todo } \\
-%			                      & VNLB   $s_t = 1$     & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   & \bsic{todo } &       todo   \\
-%			                      & VNLB   $s_t = 2$     & \bsic{28.44} &       29.28  & \bsic{30.18} &       30.94  & \bsic{30.87} &       32.00  & \bsic{28.21} &       28.96  & \bsic{todo } &       todo   & \bsic{todo } &       todo   \\
-%			                      & VNLB   $s_t = 3$     & \Bsic{28.86} &       29.73  & \Bsic{30.43} &       31.23  & \Bsic{31.03} &       32.39  & \Bsic{28.32} &       29.23  & \Bsic{todo } &       todo   & \Bsic{todo } &       todo   \\
-			                      & VNLB   $s_t = 4$     & \Bsic{28.99} & \Best{29.96} & \Bsic{30.40} & \Best{31.34} & \Bsic{30.95} & \Best{32.55} & \Bsic{28.31} & \Best{29.39} & \Bsic{todo } & \Best{todo } & \Bsic{todo } & \Best{todo } \\\hline
+			                      & VNLB   $s_t = 1$     & \bsic{27.17} &       28.04  & \bsic{28.80} &       29.72  & \bsic{29.72} &       30.85  & \bsic{27.64} &       28.32  & \bsic{29.13} &       30.11  & \bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 2$     & \bsic{28.43} &       29.38  & \bsic{30.16} &       31.03  & \bsic{30.84} &       32.09  & \bsic{28.21} &       29.07  & \bsic{29.63} &       30.67  & \bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 3$     & \Bsic{28.84} &       29.83  & \Bsic{30.40} &       31.32  & \Bsic{30.99} &       32.50  & \Bsic{28.31} &       29.38  & \Bsic{29.64} &       30.76  & \Bsic{todo } &       todo   \\
+			                      & VNLB   $s_t = 4$     & \Bsic{28.97} & \Best{30.05} & \Bsic{30.36} & \Best{31.45} & \Bsic{30.89} & \Best{32.65} & \Bsic{28.29} & \Best{29.57} & \Bsic{29.52} & \Best{30.76} & \Bsic{todo } & \Best{todo } \\\hline
 		\end{tabular}}
 	\end{center}
 % Command to print rounded psnrs
