@@ -1357,6 +1357,10 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 		//! Compute the covariance matrix of the set of similar patches
 		covarianceMatrix(io_group[c], i_mat.covMat, p_nSimP, sPC);
 
+		//! Estimate total variance
+		for (int i = 0; i < sPC; ++i)
+			total_variance += std::max(i_mat.covMat[i*sPC + i] - sigma2, 0.f);
+
 		//! Compute leading eigenvectors
 		int info = matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
 
@@ -1364,37 +1368,26 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 		for (int i = 0; i < r; ++i)
 		{
 			i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
+//			i_mat.covEigVals[i] -= sigma2;
 			rank_variance  += i_mat.covEigVals[i];
-			total_variance += i_mat.covEigVals[i];
-		}
-
-		for (int i = r; i < sPC; ++i)
-		{
-			i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
-			total_variance += i_mat.covEigVals[i];
 		}
 
 		//! Compute eigenvalues-based coefficients of Bayes' filter
 		for (unsigned k = 0; k < r; ++k)
-			i_mat.covEigVals[k] = 1.f / sqrtf( 1. + sigma2 / i_mat.covEigVals[k] );
-
-		//! Scale eigenvectors using the filter coefficients
-		float *eigVecs = i_mat.covEigVecs.data();
-		for (unsigned k = 0; k < r  ; ++k)
-		for (unsigned i = 0; i < sPC; ++i)
-			*eigVecs++ *= i_mat.covEigVals[k];
+			i_mat.covEigVals[k] = 1.f / ( 1. + sigma2 / i_mat.covEigVals[k] );
 
 		/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
 		 * row a patch. Thus, in column-major storage it corresponds to X^T, where
 		 * each column of X contains a centered data point.
 		 *
 		 * We need to compute the noiseless estimage hX as 
-		 * hX = U * U' * X
-		 * where U is the matrix with the normalized eigenvectors.
+		 * hX = U * W * U' * X
+		 * where U is the matrix with the eigenvectors and W is a diagonal matrix
+		 * with the filter coefficients.
 		 *
 		 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
 		 * we compute 
-		 * hX' = X' * U * U'
+		 * hX' = X' * U * (W * U')
 		 */
 
 		//! Z' = X'*U
@@ -1404,7 +1397,13 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 						  p_nSimP, r, sPC,
 						  false, false);
 
-		//! hX' = Z'*U'
+		//! U * W
+		float *eigVecs = i_mat.covEigVecs.data();
+		for (unsigned k = 0; k < r  ; ++k)
+		for (unsigned i = 0; i < sPC; ++i)
+			*eigVecs++ *= i_mat.covEigVals[k];
+
+		//! hX' = Z'*(U*W)'
 		productMatrix(io_group[c],
 						  i_mat.groupTranspose,
 						  i_mat.covEigVecs,
@@ -1810,25 +1809,20 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 
 	//! Compute eigenvalues-based coefficients of Bayes' filter
 	for (unsigned k = 0; k < r; ++k)
-		i_mat.covEigVals[k] = 1.f / sqrtf( 1. + sigma2 / i_mat.covEigVals[k] );
-
-	//! Scale eigenvectors using the filter coefficients
-	float *eigVecs = i_mat.covEigVecs.data();
-	for (unsigned k = 0; k < r  ; ++k)
-	for (unsigned i = 0; i < sPC; ++i)
-		*eigVecs++ *= i_mat.covEigVals[k];
+		i_mat.covEigVals[k] = 1.f / ( 1. + sigma2 / i_mat.covEigVals[k] );
 
 	/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
 	 * row a patch. Thus, in column-major storage it corresponds to X^T, where
 	 * each column of X contains a centered data point.
 	 *
 	 * We need to compute the noiseless estimage hX as 
-	 * hX = U * U' * X
-	 * where U is the matrix with the normalized eigenvectors.
+	 * hX = U * W * U' * X
+	 * where U is the matrix with the eigenvectors and W is a diagonal matrix
+	 * with the filter coefficients.
 	 *
 	 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
 	 * we compute 
-	 * hX' = X' * U * U'
+	 * hX' = X' * U * (W * U')
 	 */
 
 	//! Z' = X'*U
@@ -1838,7 +1832,13 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 	              p_nSimP, r, sPC,
 	              false, false);
 
-	//! hX' = Z'*U'
+	//! U * W
+	float *eigVecs = i_mat.covEigVecs.data();
+	for (unsigned k = 0; k < r  ; ++k)
+	for (unsigned i = 0; i < sPC; ++i)
+		*eigVecs++ *= i_mat.covEigVals[k];
+
+	//! hX' = Z'*(U*W)'
 	productMatrix(io_groupNoisy,
 	              i_mat.groupTranspose,
 	              i_mat.covEigVecs,
