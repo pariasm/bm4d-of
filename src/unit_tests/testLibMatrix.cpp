@@ -102,9 +102,17 @@ int main(int argc, char **argv)
 	const int i_lastFrame  = clo_option("-l", 0, "Last frame");
 	const int i_frameStep  = clo_option("-s", 1, "Frame step");
 	const int i_sigma      = clo_option("-sigma", 0, "Add noise of standard deviation sigma");
-	const unsigned px      = clo_option("-px", 0, "Current point of analysis");
-	const unsigned py      = clo_option("-py", 0, "Current point of analysis");
-	const unsigned pt      = clo_option("-pt", 0, "Current point of analysis");
+	const unsigned px      = clo_option("-PAx", 0, "Point of analysis");
+	const unsigned py      = clo_option("-PAy", 0, "Point of analysis");
+	const unsigned pt      = clo_option("-PAt", 0, "Point of analysis");
+
+	//! Video NLB parameters relevant to the computation of distances
+	const int time_search  = clo_option("-wt", 2, "> Search window temporal radius");
+	const int space_search = clo_option("-wx",-1, "> Search window spatial  radius");
+	const int patch_sizex  = clo_option("-px",-1, "> Spatial  patch size");
+	const int patch_sizet  = clo_option("-pt", 1, "> Temporal patch size");
+	const int num_patches  = clo_option("-np",-1, "> Number of similar patches");
+	const int rank         = clo_option("-r" ,-1, "> Covariance matrix rank");
 
 	//! Load video
 	Video<float> vid_ori;
@@ -118,16 +126,22 @@ int main(int argc, char **argv)
 		using std::vector;
 
 		//! RGB to YUV
-		Video<float> vid(vid_ori);
+		Video<float> vid;
+		VideoUtils::addNoise(vid_ori, vid, i_sigma, 1);
 		VideoUtils::transformColorSpace(vid, true);
 
 		//! Initialize parameter structures
-		VideoNLB::nlbParams prms1, prms2;
+		VideoNLB::nlbParams prms1;
 		{
-			VideoNLB::initializeNlbParameters(prms1, 1, i_sigma, vid.sz, 0, 1);
-			VideoNLB::initializeNlbParameters(prms2, 2, i_sigma, vid.sz, 0, 1);
+			//! Initialize parameter structures
+			VideoNLB::initializeNlbParameters(prms1, 1, i_sigma, vid.sz, 0, 1, time_search, time_search, patch_sizet);
+
+			//! Override with command line parameters
+			if (space_search >= 0) VideoNLB::setSizeSearchWindow(prms1, (unsigned)space_search);
+			if (patch_sizex  >= 0) VideoNLB::setSizePatch(prms1, vid.sz, (unsigned)patch_sizex);;
+			if (num_patches  >= 0) VideoNLB::setNSimilarPatches(prms1, (unsigned)num_patches);
+
 			VideoNLB::printNlbParameters(prms1);
-			VideoNLB::printNlbParameters(prms2);
 		}
 
 		//! Used matrices during Bayes' estimate
@@ -175,7 +189,7 @@ int main(int argc, char **argv)
 		print_matrix(patch_stack[channel], patch_dim, n_similar, "/tmp/data_matrix.asc");
 
 		//! Compute first 4 eigenvectors and eigenvalues
-		const int r = 4;
+		const int r = rank;
 		int info = matrixEigs(mat.covMat, patch_dim, r, mat.covEigVals, mat.covEigVecs);
 
 		printf("matrixEigs exited with status: %d\n", info);
@@ -195,25 +209,25 @@ int main(int argc, char **argv)
 		print_matrix(mat.svd_U , min_dim, patch_dim, "/tmp/svdU.asc");
 		print_matrix(mat.svd_VT, min_dim, n_similar, "/tmp/svdVT.asc");
 
-		//! Compute LR SVD with ID
-		{
-			mat.svd_ddata.resize(patch_stack[channel].size());
-			std::vector<double>::iterator ddata = mat.svd_ddata.begin();
-			std::vector<float >::iterator fdata = patch_stack[channel].begin();
-			for (int i = 0; i < patch_stack[channel].size(); ++i)
-				*ddata++ = (double)*fdata++;
-		}
-		const int l = 10;
-		printf("size ddata = %d\n",(int)mat.svd_ddata.size());
-		int info_lrsvd = matrixLRSVD(mat.svd_ddata, patch_dim, n_similar, r + l,
-		                             mat.svd_dS, mat.svd_dV, mat.svd_dU,
-		                             mat.svd_dwork);
-
-		printf("matrixLRSVD exited with status: %d\n", info);
-
-		print_matrix(mat.svd_dS, r + l, 1        , "/tmp/svddS.asc");
-		print_matrix(mat.svd_dU, r + l, patch_dim, "/tmp/svddU.asc");
-		print_matrix(mat.svd_dV, r + l, n_similar, "/tmp/svddV.asc");
+//		//! Compute LR SVD with ID
+//		{
+//			mat.svd_ddata.resize(patch_stack[channel].size());
+//			std::vector<double>::iterator ddata = mat.svd_ddata.begin();
+//			std::vector<float >::iterator fdata = patch_stack[channel].begin();
+//			for (int i = 0; i < patch_stack[channel].size(); ++i)
+//				*ddata++ = (double)*fdata++;
+//		}
+//		const int l = 10;
+//		printf("size ddata = %d\n",(int)mat.svd_ddata.size());
+//		int info_lrsvd = matrixLRSVD(mat.svd_ddata, patch_dim, n_similar, r + l,
+//		                             mat.svd_dS, mat.svd_dV, mat.svd_dU,
+//		                             mat.svd_dwork);
+//
+//		printf("matrixLRSVD exited with status: %d\n", info);
+//
+//		print_matrix(mat.svd_dS, r + l, 1        , "/tmp/svddS.asc");
+//		print_matrix(mat.svd_dU, r + l, patch_dim, "/tmp/svddU.asc");
+//		print_matrix(mat.svd_dV, r + l, n_similar, "/tmp/svddV.asc");
 
 
 	}
