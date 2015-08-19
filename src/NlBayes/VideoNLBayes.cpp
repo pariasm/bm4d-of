@@ -378,18 +378,31 @@ std::vector<float> runNlBayes(
 	//! Video size
 	VideoSize imSize = i_imNoisy.sz;
 
+	//! Determine steps
+	int step = p_prms1.sizePatch ?
+	          (p_prms2.sizePatch ? 0 : 1) :
+	          (p_prms2.sizePatch ? 2 :-1) ;
+
+	if (step == -1)
+		throw std::runtime_error("VideoNLB::runNlBayes: Both patch sizes are zero.");
+
 	//! Initialization
-	o_imBasic.resize(imSize);
-	o_imFinal.resize(imSize);
+	if (step != 2) o_imBasic.resize(imSize);
+	if (step != 1) o_imFinal.resize(imSize);
+
+	if (step == 2 && imSize != o_imBasic.sz) 
+		throw std::runtime_error("VideoNLB::runNlBayes: sizes of noisy and "
+				"basic videos don't match");
 
 	//! Print parameters
-	if (p_prms1.verbose) printNlbParameters(p_prms1);
-	if (p_prms2.verbose) printNlbParameters(p_prms2);
+	if (p_prms1.verbose) if (step != 2) printNlbParameters(p_prms1);
+	if (p_prms2.verbose) if (step != 1) printNlbParameters(p_prms2);
 
 	//! Percentage of processed groups over total number of pixels
 	std::vector<float> groupsRatio(2,0.f);
 
 	//! Step 1
+	if (step != 2)
 	{
 		if (p_prms1.verbose)
 		{
@@ -461,9 +474,11 @@ std::vector<float> runNlBayes(
 	}
 
 	//! Step 2
+	if (step != 1)
 	{
 		if (p_prms2.verbose)
 		{
+			if (step == 2) for (int p = 0; p <= nParts; ++p) printf("\n");
 			printf("\x1b[%dF2nd Step\n",nParts+1);
 			for (int p = 0; p < nParts; ++p) printf("\x1b[2K\n");
 		}

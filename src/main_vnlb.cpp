@@ -43,6 +43,7 @@ int main(int argc, char **argv)
 	//! Paths to input/output sequences
 	using std::string;
 	const string  input_path = clo_option("-i"    , ""              , "< input sequence");
+	const string  inbsc_path = clo_option("-b"    , ""              , "< input basic sequence");
 	const string  noisy_path = clo_option("-nisy" , "nisy_%03d.png" , "> noisy sequence");
 	const string  final_path = clo_option("-deno" , "deno_%03d.png" , "> denoised sequence");
 	const string  basic_path = clo_option("-bsic" , "bsic_%03d.png" , "> basic denoised sequence");
@@ -101,7 +102,7 @@ int main(int argc, char **argv)
 		prms2.rank = rank2;
 
 		VideoNLB::printNlbParameters(prms1);
-		VideoNLB::printNlbParameters(prms2);	
+		VideoNLB::printNlbParameters(prms2);
 
 		return EXIT_FAILURE;
 	}
@@ -115,12 +116,23 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
+	if (patch_sizex1 == 0 && inbsc_path == "")
+	{
+		fprintf(stderr, "%s: if px1 = 0, a basic sequence path must be given.\nTry `%s --help' for more information.\n",
+				argv[0], argv[0]);
+		return EXIT_FAILURE;
+	}
+
+	if (patch_sizex1 > 0 && inbsc_path != "")
+		fprintf(stderr, "\x1b[33;1mWarning:\x1b[0m a basic sequence path ignored since px1 > 0.\n");
+
+
 	//! Declarations
 	Video<float> original, noisy, basic, final, diff;
 
-	//! Load original video
-	original.loadVideo(input_path, firstFrame, lastFrame, frameStep);
-
+	//! Load input videos
+	                       original.loadVideo(input_path, firstFrame, lastFrame, frameStep);
+	if (patch_sizex1 == 0) basic   .loadVideo(inbsc_path, firstFrame, lastFrame, frameStep);
 
 	//! Add noise
 	if (sigma)
@@ -158,29 +170,29 @@ int main(int argc, char **argv)
 	groupsRatio = VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2);
 
 	//! Compute PSNR and RMSE
-	float final_psnr, final_rmse, basic_psnr, basic_rmse;
-	VideoUtils::computePSNR(original, basic, basic_psnr, basic_rmse);
-	VideoUtils::computePSNR(original, final, final_psnr, final_rmse);
+	float final_psnr = -1, final_rmse = -1, basic_psnr = -1, basic_rmse = -1;
+	if (prms2.sizePatch) VideoUtils::computePSNR(original, final, final_psnr, final_rmse);
+	                     VideoUtils::computePSNR(original, basic, basic_psnr, basic_rmse);
 
-    if (verbose)
-	 {
-        printf("basic PSNR =\t%f\tRMSE =\t%f\n", basic_psnr, basic_rmse);
-        printf("final PSNR =\t%f\tRMSE =\t%f\n", final_psnr, final_rmse);
-    }
+	if (verbose)
+	{
+	    printf("basic PSNR =\t%f\tRMSE =\t%f\n", basic_psnr, basic_rmse);
+	    printf("final PSNR =\t%f\tRMSE =\t%f\n", final_psnr, final_rmse);
+	}
 
 	//! Write measures
 	writingMeasures("measures.txt", sigma, basic_psnr, basic_rmse, groupsRatio[0], true  , "_basic");
 	writingMeasures("measures.txt", sigma, final_psnr, final_rmse, groupsRatio[1], false , "_final");
 
 	//! Compute Difference
-	VideoUtils::computeDiff(original, final, diff, sigma);
+	if (prms2.sizePatch) VideoUtils::computeDiff(original, final, diff, sigma);
 
 	//! Save output sequences
 	if (verbose) printf("Saving output sequences\n");
 
-	final.saveVideo(final_path, firstFrame, frameStep);
-	basic.saveVideo(basic_path, firstFrame, frameStep);
-	diff .saveVideo( diff_path, firstFrame, frameStep);
+	if (prms2.sizePatch) final.saveVideo(final_path, firstFrame, frameStep);
+	if (prms2.sizePatch) diff .saveVideo( diff_path, firstFrame, frameStep);
+	                     basic.saveVideo(basic_path, firstFrame, frameStep);
 
 #if 0
 	//! Computing bias sequence
