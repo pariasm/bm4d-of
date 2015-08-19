@@ -150,8 +150,9 @@ void initializeNlbParameters(
 	//! Parameter used to estimate the covariance matrix
 	if (p_size.channels == 1)
 	{
-		if(s1) o_params.beta = (p_sigma < 15.f ? 1.1f : (p_sigma < 70.f ? 1.f : 0.9f));
-		else   o_params.beta = (p_sigma < 15.f ? 1.1f : (p_sigma < 35.f ? 1.f : 0.9f));
+		o_params.beta = 1.f;
+//		if(s1) o_params.beta = (p_sigma < 15.f ? 1.1f : (p_sigma < 70.f ? 1.f : 0.9f));
+//		else   o_params.beta = (p_sigma < 15.f ? 1.1f : (p_sigma < 35.f ? 1.f : 0.9f));
 	}
 	else
 	{
