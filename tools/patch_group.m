@@ -10,8 +10,8 @@ prms.wx = 37;
 prms.wt = 2;
 prms.px = 9;
 prms.pt = 4;
-prms.np = 160;
-sigma = '0';
+prms.np = 200;
+sigma = 40;
 
 % binary that computes patch distances
 pgbin = '/home/pariasm/Work/denoising/projects/video_nlbayes3d/build/bin/patch_group';
@@ -33,19 +33,19 @@ clear seqnames first last
 seq = sequences(1);
 
 ori_pat = [orig_path seq.name '/%03d.png'];                     % ground truth
-if strcat(sigma,'0'),
+if (sigma == 0),
 	nsy_pat = ori_pat; % noisy
 else
-	nsy_pat = [nlb3_path seq.name '_s' sigma '_pt4/nisy_%03d.png']; % noisy
+	nsy_pat = [nlb3_path seq.name '_s' num2str(sigma) '_pt4/nisy_%03d.png']; % noisy
 end
-bsc_pat = [nlb3_path seq.name '_s' sigma '_pt4/bsic_%03d.png']; % nlb3 pt2
+bsc_pat = [nlb3_path seq.name '_s' num2str(sigma) '_pt4/bsic_%03d.png']; % nlb3 pt2
 
 command = [pgbin ...
            ' -i ' ori_pat ...
            ' -b ' ori_pat ...
            ' -f ' num2str(seq.first) ...
            ' -l ' num2str(seq.last) ...
-           ' -sigma ' sigma ...
+           ' -sigma ' num2str(sigma) ...
            ' -px ' num2str(prms.px) ...
            ' -pt ' num2str(prms.pt) ...
            ' -wx ' num2str(prms.wx) ...
@@ -148,7 +148,8 @@ while (goon)
 
 		gsz  = size(patches.nisy);
 		pdim = prod(gsz(1:4));
-		[dd,m,U,S] = compute_bayes_estimate(reshape(patches.nisy,[pdim gsz(5)]),[],40,16);
+		rank = 40;
+		[dd,m,U,S] = compute_bayes_estimate(reshape(patches.nisy,[pdim gsz(5)]),[],sigma,rank,[]);
 		dd = reshape(dd,gsz);
 		dd = min(255, max(0, dd));
 
@@ -160,8 +161,8 @@ while (goon)
 		imagesc([pp ; dd ; oo]/255), axis equal, axis off
 
 		% display also eigenvectors and eigenvalues
-		mU = min(255,max(0,[m, 255*(4*U + 0.5)]));
-		mU = build_patch_image(reshape(mU,[prms.px prms.px 3 prms.pt 1+size(U,2)]));
+		mU = min(255,max(0,[m, 255*(4*U(:,1:np_viz-1) + 0.5)]));
+		mU = build_patch_image(reshape(mU,[prms.px prms.px 3 prms.pt 1+np_viz]));
 		figure(3)
 		imagesc(mU/255), axis equal, axis off
 
@@ -169,9 +170,16 @@ while (goon)
 
 
 		% show search region for all frames
-		orig(indr(1: 5))   = 255; orig(indg(1: 5))   =   0; orig(indb(1: 5))   =   0;
-		orig(indr(6:20))   =   0; orig(indg(6:20))   = 255; orig(indb(6:20))   =   0;
-		orig(indr(21:end)) =   0; orig(indg(21:end)) =   0; orig(indb(21:end)) = 255;
+		a = 0.5;
+		orig(indr(1: 5))   = a*orig(indr(1: 5))   + (1-a)*255;
+		orig(indr(6:45))   = a*orig(indr(6:45))   + (1-a)*  0;
+		orig(indr(46:end)) = a*orig(indr(46:end)) + (1-a)*  0;
+		orig(indg(1: 5))   = a*orig(indg(1: 5))   + (1-a)*  0;
+		orig(indg(6:45))   = a*orig(indg(6:45))   + (1-a)*255;
+		orig(indg(46:end)) = a*orig(indg(46:end)) + (1-a)*  0;
+		orig(indb(1: 5))   = a*orig(indb(1: 5))   + (1-a)*  0;
+		orig(indb(6:45))   = a*orig(indb(6:45))   + (1-a)*  0;
+		orig(indb(46:end)) = a*orig(indb(46:end)) + (1-a)*255;
 		search.rx = floor(prms.wx/2);
 		search.rt =       prms.wt;
 		search.box_x = [max(0, pax - search.rx - prms.px), min(size(nisy,2), pax + search.rx + prms.px)];
@@ -190,6 +198,18 @@ while (goon)
 		figure(4)
 		imagesc(aa/255)
 		axis equal, axis off
+
+		% save results
+		fname = sprintf('patch_group_%s_%03d_%03d_%03d_s%02d_wx%d_wt%d_sx%d_st%d_r%03d_n%03d_pcas.png',seq.name, pax,pay,pat, sigma, prms.wx,prms.wt,prms.px,prms.pt, rank, prms.np);
+		imwrite(uint8(mU),fname)                                                                                            
+		fname = sprintf('patch_group_%s_%03d_%03d_%03d_s%02d_wx%d_wt%d_sx%d_st%d_r%03d_n%03d_coor.png',seq.name, pax,pay,pat, sigma, prms.wx,prms.wt,prms.px,prms.pt, rank, prms.np);
+		imwrite(uint8(aa),fname)                                                                                            
+		fname = sprintf('patch_group_%s_%03d_%03d_%03d_s%02d_wx%d_wt%d_sx%d_st%d_r%03d_n%03d_orig.png',seq.name, pax,pay,pat, sigma, prms.wx,prms.wt,prms.px,prms.pt, rank, prms.np);
+		imwrite(uint8(oo),fname)                                                                                            
+		fname = sprintf('patch_group_%s_%03d_%03d_%03d_s%02d_wx%d_wt%d_sx%d_st%d_r%03d_n%03d_nisy.png',seq.name, pax,pay,pat, sigma, prms.wx,prms.wt,prms.px,prms.pt, rank, prms.np);
+		imwrite(uint8(pp),fname)                                                                                            
+		fname = sprintf('patch_group_%s_%03d_%03d_%03d_s%02d_wx%d_wt%d_sx%d_st%d_r%03d_n%03d_deno.png',seq.name, pax,pay,pat, sigma, prms.wx,prms.wt,prms.px,prms.pt, rank, prms.np);
+		imwrite(uint8(dd),fname)
 
 	case 'q'
 		goon = 0;

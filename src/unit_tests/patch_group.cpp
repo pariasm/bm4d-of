@@ -324,7 +324,7 @@ int main(int argc, char **argv)
 	const int i_lastFrame  = clo_option("-l", 0, "Last frame");
 	const int i_frameStep  = clo_option("-s", 1, "Frame step");
 
-	const int sigma        = clo_option("-sigma", 0, "Add noise of standard deviation sigma");
+	const int sigma        = clo_option("-sigma", 0, "Standard deviation of the noise");
 	const unsigned px      = clo_option("-PAx", 0, "Point of analysis");
 	const unsigned py      = clo_option("-PAy", 0, "Point of analysis");
 	const unsigned pt      = clo_option("-PAt", 0, "Point of analysis");
@@ -344,12 +344,12 @@ int main(int argc, char **argv)
 	Video<float> vid_bsc;
 	{
 		vid_nsy.loadVideo(i_noisy_path.c_str(), i_firstFrame, i_lastFrame, i_frameStep);
-		print_video_size("loaded noisy video: ", vid_nsy);
+//		print_video_size("loaded noisy video: ", vid_nsy);
 		
 		if (step == 2)
 		{
 			vid_bsc.loadVideo(i_basic_path.c_str(), i_firstFrame, i_lastFrame, i_frameStep);
-			print_video_size("loaded basic video: ", vid_bsc);
+//			print_video_size("loaded basic video: ", vid_bsc);
 		}
 	}
 
@@ -365,14 +365,14 @@ int main(int argc, char **argv)
 		if (num_patches  >= 0) VideoNLB::setNSimilarPatches(prms, (unsigned)num_patches);
 
 		//! Print parameters
-		VideoNLB::printNlbParameters(prms);
+//		VideoNLB::printNlbParameters(prms);
 	}
 
 	//! Compute group of similar patches on selected pixel single pixel
 	{
 		using std::vector;
 
-		printf("computing patch distances for point: [% 3d,% 3d,% 2d]\n\n",px,py,pt);
+//		printf("computing patch distances for point: [% 3d,% 3d,% 2d]\n\n",px,py,pt);
 
 		//! Point
 		unsigned pind = vid_nsy.sz.index(px, py, pt, 0);
@@ -407,13 +407,13 @@ int main(int argc, char **argv)
 			patch_dists = VideoNLB::estimateSimilarPatchesStep1_debug(vid,
 					patch_stack_nsy, patch_index, pind, prms);
 
-			for (unsigned c = 0; c < vid.sz.channels; c++)
-			{
-				char prefix[1024];
-				sprintf(prefix, "[YUV%d]", c);
-				print_group(patch_stack_nsy[c], patch_dim,
-						patch_dists.size(), vid_nsy.sz, prefix, output_file);
-			}
+//			for (unsigned c = 0; c < vid.sz.channels; c++)
+//			{
+//				char prefix[1024];
+//				sprintf(prefix, "[YUV%d]", c);
+//				print_group(patch_stack_nsy[c], patch_dim,
+//						patch_dists.size(), vid_nsy.sz, prefix, output_file);
+//			}
 		}
 		else
 		{
@@ -424,13 +424,13 @@ int main(int argc, char **argv)
 					vid_bsc, patch_stack_nsy, patch_stack_bsc, patch_index, pind,
 					prms);
 
-			char prefix[1024];
-			sprintf(prefix, "[BSIC]");
-			print_group(patch_stack_bsc, patch_dim,
-					patch_dists.size(), vid_nsy.sz, prefix, output_file);
-			sprintf(prefix, "[NISY]");
-			print_group(patch_stack_nsy, patch_dim,
-					patch_dists.size(), vid_nsy.sz, prefix, output_file);
+//			char prefix[1024];
+//			sprintf(prefix, "[BSIC]");
+//			print_group(patch_stack_bsc, patch_dim,
+//					patch_dists.size(), vid_nsy.sz, prefix, output_file);
+//			sprintf(prefix, "[NISY]");
+//			print_group(patch_stack_nsy, patch_dim,
+//					patch_dists.size(), vid_nsy.sz, prefix, output_file);
 		}
 
 		print_group_coordinates(patch_dists, vid_nsy.sz, output_file);
