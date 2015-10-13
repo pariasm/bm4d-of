@@ -39,7 +39,16 @@
 
 %\usepackage[left=1.2in,right=1.2in]{geometry}
 
+\usepackage[normalem]{ulem} % allows the use of sout
+
 % \graphicspath{{../iccv09/}}
+
+% pablo's commands for comments and suggested modifications
+\newcommand{\pa}[1]{\textcolor{cyan}{#1}}
+\newcommand{\psub}[2]{\pa{\sout{#1}}\pa{/#2}}
+\newcommand{\prm}[1]{\pa{\sout{#1}}}
+\newcommand{\padd}[1]{\pa{#1}}
+\newcommand{\pcomment}[1]{\textit{\pa{#1}}}
 
 %\newcommand{\best}[1]{\textbf{\textcolor{MyOrange}{#1}}}
 \newcommand{\best}[1]{#1}
@@ -144,16 +153,16 @@
 % \theoremstyle{plain}\newtheorem{lemma}{Lemma}[chapter]
 % \theoremstyle{definition}\newtheorem{definition}{Definition}[chapter]
 
-% New definition of square root:
-% it renames \sqrt as \oldsqrt
-\let\oldsqrt\sqrt
-% it defines the new \sqrt in terms of the old one
-\def\sqrt{\mathpalette\DHLhksqrt}
-\def\DHLhksqrt#1#2{%
-\setbox0=\hbox{$#1\oldsqrt{#2\,}$}\dimen0=\ht0
-\advance\dimen0-0.2\ht0
-\setbox2=\hbox{\vrule height\ht0 depth -\dimen0}%
-{\box0\lower0.4pt\box2}}
+%% % New definition of square root:
+%% % it renames \sqrt as \oldsqrt
+%% \let\oldsqrt\sqrt
+%% % it defines the new \sqrt in terms of the old one
+%% \def\sqrt{\mathpalette\DHLhksqrt}
+%% \def\DHLhksqrt#1#2{%
+%% \setbox0=\hbox{$#1\oldsqrt{#2\,}$}\dimen0=\ht0
+%% \advance\dimen0-0.2\ht0
+%% \setbox2=\hbox{\vrule height\ht0 depth -\dimen0}%
+%% {\box0\lower0.4pt\box2}}
 
 
 \begin{document}
@@ -161,7 +170,7 @@
 \title{A Non-local Bayesian Video Denoising Method}
 
 \author{Pablo~Arias, Jean-Michel~Morel%
-\thanks{P. Arias (\texttt{pablo.arias@upf.edu}) and J.-M. Morel
+\thanks{P. Arias (\texttt{pablo.arias@cmla.ens-cachan.fr}) and J.-M. Morel
 (\texttt{jean-michel.morel@cmla.ens-cachan.fr}) are with the \emph{Centre de
 math\'ematiques et de leurs applications} (CMLA), \'Ecole Normale Sup\'eriore
 de Cachan, 61 Av. du Pr\'esident Wilson, F-94230 Cachan, France}}
@@ -355,6 +364,28 @@ The problem
 of denoising can then be formulated as a problem of optimal Bayesian inference, where the
 parameters of the prior are learnt from the noisy data.
 
+%Consider a grayscale video $u:\Omega\times \{1,\cdots,T\}\rightarrow
+%\mathbb R$, where $\Omega$ is the spatial domain (a rectangular discrete grid).
+%We assume that $v$ is a noisy version of $u$, contaminated with additive,
+%Gaussian, white noise $n$ of known variance $\sigma^2$,
+%\[v = u + n.\]
+%
+%We make the assumption that each patch $\ma p_{xt}$ of the noiseless video is a realisation 
+%of a Gaussian random variable, $N(\overline {\ma p}_{xt}, C_{xt})$.
+%%
+%The problem 
+%of denoising can then be formulated as a problem of optimal Bayesian inference, where the
+%parameters of the prior are learnt from the noisy data.
+%%
+%If the
+%mean and covariance are known (or leant from the data), then given a noisy observation
+%$\ma q_{xt} = \ma p_{xt} + \ma n_{xt}$, 
+%one can estimate $\ma p_{xt}$ as the expected value of the posterior
+%distribution $\mathds{P}(\ma p_{xt}, \ma q_{xt})$ or its
+%maximum (\ie the maximum \emph{a posteriori}, MAP).
+
+
+
 \subsection{A nonlocal Bayesian principle}
 
 Consider a grayscale video $u:\Omega\times \{1,\cdots,T\}\rightarrow
@@ -403,20 +434,20 @@ which correspond to a Wiener filter on the principal components.
 \subsection{Learning a low-rank \textit{a priori} model}
 
 The parameters of the \textit{a priori} model, are learnt from the noisy video as
-follows. For each noisy patch $\ma q$, we select the most $N_{\text{sim}}$
+follows. For each noisy patch $\ma q$, we select the most $n$
 similar 3D patches found in a search region centered at $\ma q$. The
-search region is a spatio-temporal rectangle of size $n_x \times
-n_x \times n_t$ ($n_x, n_t$ are odd numbers). 
+search region is a spatio-temporal rectangle of size $w_x \times
+w_x \times w_t$ ($w_x, w_t$ are odd numbers). 
 
-Let us note by $\ma q_i$, $i = 1, \dots, N_{\text{sim}}$ the set of patches
+Let us note by $\ma q_i$, $i = 1, \dots, n$ the set of patches
 similar to $\ma q$ (with $\ma q_1 = \ma q$). We assume that these 
 patches correspond to different noisy observations of the Gaussian linear model
 \eqref{eq:prior} and \eqref{eq:obs}. The corresponding marginal distribution is given by
 \[\mathds P(\ma q) = \mathcal N(\overline{\ma p}, C + \sigma^2I). \]
 Therefore, the maximum likelihood estimates for $\overline{\ma p}$ and $C$ are given by 
 \begin{equation}
-	\widehat{\overline{\ma p}} = \frac1{N_{\text{sim}}}\sum_{i = 1}^{N_{\text{sim}}}\ma q_i \quad\text{and}\quad 
-		\widehat C= \frac1{N_\text{sim}}\sum_{i = 1}^{N_{\text{sim}}}\ma q_i\ma q_i^T - \sigma^2I.
+	\widehat{\overline{\ma p}} = \frac1{n}\sum_{i = 1}^{n}\ma q_i \quad\text{and}\quad 
+		\widehat C= \frac1n\sum_{i = 1}^{n}\ma q_i\ma q_i^T - \sigma^2I.
 	\label{eq:learn_parameters}
 \end{equation}
 
@@ -429,6 +460,12 @@ eigenvalues.
 \end{equation}
 where $\widehat \lambda_i$, $\widehat U_i$ denote the $i$-th largest
 eigenvalue and its corresponding eigenvector respectively.
+
+The Figures \ref{fig:patch_groups_pos} and \ref{fig:patch_groups_patches}
+show two example of groups of similar patches. Figure \ref{fig:patch_group_pos}
+shows the position of 200 nearest neighbors of a reference patch. It can be noticed
+that inspite of the noise 
+
 
 \bigskip
 
@@ -451,6 +488,188 @@ density. The wavelet coefficient neighborhood turns out to be a patch of an
 oriented channel of the image at a given scale.
 
 
+
+
+\begin{figure*}[htpb!]
+	\centering
+	\includegraphics[width = .8\textwidth]{figs/patch_groups/patch_group_bus_045_085_012_s40_wx37_wt2_sx9_st4_r040_n200_coor.png}\\
+	\vspace{.2cm}
+	\includegraphics[width = .8\textwidth]{figs/patch_groups/patch_group_bus_255_056_010_s40_wx37_wt2_sx9_st4_r040_n200_coor.png}
+%	\includegraphics[width = .8\textwidth]{figs/patch_groups/patch_group_bus_110_090_010_s40_wx37_wt2_sx9_st4_r040_n200_coor.png}
+	\caption{Examples of sets of 200 nearest neighbors spatio-temporal patches,
+	for patches of size $9\times 9\times 4$.
+	The images in each row show the five frames of a $37\times37\times5$ search region. 
+	In red we show the positions of the 5 nearest neighbors, in green the next 40 and in blue the rest.
+	Note the points shown correspond to the top-left pixel of the first temporal
+	slice of each patch.
+	The reference patch is the red patch in the center of the search region.}
+	\label{fig:patch_groups_pos}
+\end{figure*}
+
+\begin{figure}[htpb!]
+	\centering
+%	\includegraphics[width = \columnwidth]{figs/patch_groups/patch_group_bus_045_085_012_s40_wx37_wt2_sx9_st4_r040_n200_deno.png}\\
+%	\vspace{.1cm}
+	\includegraphics[width = \columnwidth]{figs/patch_groups/patch_group_bus_045_085_012_s40_wx37_wt2_sx9_st4_r040_n200_nisy.png}\\
+	\vspace{.2cm}
+	\includegraphics[width = \columnwidth]{figs/patch_groups/patch_group_bus_045_085_012_s40_wx37_wt2_sx9_st4_r040_n200_orig.png}\\
+	\vspace{.2cm}
+	\includegraphics[width = \columnwidth]{figs/patch_groups/patch_group_bus_045_085_012_s40_wx37_wt2_sx9_st4_r040_n200_pcas.png}\\
+	\vspace{.2cm}
+%	\includegraphics[width = \columnwidth]{figs/patch_groups/patch_group_bus_255_056_010_s40_wx37_wt2_sx9_st4_r040_n200_deno.png}\\
+%	\vspace{.1cm}
+	\includegraphics[width = \columnwidth]{figs/patch_groups/patch_group_bus_255_056_010_s40_wx37_wt2_sx9_st4_r040_n200_nisy.png}\\
+	\vspace{.2cm}
+	\includegraphics[width = \columnwidth]{figs/patch_groups/patch_group_bus_255_056_010_s40_wx37_wt2_sx9_st4_r040_n200_orig.png}\\
+	\vspace{.2cm}
+	\includegraphics[width = \columnwidth]{figs/patch_groups/patch_group_bus_255_056_010_s40_wx37_wt2_sx9_st4_r040_n200_pcas.png}\\
+	\vspace{.2cm}
+%	\includegraphics[width = \columnwidth]{figs/patch_groups/patch_group_bus_110_090_010_s40_wx37_wt2_sx9_st4_r040_n200_deno.png}\\
+%	\vspace{.1cm}
+%	\includegraphics[width = \columnwidth]{figs/patch_groups/patch_group_bus_110_090_010_s40_wx37_wt2_sx9_st4_r040_n200_nisy.png}\\
+%	\vspace{.1cm}
+%	\includegraphics[width = \columnwidth]{figs/patch_groups/patch_group_bus_110_090_010_s40_wx37_wt2_sx9_st4_r040_n200_orig.png}\\
+%	\vspace{.1cm}
+%	\includegraphics[width = \columnwidth]{figs/patch_groups/patch_group_bus_110_090_010_s40_wx37_wt2_sx9_st4_r040_n200_pcas.png}\\
+%	\vspace{.1cm}
+	\caption{For each of the two sets of patches of Fig. \ref{fig:patch_groups_pos} we show
+	the 20 nearest neighbors (top), the corresponding MAP estimates (middle) and the sample mean 
+	and first 19 principal directions computed from the sample covariance matrix (bottom).
+	For each image, each column corresponds to the 4 temporal slices of a $9\times9\times4$ patch.}
+	\label{fig:patch_groups_patches}
+\end{figure}
+
+\section{Discussion}
+
+\subsection{Spatio-temporal patches}
+
+Patch-based methods filter similar patches to remove noise. When the noise is
+Gaussian, the patch similarity is determined based on the (squared) Euclidean distance 
+between patches. Due to the noise, the Euclidean distance follows a non-central
+$\chi^2$ distribution, with variance
+\[\textnormal{Var}\left\{\frac1{m}\|\ma q_1 - \ma q_2\|^2\right\} = \frac{8\sigma^2}{m}\left(\sigma^2 + \frac1{m}\|\ma p_1 - \ma p_2\|^2\right),\]
+where $\ma q_1, \ma q_2$ are the noisy versions of the patches $\ma p_1, \ma p_2$, 
+and $m$ denotes the number of pixels in the patch. The noise in the patch comparison
+can be reduced by considering larger patches.
+However, increasing the size of the patch also increases the distances between
+patches and reduces the likelihood of finding similar patches.
+%
+The additional temporal dimension in a spatio-temporal patch allows to increase
+the number of pixels in the patch, without increasing its spatial size.
+Due to the high redundancy of the video in the temporal dimension, increasing the 
+temporal size of the patch causes a much lower increase in the patch distances.
+%The high redundancy of the video in the temporal dimension, allows to have 
+%larger patches without affecting much the number of nearest neighbors of the patch.
+%
+
+Let us assume that 
+the brightness of the original video is constant along motion trajectories, so
+that $u(x,t + \tau) = u(\varphi(x,t + \tau; -\tau),t)$, where
+$\varphi(x,t+\tau;\, \cdot\, )$ denotes the motion trajectory passing though
+$(x,t + \tau)$.
+Furthermore, let us assume that the motion in the video is approximately
+translational.
+When the motion is known or can be estimated, then it is natural to consider
+motion compensated spatio-temporal patches. 
+With the assumptions we are considering, all spatial slices of a $s_x\times s_x\times s_t$ motion-compensated patch
+coincide, so the distance between two spatio-temporal patches is proportional to
+the distance of a 2D spatial patch of size $s_x\times s_x$.
+%
+As a consequence, by increasing $s_t$, on can reduce the 
+noise in the patch distance and have the same pattern of self-similarity as a 
+2D patch.
+
+However, motion estimation is challenging, and even more so in the presence of noise.
+%Most motion estimation techniques integrate spatial information either 
+%by matching 2D patches (or blocks, as they are commonly referred to in the
+%motion estimation literature) or by some spatial regularization term in an energy.
+An option that does not require motion is to use rectangular spatio-temporal patches.
+The distance between these can be also expressed as a distance between spatial patches,
+but their equivalent spatial support is larger than $s_x\times s_x$.
+
+%To see this, let us observe that the squared Euclidean distance can be expressed as
+%the convolution with a separable kernel.
+To see this, let us assume that the motion in the video is a constant translation $v$. 
+The squared Euclidean distance can be expressed as
+%\begin{multline*}
+%	d(\ma p_{xt}, \ma p_{ys})\\ %= [g_x\ast_x g_t \ast_t \left(u(x + \,\cdot\,,t + \,\cdot\,) -  u(y + \,\cdot\,,s + \,\cdot\,)\right)^2](0,0)\\
+%		 = \iint g_x(\rho)g_t(\tau) \left(u(x + \rho,t + \tau) -  u(y + \rho,s + \tau)\right)^2d\tau d\rho
+%\end{multline*}
+\[
+	d(\ma p_{xt}, \ma p_{ys}) = \iint g_x(\rho)g_t(\tau) f(\rho,\tau)d\tau d\rho
+\]
+where
+%$\ast_x, \ast_t$ denote the spatial and temporal convolution operators and 
+$f(\rho,\tau) = \left(u(x + \rho,t + \tau) -  u(y + \rho,s + \tau)\right)^2$,
+and 
+$g_xg_t$ is a separable spatio-temporal kernel which defines the
+shape of the spatio-temporal patch. For example, for a rectangular patch, $g_x$
+and $g_t$ are both box filters of sizes $s_x\times s_x$ and $s_t$ respectively.
+Because of the brightness constancy assumption, we have that $f(\rho,\tau) = f(\rho + v\tau, 0)$.
+%\pcomment{Note: this only holds if the motion at $t$ is equal than the one at $s$.}
+Using this fact, after some manipulations we can rewrite the distance as a distance between 2D patches:
+\[
+	d(\ma p_{xt}, \ma p_{ys}) = \int f(\rho,0)h(\rho) d\rho
+\]
+where \[h(\rho) = \int g_x(\rho - v\tau)g_t(\tau)  d\tau\] is the 
+equivalent spatial kernel. Note that this kernel is the result of integrating
+several shifted versions of the spatial patch kernel $g_x$ along a motion trajectory.
+%
+Thus, when the brightness constancy assumption holds under a constant
+translational motion $v$, the rectangular spatio-temporal patch is equivalent
+to a spatial patch whose support depends on $v$. When $v = 0$, then it reduces 
+to the $s_x\times s_x$ patch, and grows in the direction of the motion at $v$
+increases.
+%
+In these settings, rectangular spatio-temporal patches can be expected to perform as well
+as motion-compensated patches. 
+
+For more complex types of motion, using rectangular spatio-temporal patches will result in
+a larger variability in the set of nearest neighbors of a given patch, due to the fact that
+both the spatial texture and the motion pattern may vary. At least in principle, better 
+results should be obtained using motion compensation. However, in practice, the bad quality of
+the estimated motion undermines the final result.
+
+
+%\begin{align*}
+%	d(\ma p_{xt}, \ma p_{ys}) %= [g_x\ast_x g_t \ast_t \left(u(x + \,\cdot\,,t + \,\cdot\,) -  u(y + \,\cdot\,,s + \,\cdot\,)\right)^2](0,0)\\
+%		 &= \iint g_x(\rho)g_t(\tau) f(\rho,\tau)d\tau d\rho\\
+%		 &= \iint g_x(\rho)g_t(\tau) f(\rho + v(\tau),0) d\tau d\rho\\
+%		 &= \iint g_x(\rho - v(\tau))g_t(\tau) f(\rho,0) d\tau d\rho\\
+%		 &= \int f(\rho,0)\int g_x(\rho - v(\tau))g_t(\tau)  d\tau d\rho\\
+%		 &= \int f(\rho,0)h(\rho) d\rho\\
+%\end{align*}
+
+
+
+%after some manipulations the distance 
+%can be written as the convolution with a spatial kernel:
+%\begin{equation*}
+%	d(\ma p_{xt}, \ma p_{ys}) = [h \ast_x \left(u(x + \,\cdot\,,t) -  u(y + \,\cdot\,,s)\right)^2](0),
+%\end{equation*}
+%where 
+%\[
+%	h(\xi) = [g_t \ast g_x(v\,\cdot\,)](\xi/v) 
+%		= \int g_t(\eta)g_x(\xi - v\eta)d\eta.
+%\]
+
+
+
+
+
+
+\pcomment{
+\begin{itemize}
+%	\item Justify why 3D patches: Greater distance noise reduction with roughly the same 
+%		degree of self-similarity. One way to see this is that the 3D patches can be 
+%		seen, for a video in which the brightness constancy assumption holds, as a 2D patch
+%		by back-projecting all the slices to the first frame.
+	\item Relation with respect other iterative methods found in the literature
+		(SOS, twicing, diffusion, BM3D, I-SA-BM4D).
+	\item Variation of the results tables for different sequences.
+\end{itemize}}
+
+\subsection{Estimation of the covariance matrix}
 
 \section{Description of the algorithm}
 
@@ -480,11 +699,11 @@ estimate have no noise. Thus we set $\sigma = 0$ in Eq.
 		\STATE Set $\mathcal P = \{\ma q \,:\, \ma q \text{ patch of }  v\}$ \COMMENT{patches to process}
 		\WHILE{$\mathcal P \neq \emptyset$}
 		\STATE Get a patch $\ma q$ from $\mathcal P$ \COMMENT{``center'' of Gaussian model}
-			\STATE Retrieve  the $n_{\text{sim}}$ nearest neighbors to $\ma
+			\STATE Retrieve  the $n$ nearest neighbors to $\ma
 			q$ in a spatio-temporal volume around $\ma q$
 			\STATE Compute $\widehat{\overline{\ma p}}\,\!^{(1)}$ and
 			$\widehat C_{r}^{(1)}$ 
-			\FORALL{$n_{\text{sim}}$ neighbors $\ma q_i$ of $\ma q$}
+			\FORALL{$n$ neighbors $\ma q_i$ of $\ma q$}
 				\STATE Obtain the MAP estimate $\widetilde{\ma p}_i^{(1)}$
 				\STATE Aggregate estimated patch on $\widetilde u^{(1)}$
 				\STATE Remove $\ma q_i$ from $\mathcal P$
@@ -504,14 +723,14 @@ estimate have no noise. Thus we set $\sigma = 0$ in Eq.
 		\STATE Set $\mathcal P = \{\ma q \,:\, \ma q \text{ patch of }  v\}$ \COMMENT{patches to process}
 		\WHILE{$\mathcal P \neq \emptyset$}
 		\STATE Get a patch $\ma q$ from $\mathcal P$ \COMMENT{``center'' of Gaussian model}
-			\STATE Retrieve the $n_{\text{sim}}$ nearest neighbors to $\ma
+			\STATE Retrieve the $n$ nearest neighbors to $\ma
 			q$ in a spatio-temporal volume around $\ma q$.
 			\emph{The distance is computed between the basic estimates
 				$\widetilde{\ma p}^{(1)}$}
 			\STATE Compute $\widehat{\overline{\ma p}}\,\!^{(2)}$ and $\widehat
 					 C_{r}^{(2)}$ \emph{from the basic estimates
 						 $\widetilde{\ma p}_i^{(1)}$, setting $\ma{\sigma = 0}$.}
-			\FORALL{$n_{\text{sim}}$ neighbors $\ma q_i$ of $\ma q$}
+			\FORALL{$n$ neighbors $\ma q_i$ of $\ma q$}
 				\STATE Obtain the MAP estimate $\widetilde{\ma p}_i^{(2)}$
 				\STATE Aggregate estimated patch on $\widetilde u^{(2)}$
 				\STATE Remove $\ma q_i$ from $\mathcal P$
@@ -528,7 +747,7 @@ estimate have no noise. Thus we set $\sigma = 0$ in Eq.
 %		\REQUIRE Noisy video $v$, noise standard deviation $\sigma$ \\
 %		\ENSURE Estimate of noiseless video $\widetilde u$
 %		\FORALL{patches $\ma q$ in $v$}
-%		\STATE Find the $N_{\text{sim}}$ most similar patches to $\ma q$ in a search volume centered at $\ma q$
+%		\STATE Find the $n$ most similar patches to $\ma q$ in a search volume centered at $\ma q$
 %		\STATE Compute $\widehat{\overline{\ma p}}\,\!^{(1)}$ and $\widehat C^{(1)}$ according to \eqref{eq:learn_parameters}
 %		\STATE Obtain the first stage estimate $\widetilde{\ma p}^{(1)}$ by \eqref{eq:map}
 %		\ENDFOR
@@ -537,14 +756,14 @@ estimate have no noise. Thus we set $\sigma = 0$ in Eq.
 %		the values of all patches $\widetilde{\ma p}^{(1)}$ containing $(x,t)$.
 %		\ENDFOR
 %		\FORALL{patches $\ma q$ in $v$}
-%		\STATE Find the $N_{\text{sim}}$ most similar patches to $\ma q$ in a
+%		\STATE Find the $n$ most similar patches to $\ma q$ in a
 %		search volume centered at $\ma q$ by comparing the estimates $\widetilde{\ma
 %		p}^{(1)}$. We denote them, and their corresponding basic estimates as 
 %		$\ma q_i$ and $\widetilde{\ma p}_i^{(1)}$ respectively.
 %		\STATE Compute $\widehat{\overline{\ma p}}\,\!^{(2)}$ and $\widehat C^{(2)}$ according to
 %\[
-%	\widehat{\overline{\ma p}}\,\!^{(2)} = \frac1{N_{\text{sim}}}\sum_{i = 1}^{N_{\text{sim}}}\widetilde{\ma p}_i^{(1)} \quad\text{and}\quad 
-%	\widehat C^{(2)}= \frac1{N_\text{sim}}\sum_{i = 1}^{N_{\text{sim}}}\left(\widetilde{\ma p}_i^{(1)}\right)^T \widetilde{\ma p}_i^{(1)}.
+%	\widehat{\overline{\ma p}}\,\!^{(2)} = \frac1{n}\sum_{i = 1}^{n}\widetilde{\ma p}_i^{(1)} \quad\text{and}\quad 
+%	\widehat C^{(2)}= \frac1{nsum_{i = 1}^{n}\left(\widetilde{\ma p}_i^{(1)}\right)^T \widetilde{\ma p}_i^{(1)}.
 %\]
 %		\STATE Obtain the second stage estimate $\widetilde{\ma p}^{(2)}$ as in \eqref{eq:map}
 %		\ENDFOR
@@ -557,33 +776,33 @@ estimate have no noise. Thus we set $\sigma = 0$ in Eq.
 %\end{algorithm}
 
 
-\begin{figure*}[thpb!]
-	\begin{center}
-		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_nisy_s10_044.png}
-		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_nisy_s20_044.png}
-		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_nisy_s40_044.png}\\
-		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_vnlb_s10_tr2_044.png}
-		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_vnlb_s20_tr2_044.png}
-		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_vnlb_s40_tr2_044.png}\\
-		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_s10_bm4d_044.png}
-		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_s20_bm4d_044.png}
-		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_s40_bm4d_044.png}\\
-		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_nisy_s10_140.png}
-		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_nisy_s20_140.png}
-		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_nisy_s40_140.png}\\
-		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_vnlb_s10_tr2_140.png}
-		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_vnlb_s20_tr2_140.png}
-		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_vnlb_s40_tr2_140.png}\\
-		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_s10_bm4d_140.png}
-		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_s20_bm4d_140.png}
-		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_s40_bm4d_140.png}
-	\end{center}
-	\caption{Comparison of results obtained with VNLB ($n_t =5$) and V-BM4D-np.
-	The first three rows, correspond to a frame of the bus sequence. From top to
-	bottom: noisy input data. The last three rows correspond to the tennis sequence.
-	Each column shows results obtained for $\sigma = 10$, $20$ and $40$.}
-	\label{fig:results}
-\end{figure*}
+%\begin{figure*}[thpb!]
+%	\begin{center}
+%		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_nisy_s10_044.png}
+%		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_nisy_s20_044.png}
+%		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_nisy_s40_044.png}\\
+%		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_vnlb_s10_tr2_044.png}
+%		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_vnlb_s20_tr2_044.png}
+%		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_vnlb_s40_tr2_044.png}\\
+%		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_s10_bm4d_044.png}
+%		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_s20_bm4d_044.png}
+%		\includegraphics[trim=0.0cm 2.0cm 4.0cm 1.0cm, clip=true, width=0.25\textwidth]{figs/bus_s40_bm4d_044.png}\\
+%		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_nisy_s10_140.png}
+%		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_nisy_s20_140.png}
+%		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_nisy_s40_140.png}\\
+%		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_vnlb_s10_tr2_140.png}
+%		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_vnlb_s20_tr2_140.png}
+%		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_vnlb_s40_tr2_140.png}\\
+%		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_s10_bm4d_140.png}
+%		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_s20_bm4d_140.png}
+%		\includegraphics[trim=3.5cm 2.0cm 1.5cm 0.5cm, clip=true, width=0.25\textwidth]{figs/tennis_s40_bm4d_140.png}
+%	\end{center}
+%	\caption{Comparison of results obtained with VNLB ($w_t =5$) and V-BM4D-np.
+%	The first three rows, correspond to a frame of the bus sequence. From top to
+%	bottom: noisy input data. The last three rows correspond to the tennis sequence.
+%	Each column shows results obtained for $\sigma = 10$, $20$ and $40$.}
+%	\label{fig:results}
+%\end{figure*}
 
 \subsection{Implementation details}
 
@@ -592,7 +811,7 @@ estimate have no noise. Thus we set $\sigma = 0$ in Eq.
 In the first stage, we express the video in a luminance-chrominance colorspace,
 specifically we apply the opponent color transform (see \cite{Dabov2007tip,Lebrun2013a}).
 Patch distances are computed using the luminance only. Using the 
-$N_{\text{sim}}$ most similar patches, a group is built for each channel. These
+$n$ most similar patches, a group is built for each channel. These
 groups are filtered independently (a Gaussian model is learnt for each of them).
 %
 In the second stage, the patch distance is computed using the RGB patches, and
@@ -604,18 +823,18 @@ of similar RGB patches.
 % $\sigma^2I$ to be able to control the amount of filtering.
 
 \paragraph{Patch distance threshold} When building the group of similar
-patches during the second stage, more than $N_{\text{sim}}$ patches are allowed
+patches during the second stage, more than $n$ patches are allowed
 if their distances with respect to the reference patch are smaller than a
 threshold $\tau$.  As in \cite{Lebrun2013ipol}, we set $\tau = 4$ (the distance between
 patches is normalized by the number of elements in the patch and the number of
 channels).
 
 \paragraph{Speed-ups} To accelerate the computation we apply two tricks
-considered in \cite{Lebrun2013ipol}. The first one visits a patch each $N_{\text{step}}$
+considered in \cite{Lebrun2013ipol}. The first one visits a patch each $n$
 patches (similar to \cite{Dabov2007tip}). The second trick consists on the following.
 After filtering the patches in a group, these patches are not considered again
 as reference patches for a group. This reduces the number of groups of patches
-that need to be processed by a factor of $N_{\text{sim}}$.
+that need to be processed by a factor of $n$.
 \todo{Also describe that the 4 neighbors are flagged as processed.}
 
 
@@ -623,14 +842,14 @@ that need to be processed by a factor of $N_{\text{sim}}$.
 \label{sec:complexity}
 
 Let us consider the complexity of constructing and filtering a group of
-$N_{\text{sim}}$ similar patches. Due to the speed-ups described in the
+$n$ similar patches. Due to the speed-ups described in the
 previous section, the actual number of groups of similar patches processed
 might vary between a $1\%$ and a $10\%$ of the total number of pixels in the
 video. 
 
 Processing each group of similar patches is of asymptotic order $\mathcal
-O(n_x^2 n_t s_x^2 s_t + s_x^4s_t^2r + N_{\text{sim}}s_x^4s_t^2)$.
-The first term comes from the exhaustive search of the $N_{\text{sim}}$ most
+O(w_x^2 w_t s_x^2 s_t + s_x^4s_t^2r + ns_x^4s_t^2)$.
+The first term comes from the exhaustive search of the $n$ most
 similar patches in the search window. 
 The second term comes from the computation of the truncated eigen-decomposition
 of the covariance matrix, and the last term contemplates computing the
@@ -641,108 +860,257 @@ of its principal directions.
 Let us note that there are methods for computing the $r$ principal directions
 of a set of points that do not require computing the covariance matrix\todo{referencia}. Instead
 these methods efficiently approximate a truncated SVD of the data matrix, and would 
-allow to improve the computational complexity to $\mathcal O(n_x^2 n_t s_x^2
-s_t + s_x^2s_trN_{\text{sim}})$.
+allow to improve the computational complexity to $\mathcal O(w_x^2 w_t s_x^2
+s_t + s_x^2s_trn)$.
 
 \todo{Statistics of group of patches.}
 
 \subsection{Selection of parameters}
 \label{sec:parameters}
 
-Each stage of the algorithm has the following 6 parameters: the spatial and temporal components of the patch size
-$s_x$ and $s_t$, the spatial and temporal components of the search region $w_x$ and
-$w_t$, the number of similar patches $n_{\text{sim}}$ and the rank of the a priori
-covariance matrix $r$. Each of these parameters needs to be determined for both
-stages.
+For each stage of the algorithm we need to specify 6 parameters: the spatial
+and temporal components of the patch size, $s_x$ and $s_t$, the spatial and
+temporal components of the search region, $w_x$ and $w_t$, the number of similar
+patches $n$ and the rank of the a priori covariance matrix $r$.
+When needed, we will add a subscript indicating the stage, \eg
+$n_{1}$ and $n_{2}$.
 
 \paragraph{Search region} Setting the size of the search region implies a
 trade-off between denoising performance and running time: A larger search
-region takes longer to traverse but yields better the results, since better
-neighbors can be found. In the following experiments, we will fix the search
+region takes longer to traverse but yields better results, since more
+similar patches can be found. We fix the search
 region for both stages of the algorithm at 
 \begin{equation}
 w_x = 37 \quad \text{ and } \quad w_t = 5.
 \label{eq:search_region_parameters}
 \end{equation}
-If the patch in the center of the search region moves slower than $37/5 = 7.4$
-pixels/frame, then it stays in the search region for the $5$ frames.
+With these values, the search region captures the $5$ frame trajectory of the
+target patch as long as it moves slower than $37/5 = 7.4$
+pixels/frame.
 
 \paragraph{Patch size} Let us consider first the spatial patch
-size $s_x$. The impact of a variation of the $s_x$ in the results
-depends on the value of the rank parameter. For instance, if the rank is set
-too low, then increasing the patch size has a negative effect on the results.
-For sufficiently high rank, increasing the size of the patch leads on average
-to an improvement of the results. This improvement however comes at a considerable
-increase in the computation time, since our current implementation is $\mathcal
-O(s_x^4)$.  We have found that a good trade-off between computation time and
-quality is given by $s_x = 5$.
+size $s_x$. This is a key parameter in patch-based methods that
+exploit the image self-similarity \pcomment{CITAS}. The distribution of the 
+patch distances is a non-central Chi-squared distribution \cite{Dabov2007tip}
+\pcomment{CHECK!}
+with variance 
+\[\textnormal{Var}\left\{\frac1{m}\|\ma q_1 - \ma q_2\|^2\right\} = \frac{8\sigma^2}{m}\left(\sigma^2 + \frac{\|\ma p_1 - \ma p_2\|^2}{m}\right),\]
+where $m = s_x^2s_t$ is the total number of pixels in the patch.
+Increasing the spatial patch size $s_x$ reduces the variance of the noise in the patch
+distance. 
+However, for larger
+patches it becomes less likely to find other patches with a similar texture
+pattern. The use spatio-temporal patches helps in solving this trade-off: for
+instance, with a spatio-temporal patch of size $5\times 5\times 4$, we obtain
+the same patch distance noise as with a spatial patch of size $10\times 10
+\times 1$. Moreover, if the motion in the video is approximately uniform, then the 
+amount of similar neighbors of a $5\times 5\times 4$ patch is roughly the same
+as for a $5\times 5\times 1$ patch.
+\pcomment{This discussion would be nice to have in the introduction. Furthermore,
+we could add a short computation on the relation between the distance between
+3D patches and their 2D lids. In this way, we could speak of an equivalent 
+2D patch size.}
 
-The impact of the temporal patch size $s_t$ will be discussed later in Section \ref{sec:results}.
+We will set the spatial patch size at \[s_x = 5\] for both stages. Larger
+patches (up to $s_x = 9$) lead to an mild improvement of the results (on
+average). This improvement comes at a considerable increase in the
+computation time, since our current implementation is $\mathcal O(s_x^4)$. Thus,
+have found that a good compromise between computation time and quality is given
+by $s_x = 5$.
 
-\paragraph{Rank and number of similar patches} These parameters are intimately linked.
-Intuitively, smaller groups obtained by keeping only the most similar patches have 
-only a few modes of variation and thus are better modelled with a low rank
-covariance matrix. As the group of patches grows bigger, patches in the group
-are not as similar anymore, and a higher rank is needed to model these additional 
-variation.
-To find appropriate values for these parameters, we compute denoising results
-varying the rank $r$ and the number of similar patches $n_{\text{sim}}$, while
-keeping all other parameters fixed. Results are computed for four 20 frames clips
-extracted from the sequences \emph{bus}, \emph{foreman}, \emph{football} and
-\emph{tennis}, adding noise of $\sigma = 10, 20, 40$.
+The impact of the temporal patch size $s_t$ will be discussed later in Section
+\ref{sec:results}, where we show results varying $s_t$ between $s_t = 1$ and $s_t = 4$.
+
+\paragraph{Rank and number of similar patches} These parameters are intimately
+linked. Together they determine the estimation of the local Gaussian models
+and thus control the bias-variance trade-off of the denoiser.
+\pcomment{This is probably inaccurate. There should be other parameters
+contributing to this.}
+
+The number of similar patches $n$ affects the estimation of the covariance
+matrix $C$.
+%Let us consider the trade-offs involved in the estimation of the covariance
+%matrix $C$.
+The empirical covariance matrix $\widehat C$ converges to the true covariance matrix
+$C$ as the number of samples from the underlying Gaussian distribution grows to infinity.
+In our case, the number of samples we can ``draw'' from the Gaussian is limited:
+%The Gaussian is only an approximate density model for the set of
+%$n$ nearest neighbors of a target patch.
+As we increase the number $n$ of neighbors of a patch, we include patches
+that are not as similar to the reference patch and the Gaussian model becomes less valid. 
 %
-We do this for each stage, starting by the second.
+Thus there is a trade-off between accuracy of Gaussian model and precision of the
+covariance matrix.
+We find a compromise to this trade-off empirically, by trying different values of this parameter on a 
+few training sequences and use the one yielding the best PSNR.
 
-On this first experiment, the parameters of the first stage are fixed at:
-\[w_x = 37,\,\,w_t = 5\,\,s_x = 5,\,\,s_t = 4,\,\,n_{\text{sim}} = 375,\,\,r = 100.\]
-\todo{Check these parameters}
-Note that $r = 100$ is the full rank.
-For the second stage, we fix $w_x = 37$, $w_t = 5$, $s_x = 5$ and $s_t = 3$, while varying 
-$r$ in $10,20,\dots,80$ and $n_{\text{sim}}$ in $50, 150,200,250$.
-The results can be visualized in Figure \ref{fig:rank-nsim-image-stage2}. The images in the 
-figure show the PSNR loss in dB with respect to the maximum value attained at each noise level.
-White means 0dB (\ie the set of parameters where the maximum was attained) and black means a loss
-greater or equal than 1dB.
+According to \cite{Vershynin2012}, the number of patches needed to achieve a given approximation
+error between the empirical and the true covariances grows linearly with the
+dimensionality of the space spanned by the data. 
+\pcomment{Comment 1: Actually, I found results relating the number of samples with
+the dimensionality of the ambient space. 
+However, if the data lies in a $p$-dimensional subspace, one could 
+compute a basis of this subspace from $n > p$ samples, and work in the low-dim
+coordinates to estimate a covariance matrix there. In that way, one could build
+a covariance matrix in the ambient space.}
+\pcomment{Comment 2: This reference may not be as relevant, in the light of the 
+results known for Gaussian covariance matrices. It would be interesting to see what 
+\cite{bunea2015} says regarding covariance matrices with low-effective rank.}
 
-We can observe that, at constant $n_{\text{sim}}$ there is an optimal value for the rank. Bellow
-these value the PSNR drops sharply, and above it, the decay is slower. The
-optimal rank for a given $n_{\text{sim}}$ increases with $n_{\text{sim}}$ and decreases with $\sigma$.
-Best results are obtained for small $n_{\text{sim}}$. However, this also entails a higher running time, 
-since it increases the number of groups of similar patches that need to be
-processed. We found a good compromise by setting $n_{\text{sim}} = 150$ and $r$ as a decreasing function of $\sigma$:
-\[r(\sigma) = 40 - \frac1{10}(\sigma - 40),\]
-which corresponds to a line through $(s=10, r = 40)$ and $(s=40, r = 30)$.
+The rank also plays a role in the estimation of the covariance matrix.
+As explained in \S \ref{sec:complexity}, alleviating the computational cost is
+one of the reasons for using a low rank approximation of the empirical
+covariance matrix. But there are also good reasons regarding the denoising
+performance. In situations in which the number of samples 
+is comparable to their dimension, the eigen-decomposition of the empirical
+covariance matrix $\widehat C$ can have considerable errors with respect to
+that of the population covariance matrix $C$. 
+%
+The case of Gaussian models with covariance matrices of the form $C + \sigma^2I$,
+where $C$ is of rank $r$, has been studied in the statistics and physics
+literature. The authors in \cite{johnstone2009,paul2007} study the
+limit when $n,p\to\infty$ such that $p/n\to\gamma < \infty$.
+All these works show that, for a non-zero ratio $\gamma$, the empirical eigenvectors 
+and eigenvalues are inconsistent estimators of the population ones.
+Furthermore, the smaller eigenvalues and their eigenvectors will have a higher
+error and eventually, if the signal-to-noise ratio drops bellow than $\sqrt{\gamma}$, 
+the eigenvector is confounded with the noise and the resulting estimate will be,
+in expectation, orthogonal to the actual value.
+A similar behaviour was analysed by \cite{nadler2008} for finite $p,n$.
+Therefore, when the dimension is high and comparable to the number of samples,
+smaller eigenvalues and eigenvectors are very noisy.
 
-We now perform a similar search for the first stage, setting the second step parameters as:
-\[w_x = 37,\,\,w_t = 5\,\,s_x = 5,\,\,s_t = 3,\,\,n_{\text{sim}} = 150,\,\,r(\sigma).\]
-The first stage parameters are as before, expect that we now vary $r$ in $10,20,\dots,100$
-and $n_{\text{sim}}$ in $50,100,\dots,650$. Results are shown in Figure
-\ref{fig:rank-nsim-image-stage1}. Note that since our objective is to maximize
-the final PSNR, we show here the final PSNR. 
-The final and the basic PSNRs do not always
-have the same behaviour. Improving the basic PSNR does not always lead to an
-improvement in the final one. The reason for this is that it is preferable to
-apply a conservative noise reduction leaving some noise in the basic estimate
-(high variance but small bias). In the second step, this residual noise has
-little effect on the estimation of the patch distances and the \emph{a priori} covariance
-matrix. On the other hand, applying a more aggressive denoising in first step
-might increase the basic PSNR, but the second step cannot recover the lost
-signal components.
 
-In fact, best results are obtained using the full rank covariance matrix. 
-In accordance to these observations, we will set the first values for $r$ and $n_{\text{sim}}$ as:
-\begin{equation}
-	r = s_x^2s_t \quad\quad n_{\text{sim}} = 350.
-	\label{eq:stage1_parameters}
-\end{equation}
+%\prm{Intuitively speaking, by setting a lower rank we are estimating a covariance
+%matrix in a lower dimensional subspace. Then, according to
+%\cite{Vershynin2012}, we require a smaller number of samples for a given
+%precision.} \pcomment{The previous argument is not good. I would like to have
+%some theoretical estimate on the number of samples to approximate a lower
+%rank covariance matrix, or equivalently, the number of samples to approximate
+%the largest principal directions. The point I would like to make, is that
+%the number of similar patches required is less if one only wants to estimate
+%the first principal eigenvectors. Maybe the answer lies in \cite{Halko2011}.}
+
+The plots in Figure \pcomment{TODO} show the PSNR of the basic estimate as a function of the 
+rank $r_1$, for several values of $n_{1}$.
+%
+%
+These results behave as expected. Smaller groups obtained by keeping only the
+most similar patches have only a few modes of variation and thus are better
+modelled with a low-rank covariance matrix. As the group of patches grows
+bigger, patches in the group are not as similar anymore, and a higher rank is
+needed to allow for additional modes of variation.
+
+A similar qualitative behaviour can be observed for the second stage, as shown in Figure \pcomment{TODO}. 
+The plots in the figure result from varying the 2nd stage $r_2$ and
+$n_{2}$ parameters.
+%
+Note that for the 2nd stage best results are found with a much smaller value
+for $n_{2}$ than in the first stage.
+%
+A possible explanation is that the noise-less patches, as well as the basic
+estimates, lie close to a low-dimensional subspace. On the other hand, the
+noisy patches, which have been perturbed by isotropic noise and span the entire
+ambient space. Thus, following \cite{Vershynin2012}, more samples are required for
+estimating the covariance matrix in the presence of noise.
+\pcomment{Although we do not have an explanation about why higher levels of noise
+require more samples.}
+
+So far we have studied the parameters affecting the MAP estimation for each stage 
+independently. However, to determine the optimal parameters, we need to look at
+them jointly. The first stage parameters maximizing the PSNR of the basic
+estimate, yield a suboptimal result in terms of the end PSNR.
+%
+Figure \pcomment{TODO} shows a correlation plot for the PSNR of the first and
+second stages obtained when varying \pcomment{TODO}. It can be observed, that the 
+results with the highest basic and final PSNR do not coincide.
+
+The aims of the first and second stage are different: the output 
+of the first stage is used as an oracle in the second stage. As such, it can
+have more variance but it should have a small bias. The reason is that the
+second stage is robust to some noise in the basic estimate, but
+the signal components lost in the first stage are harder to recover.
+
+Due the coupling of the first and second stages, determining the optimal values
+for the pair ranks and number of patches requires a four dimensional parameter
+search, which would take a lot of time.
+%
+Instead, we fix the first stage parameters at
+\[r_1 = s_{x,1}^2s_{t,1}\quad\quad n_{1} = 400,\]
+which we found to give good results. We are being conservative and use the
+full rank covariance matrix to eliminate the least signal components.
+
+We then run a parameter search to determine $r_2$ and $n_{2}$.
+The result is the one in Figure \pcomment{figure used before}. From here
+establish the following values as a function of $\sigma$:
+\[r_2(\sigma) = 40 - \frac13(\sigma - 10)\quad\quad n_{2} = 150.\]
+Note that smaller value for $n_{2}$ could give better results,
+but this comes at a higher computational cost.
+
+
+%Intuitively, smaller groups obtained by keeping only the most similar patches have 
+%only a few modes of variation and thus are better modelled with a low rank
+%covariance matrix. As the group of patches grows bigger, patches in the group
+%are not as similar anymore, and a higher rank is needed to model these additional 
+%variation.
+%To find appropriate values for these parameters, we compute denoising results
+%varying the rank $r$ and the number of similar patches $n$, while
+%keeping all other parameters fixed. Results are computed for four 20 frames clips
+%extracted from the sequences \emph{bus}, \emph{foreman}, \emph{football} and
+%\emph{tennis}, adding noise of $\sigma = 10, 20, 40$.
+%%
+%We do this for each stage, starting by the second.
+%
+%On this first experiment, the parameters of the first stage are fixed at:
+%\[w_x = 37,\,\,w_t = 5\,\,s_x = 5,\,\,s_t = 4,\,\,n = 375,\,\,r = 100.\]
+%\todo{Check these parameters}
+%Note that $r = 100$ is the full rank.
+%For the second stage, we fix $w_x = 37$, $w_t = 5$, $s_x = 5$ and $s_t = 3$, while varying 
+%$r$ in $10,20,\dots,80$ and $n$ in $50, 150,200,250$.
+%The results can be visualized in Figure \ref{fig:rank-nsim-image-stage2}. The images in the 
+%figure show the PSNR loss in dB with respect to the maximum value attained at each noise level.
+%White means 0dB (\ie the set of parameters where the maximum was attained) and black means a loss
+%greater or equal than 1dB.
+%
+%We can observe that, at constant $n$ there is an optimal value for the rank. Bellow
+%these value the PSNR drops sharply, and above it, the decay is slower. The
+%optimal rank for a given $n$ increases with $n$ and decreases with $\sigma$.
+%Best results are obtained for small $n$. However, this also entails a higher running time, 
+%since it increases the number of groups of similar patches that need to be
+%processed. We found a good compromise by setting $n = 150$ and $r$ as a decreasing function of $\sigma$:
+%\[r(\sigma) = 40 - \frac1{10}(\sigma - 40),\]
+%which corresponds to a line through $(s=10, r = 40)$ and $(s=40, r = 30)$.
+%
+%We now perform a similar search for the first stage, setting the second step parameters as:
+%\[w_x = 37,\,\,w_t = 5\,\,s_x = 5,\,\,s_t = 3,\,\,n = 150,\,\,r(\sigma).\]
+%The first stage parameters are as before, expect that we now vary $r$ in $10,20,\dots,100$
+%and $n$ in $50,100,\dots,650$. Results are shown in Figure
+%\ref{fig:rank-nsim-image-stage1}. Note that since our objective is to maximize
+%the final PSNR, we show here the final PSNR. 
+%The final and the basic PSNRs do not always
+%have the same behaviour. Improving the basic PSNR does not always lead to an
+%improvement in the final one. The reason for this is that it is preferable to
+%apply a conservative noise reduction leaving some noise in the basic estimate
+%(high variance but small bias). In the second step, this residual noise has
+%little effect on the estimation of the patch distances and the \emph{a priori} covariance
+%matrix. On the other hand, applying a more aggressive denoising in first step
+%might increase the basic PSNR, but the second step cannot recover the lost
+%signal components.
+%
+%In fact, best results are obtained using the full rank covariance matrix. 
+%In accordance to these observations, we will set the first values for $r$ and $n$ as:
+%\begin{equation}
+%	r = s_x^2s_t \quad\quad n = 350.
+%	\label{eq:stage1_parameters}
+%\end{equation}
 
 %
 %
 %
 %First we fix the parameters of the second stage at 
-%\[r = 16,\,\, n_{\text{sim}} = 160,\,\, s_x = 5,\,\, s_t = 3,\,\, w_x = 37,\,\, w_t = 5,\]
+%\[r = 16,\,\, n = 160,\,\, s_x = 5,\,\, s_t = 3,\,\, w_x = 37,\,\, w_t = 5,\]
 %and vary the parameters of the first stage. We considered ranks $r = 8, 16, 32, 64$,   
-%patch sizes $s_x = 3,5,7,9$ and number of patches $n_{\text{sim}} = 80, 160, 320, 640$.
+%patch sizes $s_x = 3,5,7,9$ and number of patches $n = 80, 160, 320, 640$.
 %For all $4^3 = 64$ combinations, we considered three levels of noise $\sigma = 10, 20, 40$
 %and run our method on four sequences. The
 %sequences used were \emph{army, dog dance, evergreen} and \emph{walking} from
@@ -758,8 +1126,8 @@ In accordance to these observations, we will set the first values for $r$ and $n
 %
 %It can be observed that several parameter configurations can give very similar
 %results. For example, with $\sigma = 10$, equivalent results can be obtained 
-%with $s_x = 3, r = 16, n_{\text{sim}} = 80$, $s_x = 5, r = 32, n_{\text{sim}} = 160$
-%or  $s_x = 7, r = 64, n_{\text{sim}} = 320$.
+%with $s_x = 3, r = 16, n = 80$, $s_x = 5, r = 32, n = 160$
+%or  $s_x = 7, r = 64, n = 320$.
 %The one with the least computational cost is chosen. This means,
 %smaller patches sizes, smaller ranks, and a larger number of similar patches.
 %
@@ -782,13 +1150,13 @@ In accordance to these observations, we will set the first values for $r$ and $n
 %In accordance to these observations, we will set the parameters as a function of
 %$\sigma$ as follows:
 %\begin{equation}
-%	s_t = 5,\quad\quad r = \min(640/\sigma, r_{\text{max}}), \quad\quad n_{\text{sim}} = 16\sigma.
+%	s_t = 5,\quad\quad r = \min(640/\sigma, r_{\text{max}}), \quad\quad n = 16\sigma.
 %	\label{eq:stage1_parameters}
 %\end{equation}
 %%\begin{align}
 %%	s_t &= 5\\
 %%	r &= \min(640/\sigma, r_{\text{max}}) \\
-%%	n_{\text{sim}} &= 16\sigma. 
+%%	n &= 16\sigma. 
 %%	\label{eq:stage1_parameters}
 %%\end{align}
 %We set the maximum rank to be $r_{\text{max}} = \min(128,s_x^2s_t)$. Note that
@@ -803,7 +1171,7 @@ In accordance to these observations, we will set the first values for $r$ and $n
 %
 %From these results, we fix the parameters as follows:
 %\begin{equation}
-%	s_x = 5,\quad r = \max( \min(320/\sigma, r_{\text{max}}), r_{\text{min}}), \quad n_{\text{sim}} = 160.
+%	s_x = 5,\quad r = \max( \min(320/\sigma, r_{\text{max}}), r_{\text{min}}), \quad n = 160.
 %	\label{eq:stage1_parameters}
 %\end{equation}
 %For the second stage, we set $r_{\text{max}} = \min(64,s_x^2s_t)$ and $r_{\text{min}} = 16$.
@@ -815,51 +1183,74 @@ In accordance to these observations, we will set the first values for $r$ and $n
 %temporal size of the patch we will vary it between $s_t = 1$ and $s_t = 4$ in
 %the results section.
 
+
 \begin{figure*}[htpb!]
 	\begin{center}
-		\includegraphics[width=.25\textwidth]{figs/params_tables/psnr_r2-np2-image_s10_average_derf.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/psnr_r2-np2-image_s20_average_derf.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/psnr_r2-np2-image_s40_average_derf.eps}\\
-		\includegraphics[width=.25\textwidth]{figs/params_tables/time_r2-np2-image_s10_average_derf.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/time_r2-np2-image_s20_average_derf.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/time_r2-np2-image_s40_average_derf.eps}\\
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-curves_s10_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-curves_s20_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-curves_s30_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-curves_s40_average_derf.eps}\\
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-image_s10_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-image_s20_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-image_s30_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-image_s40_average_mono.eps}\\
 	\end{center}
-	\caption{Top row: average PSNRs over four sequences, obtained by varying the second stage parameters
-		$r$ and $n_{\text{sim}}$. From left to right, results for $\sigma = 10,
-		20, 40$. In each image, the contrast has been stretched so that white
-		corresponds to the maximum PSNR and black to a decay of 1dB bellow the
-		maximum. 
-		Bottom: corresponding average running times. White corresponds to $50$ s/frame (using parallelization with four threads).}
+	\caption{Top row: average PSNRs over four sequences, obtained by varying the
+		second stage parameters $r$ and $n$. From left to right, results for
+		$\sigma = 10, 20, 40$. In each image, the contrast has been stretched so
+		that white corresponds to the maximum PSNR and black to a decay of 1dB
+		bellow the maximum. 
+		Bottom: same for grayscale sequences.} 
 	\label{fig:rank-nsim-image-stage2}
 \end{figure*}
 
 
 \begin{figure*}[htpb!]
 	\begin{center}
-		\includegraphics[width=.25\textwidth]{figs/params_tables/psnr_r1-np1-image_s10_average_derf.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/psnr_r1-np1-image_s20_average_derf.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/psnr_r1-np1-image_s40_average_derf.eps}\\
-		\includegraphics[width=.25\textwidth]{figs/params_tables/time_r1-np1-image_s10_average_derf.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/time_r1-np1-image_s20_average_derf.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/time_r1-np1-image_s40_average_derf.eps}\\
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s10_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s20_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s30_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s40_average_derf.eps}\\
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s10_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s20_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s30_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s40_average_mono.eps}\\
 	\end{center}
 	\caption{Same as Figure \ref{fig:rank-nsim-image-stage2} but for the first stage.}
 	\label{fig:rank-nsim-image-stage1}
 \end{figure*}
 
-
-
-
-
-
-
-
-%figs/params_tables/psnr_r1-np1-image_s10_bus.eps
-%figs/params_tables/psnr_r1-np1-image_s20_bus.eps
-%figs/params_tables/psnr_r1-np1-image_s40_bus.eps
-%figs/params_tables/time_r1-np1-image_s10_bus.eps
-%figs/params_tables/time_r1-np1-image_s20_bus.eps
-%figs/params_tables/time_r1-np1-image_s40_bus.eps
+%\begin{figure*}[htpb!]
+%	\begin{center}
+%		\includegraphics[width=.25\textwidth]{figs/params_tables/psnr_r2-np2-image_s10_average_derf.eps}%
+%		\includegraphics[width=.25\textwidth]{figs/params_tables/psnr_r2-np2-image_s20_average_derf.eps}%
+%		\includegraphics[width=.25\textwidth]{figs/params_tables/psnr_r2-np2-image_s40_average_derf.eps}\\
+%		\includegraphics[width=.25\textwidth]{figs/params_tables/time_r2-np2-image_s10_average_derf.eps}%
+%		\includegraphics[width=.25\textwidth]{figs/params_tables/time_r2-np2-image_s20_average_derf.eps}%
+%		\includegraphics[width=.25\textwidth]{figs/params_tables/time_r2-np2-image_s40_average_derf.eps}\\
+%	\end{center}
+%	\caption{Top row: average PSNRs over four sequences, obtained by varying the second stage parameters
+%		$r$ and $n$. From left to right, results for $\sigma = 10,
+%		20, 40$. In each image, the contrast has been stretched so that white
+%		corresponds to the maximum PSNR and black to a decay of 1dB bellow the
+%		maximum. 
+%		Bottom: corresponding average running times. White corresponds to $50$ s/frame (using parallelization with four threads).}
+%	\label{fig:rank-nsim-image-stage2}
+%\end{figure*}
+%
+%
+%\begin{figure*}[htpb!]
+%	\begin{center}
+%		\includegraphics[width=.25\textwidth]{figs/params_tables/psnr_r1-np1-image_s10_average_derf.eps}%
+%		\includegraphics[width=.25\textwidth]{figs/params_tables/psnr_r1-np1-image_s20_average_derf.eps}%
+%		\includegraphics[width=.25\textwidth]{figs/params_tables/psnr_r1-np1-image_s40_average_derf.eps}\\
+%		\includegraphics[width=.25\textwidth]{figs/params_tables/time_r1-np1-image_s10_average_derf.eps}%
+%		\includegraphics[width=.25\textwidth]{figs/params_tables/time_r1-np1-image_s20_average_derf.eps}%
+%		\includegraphics[width=.25\textwidth]{figs/params_tables/time_r1-np1-image_s40_average_derf.eps}\\
+%	\end{center}
+%	\caption{Same as Figure \ref{fig:rank-nsim-image-stage2} but for the first stage.}
+%	\label{fig:rank-nsim-image-stage1}
+%\end{figure*}
 
 
 %\begin{figure*}[htpb!]
@@ -878,7 +1269,7 @@ In accordance to these observations, we will set the first values for $r$ and $n
 %		\includegraphics[width=.25\textwidth,height=.19\textwidth]{figs/params_tables/zoom_psnr_px1-np1-bars_1r64_s40_average.eps}\\
 %	\end{center}
 %	\caption{Average PSNRs for 64 configurations of the first stage parameters
-%		$r$, $n_{\text{sim}}$ and $s_x$. From top to bottom, results for $\sigma = 10, 20, 40$.
+%		$r$, $n$ and $s_x$. From top to bottom, results for $\sigma = 10, 20, 40$.
 %		From left to right: results for $r = 8, 16, 32, 64$.}
 %	\label{fig:rank-px-nsim-table-stage1}
 %\end{figure*}
@@ -899,7 +1290,7 @@ In accordance to these observations, we will set the first values for $r$ and $n
 %		\includegraphics[width=.25\textwidth,height=.19\textwidth]{figs/params_tables/zoom_psnr_px2-np2-bars_2r64_s40_average.eps}\\
 %	\end{center}
 %	\caption{Average PSNRs for 64 configurations of the second stage parameters
-%		$r$, $n_{\text{sim}}$ and $s_x$. From top to bottom, results for $\sigma = 10, 20, 40$.
+%		$r$, $n$ and $s_x$. From top to bottom, results for $\sigma = 10, 20, 40$.
 %		From left to right: results for $r = 8, 16, 32, 64$.}
 %	\label{fig:rank-px-nsim-table-stage2}
 %\end{figure*}
@@ -912,14 +1303,14 @@ In accordance to these observations, we will set the first values for $r$ and $n
 %		results can be obtained with higher patch sizes, but the computational cost
 %		scales considerably (e.g. the inversion of the covariance matrix is of $O(s^6)$).
 %	\item[Number of similar patches:] For the first stage, we set
-%		$N^{(1)}_{\text{sim}} = 3s^2n_t$  (recall that $n_t$ is the temporal
+%		$N^{(1)}_{\text{sim}} = 3s^2w_t$  (recall that $w_t$ is the temporal
 %		extend of the search region). For the second step we 
-%		found better results using fewer patches, thus we set $N^{(2)}_{\text{sim}} = 3/4 s^2n_t$.
-%	\item[Search region:] In both stages, we used $n_x = s^2/2$.
+%		found better results using fewer patches, thus we set $N^{(2)}_{\text{sim}} = 3/4 s^2w_t$.
+%	\item[Search region:] In both stages, we used $w_x = s^2/2$.
 %		For the temporal search region, we found a good trade-off
-%		between computational time and quality of the results for $n_t = 5$. 
+%		between computational time and quality of the results for $w_t = 5$. 
 %	\item[Patch distance threshold:] When building the group of similar patches
-%		in the second stage, more than $N_{\text{sim}}$ patches are allowed if their 
+%		in the second stage, more than $n$ patches are allowed if their 
 %		distances with respect to the reference patch are smaller than a threshold $\tau$.
 %		As in \cite{Lebrun2013ipol}, we set $\tau = 4$ (the distance between patches is normalized by 
 %		the number of elements in the patch and the number of channels).
@@ -928,9 +1319,9 @@ In accordance to these observations, we will set the first values for $r$ and $n
 % stage 1
 %
 % patch size $s = 5$
-% spatial search region $n_x = 37$
-% temporal search region $n_t = 0,3,5$
-% number of similar patches $3 s^2 n_t$, 3/4 s^2 n_t$$
+% spatial search region $w_x = 37$
+% temporal search region $w_t = 0,3,5$
+% number of similar patches $3 s^2 w_t$, 3/4 s^2 w_t$$
 % beta $\beta = 1; 1.2$
 % tau n/a $\tau = 16$  
 % offset $= s/2$
@@ -1030,7 +1421,7 @@ In accordance to these observations, we will set the first values for $r$ and $n
 			\hline
 			\rule{0pt}{6pt}$\sigma$ & Method             & \multicolumn{2}{c}{Tennis}  & \multicolumn{2}{c}{Salesman} &\multicolumn{2}{c}{Fl. garden}& \multicolumn{2}{c}{Mobile}  & \multicolumn{2}{c}{Bicycle}  & \multicolumn{2}{c|}{Stefan} & \multicolumn{2}{c}{Average} \\\hline
 			\multirow{1}{*}{$10$}
-			                      & LZD                  & \bsic{     } & \Best{36.45} & \bsic{     } & \Best{40.49}  & \bsic{     } & \Best{34.46}  & \bsic{     } & \Best{37.03} &              &               &              &              & \bsic{     } &       37.13  \\
+			                      & I-SA-BM4D            & \bsic{     } & \Best{36.45} & \bsic{     } & \Best{40.49}  & \bsic{     } & \Best{34.46}  & \bsic{     } & \Best{37.03} &              &               &              &              & \bsic{     } &       37.13  \\
 			                      & V-BM4D-tip           & \bsic{     } &       35.22  & \bsic{     } &       37.30   & \bsic{     } &       32.81   &              &              &              &       37.66   &              &              & \bsic{     } &       35.11  \\
 			                      & V-BM4D-mp            & \Bsic{34.32} &       34.95  & \Bsic{36.77} &       37.48   & \bsic{32.20} &       32.01   & \bsic{33.99} &       34.11  & \Bsic{37.58} &       37.85   & \bsic{33.47} &       33.68  & \bsic{todo } &       todo   \\
 			                      & VNLB   $s_t = 1$     & \bsic{32.99} &       33.29  & \bsic{34.62} &       35.15   & \bsic{30.80} &       31.22   & \bsic{32.34} &       32.79  & \bsic{36.21} &       37.72   & \bsic{33.20} &       33.79  & \bsic{todo } &       todo   \\
@@ -1042,7 +1433,7 @@ In accordance to these observations, we will set the first values for $r$ and $n
 %			                      & VNLB   $s_t = 4$     & \bsic{34.18} & \Best{35.32} & \bsic{todo } &       todo    & \bsic{todo } &       todo    & \bsic{34.41} & \Best{35.54} & \bsic{todo } &       todo    & \bsic{33.47} &       34.13  & \bsic{todo } &       todo   \\\hline
 %                                                                                                                                                                                                                                                                         
 			\multirow{1}{*}{$20$}                                                                                                                                                                                                                                            
-			                      & LZD                  & \bsic{     } & \Best{33.36} & \bsic{     } & \Best{37.52}  & \bsic{     } & \Best{31.35}  & \bsic{     } & \Best{33.47} &              &               &              &              & \bsic{     } &       34.08  \\
+			                      & I-SA-BM4D            & \bsic{     } & \Best{33.36} & \bsic{     } & \Best{37.52}  & \bsic{     } & \Best{31.35}  & \bsic{     } & \Best{33.47} &              &               &              &              & \bsic{     } &       34.08  \\
 			                      & V-BM4D-tip           & \bsic{     } &       31.59  & \bsic{     } &       33.79   & \bsic{     } &       28.63   &              &              &              &       34.10   &              &              & \bsic{     } &       31.34  \\
 			                      & V-BM4D-mp            & \bsic{30.54} &       31.08  & \Bsic{32.18} &       33.46   & \Bsic{28.12} &       28.32   & \Bsic{29.67} &       30.49  & \Bsic{33.62} &       34.54   & \bsic{29.04} &       29.69  & \bsic{todo } &       todo   \\
 			                      & VNLB   $s_t = 1$     & \bsic{29.62} &       30.16  & \bsic{30.76} &       31.54   & \bsic{26.17} &       26.56   & \bsic{27.89} &       28.39  & \bsic{32.41} &       33.77   & \bsic{28.69} &       29.26  & \bsic{todo } &       todo   \\
@@ -1054,7 +1445,7 @@ In accordance to these observations, we will set the first values for $r$ and $n
 %			                      & VNLB   $s_t = 4$     & \bsic{30.25} & \Best{31.69} & \bsic{todo } &       todo    & \bsic{todo } &       todo    & \bsic{29.74} & \Best{31.35} & \bsic{todo } &       todo    & \bsic{28.89} & \Best{29.97} & \bsic{todo } &       todo   \\\hline
 %                                                                                                                                                                                                                                                                         
 			\multirow{1}{*}{$30$}                                                                                                                                                                                                                                            
-			                      & LZD                  & \bsic{     } & \Best{31.62} & \bsic{     } & \Best{36.05}  & \bsic{     } & \Best{29.09}  & \bsic{     } & \Best{30.36} &              &               &              &              & \bsic{     } &       32.25  \\
+			                      & I-SA-BM4D            & \bsic{     } & \Best{31.62} & \bsic{     } & \Best{36.05}  & \bsic{     } & \Best{29.09}  & \bsic{     } & \Best{30.36} &              &               &              &              & \bsic{     } &       32.25  \\
 			                      & V-BM4D-tip           & \bsic{     } &       29.72  &              &       31.75   & \bsic{     } &       26.29   &              &              &              &       31.83   &              &              & \bsic{     } &       29.25  \\
 			                      & V-BM4D-mp            & \Bsic{28.89} &       29.37  & \Bsic{29.56} &       31.02   & \Bsic{25.63} &       26.20   & \bsic{26.73} &       27.99  & \Bsic{30.99} &       32.30   & \bsic{26.39} &       27.34  & \bsic{todo } &       todo   \\
 			                      & VNLB   $s_t = 1$     & \bsic{27.32} &       28.20  & \bsic{27.94} &       29.14   & \bsic{23.62} &       23.96   & \bsic{25.42} &       25.82  & \bsic{29.50} &       31.08   & \bsic{26.14} &       26.69  & \bsic{todo } &       todo   \\
@@ -1063,7 +1454,7 @@ In accordance to these observations, we will set the first values for $r$ and $n
 			                      & VNLB   $s_t = 4$     & \bsic{26.92} &       29.64  & \bsic{27.28} &       30.73   & \bsic{24.60} &       26.60   & \bsic{26.04} &       28.68  & \bsic{27.61} &       31.50   & \bsic{25.57} & \Best{27.71} & \bsic{todo } &       todo   \\\hline
 %                                                                                                                                                                                                                                                                         
 			\multirow{1}{*}{$40$}                                                                                                                                                                                                                                            
-			                      & LZD                  & \bsic{     } & \Best{30.79} & \bsic{     } & \Best{35.12}  & \bsic{     } & \Best{27.56}  & \bsic{     } & \Best{28.93} &              &               &              &              & \bsic{     } &       31.16  \\
+			                      & I-SA-BM4D            & \bsic{     } & \Best{30.79} & \bsic{     } & \Best{35.12}  & \bsic{     } & \Best{27.56}  & \bsic{     } & \Best{28.93} &              &               &              &              & \bsic{     } &       31.16  \\
 			                      & V-BM4D-tip           & \bsic{     } &       28.49  & \bsic{     } &       30.35   & \bsic{     } &       24.60   &              &              &              &       30.10   &              &              & \bsic{     } &       27.81  \\
 			                      & V-BM4D-mp            & \Bsic{27.67} &       28.38  & \Bsic{27.81} &       29.37   & \Bsic{23.68} &       24.59   & \bsic{24.64} &       26.02  & \Bsic{29.02} &       30.58   & \bsic{24.47} &       25.64  & \bsic{todo } &       todo   \\
 			                      & VNLB   $s_t = 1$     & \bsic{25.65} &       26.83  & \bsic{25.97} &       27.49   & \bsic{21.89} &       22.25   & \bsic{23.57} &       24.11  & \bsic{27.32} &       29.03   & \bsic{24.27} &       24.97  & \bsic{todo } &       todo   \\
@@ -1089,19 +1480,19 @@ In accordance to these observations, we will set the first values for $r$ and $n
 %		\hline
 %		\rule{0pt}{12pt}$\sigma$ & Method     & Army & DogDance & Evergreen & Mequon & Walking  \\\hline
 %		\multirow{5}{*}{$10$} & V-BM4D-np      &       37.77  &       35.70  &       35.40  &       38.09  &       38.85  \\
-%		                      & VNLB $n_t = 0$ &       36.90  &       35.42  &       34.84  &       38.43  &       38.86  \\
-%		                      & VNLB $n_t = 3$ &       37.65  &       35.87  &       35.38  &       39.09  &       39.69  \\
-%									 & VNLB $n_t = 5$ & \best{37.88} & \best{36.01} & \best{35.53} & \best{39.20} & \best{39.74} \\\hline
+%		                      & VNLB $w_t = 0$ &       36.90  &       35.42  &       34.84  &       38.43  &       38.86  \\
+%		                      & VNLB $w_t = 3$ &       37.65  &       35.87  &       35.38  &       39.09  &       39.69  \\
+%									 & VNLB $w_t = 5$ & \best{37.88} & \best{36.01} & \best{35.53} & \best{39.20} & \best{39.74} \\\hline
 %%									                                                                                           
 %		\multirow{5}{*}{$20$} & V-BM4D-np      &       32.91  &       31.50  &       30.94  &       33.60  &       34.27  \\
-%		                      & VNLB $n_t = 0$ &       33.77  &       32.44  &       31.68  &       35.61  &       35.60  \\
-%									 & VNLB $n_t = 3$ &       34.45  &       32.90  &       32.15  &       35.89  &       36.12  \\
-%									 & VNLB $n_t = 5$ & \best{34.59} & \best{33.02} & \best{32.27} & \best{35.90} & \best{36.12} \\\hline
+%		                      & VNLB $w_t = 0$ &       33.77  &       32.44  &       31.68  &       35.61  &       35.60  \\
+%									 & VNLB $w_t = 3$ &       34.45  &       32.90  &       32.15  &       35.89  &       36.12  \\
+%									 & VNLB $w_t = 5$ & \best{34.59} & \best{33.02} & \best{32.27} & \best{35.90} & \best{36.12} \\\hline
 %%									                                                                                           
 %		\multirow{5}{*}{$40$} & V-BM4D-np      &       30.42  &       29.29  &       28.65  &       31.02  &       31.64  \\
-%		                      & VNLB $n_t = 0$ &       30.55  &       29.41  &       28.66  &       31.78  &       31.86  \\
-%									 & VNLB $n_t = 3$ & \best{31.02} & \best{29.73} & \best{29.03} & \best{31.88} & \best{31.92} \\
-%									 & VNLB $n_t = 5$ & \best{31.06} & \best{29.74} & \best{29.08} &       31.70  &       31.74  \\\hline
+%		                      & VNLB $w_t = 0$ &       30.55  &       29.41  &       28.66  &       31.78  &       31.86  \\
+%									 & VNLB $w_t = 3$ & \best{31.02} & \best{29.73} & \best{29.03} & \best{31.88} & \best{31.92} \\
+%									 & VNLB $w_t = 5$ & \best{31.06} & \best{29.74} & \best{29.08} &       31.70  &       31.74  \\\hline
 %	\end{tabular}
 %	\end{center}
 %	\caption{PSNRs obtained for the five color sequences from the Middlebury
@@ -1135,21 +1526,47 @@ profile''. We show the results obtained with the modified profile.
 Each sequence was contaminated with white Gaussian noise of $\sigma =
 10,20,30,40$. Table \ref{tab:psnr-classic-gray} shows the
 PSNR values obtained after denoising. For our method, we show results varying the temporal
-component of the patch size between $1$ (2D patch) and $4$ frames.
+component of the patch size between $s_t = 1$ (2D patch) and $s_t = 4$ frames.
 For our method and V-BM4D-mp we show the PSNR of the basic estimate as well.
 
 The best results by a large margin are the ones reported in
 \cite{LiZhangDai2011}. This method builds uppon BM4D, which in \cite{Maggioni2013}
-is applied to volumetric imagery. In this work, its applicability to video is
-also explored, and the results show that it is inferior to V-BM4D, at least 
-for moderate noise levels. The method of Li, Zhang and Dai \cite{LiZhangDai2011} 
-considers shape adaptive patches, and also several iterations (in each iteration,
-the previous iterate is used as an oracle to compute patch distances and the
-signal energy in the Wiener filtering step) \todo{Check this}. It seems that both elements
-contribute to achieve this significant difference.
+is applied to volumetric imagery. The authors explore its applicability to video 
+and the results show that it is inferior to V-BM4D, at least 
+for low to moderate noise levels. The method of Li, Zhang and Dai \cite{LiZhangDai2011} 
+considers shape adaptive patches, and performs several iterations. In each iteration,
+the previous iterate is used as an oracle to compute patch distances.
+\padd{An additional difference is that the oracle is not used to determine the
+signal components for the Wiener filter. Instead, these are estimated with a fixed
+point iteration from the original noisy patches.}
 
-We can see that our results are comarable with the ones of V-BM4D. \todo{We need to find new parameters
-for grayscale sequences. This discussion needs to be rewritten based on the updated results.}
+We can see that our results outperform the ones of V-BM4D, for all sequences and 
+for all noise levels. The results reported by \cite{LiZhangDai2011} show that there
+is still room for improvement (albeit perhaps at a higher computational cost).
+%
+We have attempted iterating our method as in \cite{LiZhangDai2011},
+but we have not found yet a significant improvement. Something similar was
+reported in \cite{Lebrun2013ipol,Lebrun2013a} for the NL-Bayes method in still
+images. %It may be that the current parameters are not suitable for
+%iteration. 
+A more systematic study is has to be conducted before drawing any
+conclusions about iterative versions of the algorithm.
+%This is the matter of ongoing work, but is out of the scope of the paper.
+%Still, it is early to exclude iteration as an valid option to
+%further improve the denoising performance.
+
+\pcomment{TODO: qualitative comparison.}
+
+Regarding the running time, let us note that the modified profile has a
+computation time lower to that of our method. Running with a
+single core in an Intel Xeon X7560 (2.27GHz) CPU, 
+our current implementation takes on average $XXs$ per frame for a video of CIF
+resolution ($352\times288$). V-BM4D takes $44s$ with the modified profile.
+The running times of \cite{LiZhangDai2011} are not reported, but we expect them
+to be significantly higher given that the algorithm is iterative, with each iteration 
+being comparable to one of the stages of V-BM4D.
+\pcomment{TODO: Compute running times!!!}
+\pcomment{We should include computation times for grayscale videos, instead of color}
 
 
 \subsection{Results on color videos}
@@ -1159,21 +1576,14 @@ We considered five color test sequences, \emph{tennis}, \emph{coastguard},
 because they were used in \cite{Maggioni2012}. The fifth one, \emph{football},
 was added to test the performance of our method on a sequence with complex motions.
 
-We compared our method with CIFIC \cite{Dai2013} and V-BM4D \cite{Maggioni2012}, two recent
-state-of-the-art methods. As with grayscale videos, for V-BM4D, we show results corresponding to two
-different parameter configurations: V-BM4D-tip
-corresponds to the results reported
-in \cite{Maggioni2012}, and V-BM4D-mp corresponds to the ``modified profile''
+As with grayscale videos, we compare our method with V-BM4D using two parameter profiles:
+V-BM4D-tip corresponds to the results reported in \cite{Maggioni2012}, and
+V-BM4D-mp corresponds to the ``modified profile''
 of the implementation available online \cite{bm4dcode}.
+In addition, we also compare our method with CIFIC \cite{Dai2013}, a recent
+state-of-the-art method.
 
-Let us note that the modified profile has a
-computation time lower to that of our method. Running with a
-single core in a Intel Xeon X7560 (2.27GHz) CPU, 
-our current implementation takes on average $XXs$ per frame for a video of CIF
-resolution ($352\times288$). V-BM4D takes $44s$ with the modified profile.
-\todo{Compute running times!!!}
-
-The results are shown in Table \ref{tab:psnr-classic}. The proposed method is
+The results are shown in Table \ref{tab:psnr-classic-color}. The proposed method is
 labeled VNLB. It achieves the highest PSNR values on all the considered
 sequences and levels of noise, with a significant difference. The difference
 increases for higher levels of noise. A possible reason for this is that both 
@@ -1185,8 +1595,9 @@ not be reliable for high noise levels.
 %against V-BM4D-np (see table \ref{tab:psnr-middlebury}. For these sequences, the
 %proposed method outpeforms V-BM4D-np.
 
+\pcomment{This paragraph has to change with the new qualitative results.}
 For a qualitative analysis we show in Figure \ref{fig:results} results obtained
-with nonlocal Bayes (setting $n_t = 5$) and V-BM4D-np. Interestingly, for $\sigma = 20$
+with nonlocal Bayes (setting $w_t = 5$) and V-BM4D-np. Interestingly, for $\sigma = 20$
 and $40$, V-BM4D-np is able to better recover the wallpaper texture in tennis,
 but does worse than VNLB for the foliage texture of the trees in bus. 
 %One
@@ -1197,6 +1608,108 @@ For high levels of noise, the wallpaper texture is masked by the noise.
 It is possible that when comparing 2D patches the noise dominates in the
 comparison. Using spatio-temporal volumes reduces the distance noise,
 allowing to find similar patches with the same regular texture pattern.
+
+\begin{figure*}[htpb!]
+	\centering
+
+	\includegraphics[trim=0cm 7.4cm 0cm 0.5cm, clip=true, width=0.8\textwidth]{figs_cambridge/combined_videos/Army_s40/orig-nisy_004.png}
+
+%	\vspace{.1cm}
+%	\includegraphics[trim=0cm 6.9cm 0cm 0cm, clip=true, width=0.8\textwidth]{figs_cambridge/combined_videos/Army_s40/vnlb_pt4-orig_004.png}
+%
+	\vspace{.1cm}
+	\includegraphics[trim=0cm 7.4cm 0cm 0.5cm, clip=true, width=0.8\textwidth]{figs_cambridge/combined_videos/Army_s40/vnlb_pt4-vnlb_pt1_004.png}
+
+	\vspace{.1cm}
+	\includegraphics[trim=0cm 7.4cm 0cm 0.5cm, clip=true, width=0.8\textwidth]{figs_cambridge/combined_videos/Army_s40/vnlb_pt4-bm4d_004.png}
+	\caption{Comparison of the results. To ease comparison and save space, we
+	juxtapose two results on each image in a checkerboard pattern. From top to
+	bottom: original and contaminated sequences, with $\sigma = 40$; result of
+	VNLB using $s_t = 1$ and $s_t = 4$; result of V-BM4D-mp and result of VNLB
+	with $s_t = 4$.}
+	\label{fig:results-army}
+\end{figure*}
+
+\begin{figure*}[htpb!]
+	\centering
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/data/derf/mobile_mono/tile060-060-080_020.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_mono/mobile_mono_s10_pt4/nisy_tile060-060-080_020.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_mono/mobile_mono_s20_pt4/nisy_tile060-060-080_020.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_mono/mobile_mono_s40_pt4/nisy_tile060-060-080_020.png}\\
+%	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/data/derf/mobile_mono/tile060-060-080_020.png}%
+	\hspace               {0.2\textwidth}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/VBM4D/mobile_mono_mp_s10/tile060-060-080_020.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/VBM4D/mobile_mono_mp_s20/tile060-060-080_020.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/VBM4D/mobile_mono_mp_s40/tile060-060-080_020.png}\\
+%	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/data/derf/mobile_mono/tile060-060-080_020.png}%
+	\hspace               {0.2\textwidth}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_mono/mobile_mono_s10_pt4/tile060-060-080_020.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_mono/mobile_mono_s20_pt4/tile060-060-080_020.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_mono/mobile_mono_s40_pt4/tile060-060-080_020.png}\\
+
+	\vspace{.1cm}
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/data/derf/mobile_mono/tile188-188-065_004.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_mono/mobile_mono_s10_pt4/nisy_tile188-188-065_004.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_mono/mobile_mono_s20_pt4/nisy_tile188-188-065_004.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_mono/mobile_mono_s40_pt4/nisy_tile188-188-065_004.png}\\
+%	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/data/derf/mobile_mono/tile188-188-065_004.png}%
+	\hspace               {0.2\textwidth}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/VBM4D/mobile_mono_mp_s10/tile188-188-065_004.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/VBM4D/mobile_mono_mp_s20/tile188-188-065_004.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/VBM4D/mobile_mono_mp_s40/tile188-188-065_004.png}\\
+%	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/data/derf/mobile_mono/tile188-188-065_004.png}%
+	\hspace               {0.2\textwidth}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_mono/mobile_mono_s10_pt4/tile188-188-065_004.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_mono/mobile_mono_s20_pt4/tile188-188-065_004.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_mono/mobile_mono_s40_pt4/tile188-188-065_004.png}\\
+	\caption{Results for two details of the mobile grayscale sequence. For each
+	image, on the first row we show: the original image, and the noisy version
+	with $\sigma = 10,20$ and $40$. The second and third rows show the results
+	obtained with V-BM4D-mp and with VNLB with $s_t = 4$.}
+	\label{fig:results_mobile_mono}
+\end{figure*}
+
+\begin{figure*}[htpb!]
+	\centering
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/data/derf/tennis/tile050-090-030_015.png}% 
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_color/tennis_s10_pt4/nisy_tile050-090-030_015.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_color/tennis_s20_pt4/nisy_tile050-090-030_015.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_color/tennis_s40_pt4/nisy_tile050-090-030_015.png}\\
+%	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/data/derf/tennis/tile050-090-030_015.png}% 
+	\hspace               {0.2\textwidth}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/VBM4D/tennis_mp_s10/tile050-090-030_015.png}% 
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/VBM4D/tennis_mp_s20/tile050-090-030_015.png}% 
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/VBM4D/tennis_mp_s40/tile050-090-030_015.png}\\
+%	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/data/derf/tennis/tile050-090-030_015.png}% 
+	\hspace               {0.2\textwidth}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_color/tennis_s10_pt4/tile050-090-030_015.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_color/tennis_s20_pt4/tile050-090-030_015.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_color/tennis_s40_pt4/tile050-090-030_015.png}\\
+
+	\vspace{.1cm}
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/data/derf/tennis/tile040-150-070_015.png}% 
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_color/tennis_s10_pt4/nisy_tile040-150-070_015.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_color/tennis_s20_pt4/nisy_tile040-150-070_015.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_color/tennis_s40_pt4/nisy_tile040-150-070_015.png}\\
+%	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/data/derf/tennis/tile040-150-070_015.png}% 
+	\hspace               {0.2\textwidth}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/VBM4D/tennis_mp_s10/tile040-150-070_015.png}% 
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/VBM4D/tennis_mp_s20/tile040-150-070_015.png}% 
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/VBM4D/tennis_mp_s40/tile040-150-070_015.png}\\
+%	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/data/derf/tennis/tile040-150-070_015.png}% 
+	\hspace               {0.2\textwidth}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_color/tennis_s10_pt4/tile040-150-070_015.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_color/tennis_s20_pt4/tile040-150-070_015.png}%
+	\includegraphics[width=0.2\textwidth]{figs_local_cambridge/vnlb3d_color/tennis_s40_pt4/tile040-150-070_015.png}\\
+	\caption{Results for two details of the tennis color sequence. For each
+	image, on the first row we show: the original image, and the noisy version
+	with $\sigma = 10,20$ and $40$. The second and third rows show the results
+	obtained with V-BM4D-mp and with VNLB with $s_t = 4$.}
+	\label{fig:results-tennis}
+\end{figure*}
+
+
+
 
 \subsection{Evaluating temporal consistency}
 
@@ -1368,21 +1881,21 @@ on the sequence. The TCE gap with V-BM4D-mp increases with the noise level.
 % 		\rule{0pt}{12pt}$\sigma$ & Method     & Tennis       & Coastguard   & Foreman      & Bus          \\\hline
 % 		\multirow{5}{*}{$10$} & V-BM4D        & \best{36.42} & \best{37.27} &       37.92  & \best{36.23} \\
 % 		                      & V-BM3D        &       36.04  &       36.82  &       37.52  &       34.96  \\
-% 		                      & VNLB $n_t = 0$ &       32.13  &       33.75  &       34.60  &       32.71  \\
-% 		                      & VNLB $n_t = 3$ &       35.12  &       37.20  &       37.89  &       36.14  \\
-% 									 & VNLB $n_t = 5$ &       35.19  & \best{37.26} & \best{38.00} &       36.11  \\\hline
+% 		                      & VNLB $w_t = 0$ &       32.13  &       33.75  &       34.60  &       32.71  \\
+% 		                      & VNLB $w_t = 3$ &       35.12  &       37.20  &       37.89  &       36.14  \\
+% 									 & VNLB $w_t = 5$ &       35.19  & \best{37.26} & \best{38.00} &       36.11  \\\hline
 % %									 
 % 		\multirow{5}{*}{$25$} & V-BM4D        & \best{32.88} & \best{33.61} & \best{34.62} & \best{32.27} \\
 % 		                      & V-BM3D        &       32.54  &       33.39  &       34.49  &       31.03  \\
-% 		                      & VNLB $n_t = 0$ &       30.58  &       32.47  &       33.44  &       31.26  \\
-% 									 & VNLB $n_t = 3$ &       31.22  &       33.39  &       34.28  &       32.01  \\
-% 		                      & VNLB $n_t = 5$ &       31.25  &       33.44  &       34.34  &       31.94  \\\hline
+% 		                      & VNLB $w_t = 0$ &       30.58  &       32.47  &       33.44  &       31.26  \\
+% 									 & VNLB $w_t = 3$ &       31.22  &       33.39  &       34.28  &       32.01  \\
+% 		                      & VNLB $w_t = 5$ &       31.25  &       33.44  &       34.34  &       31.94  \\\hline
 % %									 
 % 		\multirow{5}{*}{$40$} & V-BM4D        & \best{29.52} & \best{30.00} & \best{31.30} & \best{28.32} \\
 % 		                      & V-BM3D        &       29.20  &       29.99  &       31.17  &       27.34  \\
-% 		                      & VNLB $n_t = 0$ &       27.24  &       28.55  &       29.74  &       27.37  \\
-% 									 & VNLB $n_t = 3$ &       27.96  &       29.68  &       30.85  &       28.17  \\
-% 									 & VNLB $n_t = 5$ &       28.02  &       29.76  &       30.94  &       28.14  \\\hline
+% 		                      & VNLB $w_t = 0$ &       27.24  &       28.55  &       29.74  &       27.37  \\
+% 									 & VNLB $w_t = 3$ &       27.96  &       29.68  &       30.85  &       28.17  \\
+% 									 & VNLB $w_t = 5$ &       28.02  &       29.76  &       30.94  &       28.14  \\\hline
 % 	\end{tabular}
 % 
 % 	\bigskip
