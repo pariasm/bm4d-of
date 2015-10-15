@@ -944,16 +944,18 @@ covariance matrix.
 We find a compromise to this trade-off empirically, by trying different values of this parameter on a 
 few training sequences and use the one yielding the best PSNR.
 
-According to \cite{Vershynin2012}, the number of patches needed to achieve a given approximation
+The problem of estimating the covariance matrix has received a lot of attention in the
+past ten years.
+According to \cite{Vershynin2012}, the number of samples needed to achieve a given approximation
 error between the empirical and the true covariances grows linearly with the
 dimensionality of the space spanned by the data. 
-\pcomment{Comment 1: Actually, I found results relating the number of samples with
-the dimensionality of the ambient space. 
-However, if the data lies in a $p$-dimensional subspace, one could 
-compute a basis of this subspace from $n > p$ samples, and work in the low-dim
-coordinates to estimate a covariance matrix there. In that way, one could build
-a covariance matrix in the ambient space.}
-\pcomment{Comment 2: This reference may not be as relevant, in the light of the 
+%\pcomment{Comment: Actually, I found results relating the number of samples with
+%the dimensionality of the ambient space. 
+%However, if the data lies in a $p$-dimensional subspace, one could 
+%compute a basis of this subspace from $n > p$ samples, and work in the low-dim
+%coordinates to estimate a covariance matrix there. In that way, one could build
+%a covariance matrix in the ambient space.}
+\pcomment{Comment: This reference may not be as relevant, in the light of the 
 results known for Gaussian covariance matrices. It would be interesting to see what 
 \cite{bunea2015} says regarding covariance matrices with low-effective rank.}
 
@@ -966,20 +968,23 @@ is comparable to their dimension, the eigen-decomposition of the empirical
 covariance matrix $\widehat C$ can have considerable errors with respect to
 that of the population covariance matrix $C$. 
 %
-The case of Gaussian models with covariance matrices of the form $C + \sigma^2I$,
-where $C$ is of rank $r$, has been studied in the statistics and physics
-literature. The authors in \cite{johnstone2009,paul2007} study the
+The case of Gaussian models with covariance matrices of the form $C = A + \sigma^2I$,
+where $A$ is does not have full rank, has been studied in the statistics and physics
+literature. The authors in \cite{johnstone2009,paul2007,nadler2008} study the
 limit when $n,p\to\infty$ such that $p/n\to\gamma < \infty$.
-All these works show that, for a non-zero ratio $\gamma$, the empirical eigenvectors 
+These works show that, for a non-zero ratio $\gamma$, the empirical eigenvectors 
 and eigenvalues are inconsistent estimators of the population ones.
 Furthermore, the smaller eigenvalues and their eigenvectors will have a higher
-error and eventually, if the signal-to-noise ratio drops bellow than $\sqrt{\gamma}$, 
-the eigenvector is confounded with the noise and the resulting estimate will be,
+error and eventually, if the signal-to-noise ratio drops bellow $\sqrt{\gamma}$, 
+the eigenvector is confused with the noise and the resulting estimate will be,
 in expectation, orthogonal to the actual value.
-A similar behaviour was analysed by \cite{nadler2008} for finite $p,n$.
-Therefore, when the dimension is high and comparable to the number of samples,
-smaller eigenvalues and eigenvectors are very noisy.
-
+Finite sample bounds for the eigenvalues and eigenvectors have been also studied 
+by \cite{nadler2008}, in the case in which $A$ has rank 1.
+\pcomment{What can we say about this bounds.}
+These larger errors between the sample eigenvectors and their population
+counterparts manifest themselves as noise, which then affects the MAP estimate.
+This suggest that better denoising should be obtained by discarding the
+eigenvectors associated with lower eigenvalues.
 
 %\prm{Intuitively speaking, by setting a lower rank we are estimating a covariance
 %matrix in a lower dimensional subspace. Then, according to
@@ -991,61 +996,84 @@ smaller eigenvalues and eigenvectors are very noisy.
 %the number of similar patches required is less if one only wants to estimate
 %the first principal eigenvectors. Maybe the answer lies in \cite{Halko2011}.}
 
-The plots in Figure \pcomment{TODO} show the PSNR of the basic estimate as a function of the 
-rank $r_1$, for several values of $n_{1}$.
+The plots in Figure \ref{fig:rank1-nsim1-bpsnr} show the PSNR of the basic
+estimate as a function of the rank $r_1$, for several values of $n_{1}$.
+The curves correspond to an average over 20 frames clips 
+extracted from four classical test
+sequences, namely \emph{bus}, \emph{foreman}, \emph{football} and \emph{tennis}.
+The sequences were contaminated with AGWN of standard deviation $\sigma = 10,
+20, 30, 40$. 
 %
 %
-These results behave as expected. Smaller groups obtained by keeping only the
-most similar patches have only a few modes of variation and thus are better
-modelled with a low-rank covariance matrix. As the group of patches grows
-bigger, patches in the group are not as similar anymore, and a higher rank is
-needed to allow for additional modes of variation.
+We can interpret the results in the light of the theoretical results
+described above.
+For all noise levels, best results are obtained when using a larger number of
+samples $n_1$. All curves of fixed $n_1$ show a maximum at a given rank lower than
+the dimensionality of the patch. As the noise level increases, this optimal rank
+shifts to the left. This makes sense, since less eigenvectors are reliable estimates.
+%
+Also, for a fixed noise level, the optimal rank is smaller for smaller values of $n_1$.
+Smaller groups obtained by keeping only the
+most similar patches have less modes of variation, and thus a worse signal-to-noise ratio
+in the eigenvectors with lower eigenvalues.
+%As the group of patches grows
+%bigger, patches in the group are not as similar anymore, and a higher rank is
+%needed to allow for additional modes of variation.
 
-A similar qualitative behaviour can be observed for the second stage, as shown in Figure \pcomment{TODO}. 
-The plots in the figure result from varying the 2nd stage $r_2$ and
-$n_{2}$ parameters.
+The results obtained for the final estimate when varying the second stage
+parameters $n_2$ and $r_2$ show a different behaviour, as shown in Figure
+\ref{fig:rank2-nsim2-fpsnr}.
+These curves where obtained fixing the first stage parameters at $n_1 = 400$
+and $r_1 = 100$ (full rank).
+\pcomment{It doesn't make much sense considering $r_1 = 100$ after saying that
+is best to consider a low $r_1$.}
 %
-Note that for the 2nd stage best results are found with a much smaller value
+In the second stage best results are found with a much smaller value
 for $n_{2}$ than in the first stage.
 %
-A possible explanation is that the noise-less patches, as well as the basic
-estimates, lie close to a low-dimensional subspace. On the other hand, the
-noisy patches, which have been perturbed by isotropic noise and span the entire
-ambient space. Thus, following \cite{Vershynin2012}, more samples are required for
-estimating the covariance matrix in the presence of noise.
-\pcomment{Although we do not have an explanation about why higher levels of noise
-require more samples.}
+The reason for this is that in the second stage the sample covariance is computed
+using patches from the basic estimate, with a much lower noise level.
+In this setting, there is no gain in increasing the number of patches,
+and there seems to be a loss possibly due to the fact that smaller groups of patches
+are better modelled by a Gaussian distribution.
+\pcomment{I don't have an explanation for the curves for $\sigma = 10$. Precisely
+in the lower noise level, the PSNR drops when $n_2$ is reduced, except for lower ranks.
+This contradicts the argument given: for less noise, it should be always better to consider
+less patches, not only for lower ranks.} 
 
 So far we have studied the parameters affecting the MAP estimation for each stage 
 independently. However, to determine the optimal parameters, we need to look at
 them jointly. The first stage parameters maximizing the PSNR of the basic
 estimate, yield a suboptimal result in terms of the end PSNR.
 %
-Figure \pcomment{TODO} shows a correlation plot for the PSNR of the first and
-second stages obtained when varying \pcomment{TODO}. It can be observed, that the 
+Figure \ref{fig:rank1-nsim1-bpsnr-fpsnr} plots for the PSNR of the first and
+second stages obtained when varying $n_1$ and $r_1$ as in Figure
+\ref{fig:rank1-nsim1-bpsnr}. It can be observed, that the 
 results with the highest basic and final PSNR do not coincide.
-
+%
 The aims of the first and second stage are different: the output 
 of the first stage is used as an oracle in the second stage. As such, it can
 have more variance but it should have a small bias. The reason is that the
 second stage is robust to some noise in the basic estimate, but
 the signal components lost in the first stage are harder to recover.
+\pcomment{The figure shows actually the opposite!!}
 
 Due the coupling of the first and second stages, determining the optimal values
-for the pair ranks and number of patches requires a four dimensional parameter
-search, which would take a lot of time.
+for the ranks $r_1, r_2$ and the number of patches $n_1,n_2$ requires a four
+dimensional parameter search.
 %
 Instead, we fix the first stage parameters at
 \[r_1 = s_{x,1}^2s_{t,1}\quad\quad n_{1} = 400,\]
-which we found to give good results. We are being conservative and use the
-full rank covariance matrix to eliminate the least signal components.
-
+which we found to give good results. In doing so, we are being conservative and
+use the full rank covariance matrix to eliminate the least signal components.
+%
 We then run a parameter search to determine $r_2$ and $n_{2}$.
-The result is the one in Figure \pcomment{figure used before}. From here
+The results is the ones shown in Figure \ref{fig:rank1-nsim1-fpsnr}. From here
 establish the following values as a function of $\sigma$:
-\[r_2(\sigma) = 40 - \frac13(\sigma - 10)\quad\quad n_{2} = 150.\]
-Note that smaller value for $n_{2}$ could give better results,
-but this comes at a higher computational cost.
+%\[r_2(\sigma) = 40 - \frac13(\sigma - 10)\quad\quad n_{2} = 150.\]
+\[r_2(\sigma) = 35 - \frac12(\sigma - 10)\quad\quad n_{2} = 100.\]
+Note that a higher value for $n_{2}$ would give slightly worse results,
+at a lower computational cost.
 
 
 %Intuitively, smaller groups obtained by keeping only the most similar patches have 
@@ -1186,39 +1214,86 @@ but this comes at a higher computational cost.
 
 \begin{figure*}[htpb!]
 	\begin{center}
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-curves_s10_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-curves_s20_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-curves_s30_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-curves_s40_average_derf.eps}\\
+
+		\vspace{1cm}
+		\pcomment{TODO: Figures for grayscale sequences}
+		\vspace{1cm}
+
+	\end{center}
+	\caption{Basic estimate PSNR, averaged over four sequences, when varying the
+		second stage parameters $r_1$ and $n_1$. From left to right, results for
+		$\sigma = 10, 20, 30, 40$. In the top row: results for RGB sequences, bottom
+		row, results for grayscale sequences.} 
+	\label{fig:rank1-nsim1-bpsnr}
+\end{figure*}
+
+\begin{figure*}[htpb!]
+	\begin{center}
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr-fpsnr_r1-np1-curves_s10_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr-fpsnr_r1-np1-curves_s20_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr-fpsnr_r1-np1-curves_s30_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr-fpsnr_r1-np1-curves_s40_average_derf.eps}\\
+
+		\vspace{1cm}
+		\pcomment{TODO: Figures for grayscale sequences}
+		\vspace{1cm}
+
+	\end{center}
+	\caption{PSNRs of final vs. basic estimate. Averages over four sequences, when varying the
+		second stage parameters $r_1$ and $n_1$. From left to right, results for
+		$\sigma = 10, 20, 30, 40$. Top: results for RGB sequences; bottom:
+		results for grayscale sequences. The width of the line is proportional to
+		the rank. \pcomment{These plots contradict the argument in favour of using
+		full rank in the first stage (supposedly introducing a higher variance, but a
+		smaller bias). It turns out, that (1) the final PSNR is pretty much
+		correlated with the basic PSNR, and (2) the optimal rank for the final
+		estimate is lower than that of the basic estimate. I do not have an explanation for this.}} 
+	\label{fig:rank1-nsim1-bpsnr-fpsnr}
+\end{figure*}
+
+\begin{figure*}[htpb!]
+	\begin{center}
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r1-np1-curves_s10_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r1-np1-curves_s20_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r1-np1-curves_s30_average_derf.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r1-np1-curves_s40_average_derf.eps}\\
+
+		\vspace{1cm}
+		\pcomment{TODO: Figures for grayscale sequences}
+		\vspace{1cm}
+
+	\end{center}
+	\caption{Final estimate PSNR, averaged over four sequences, when varying the
+		second stage parameters $r_1$ and $n_1$. From left to right, results for
+		$\sigma = 10, 20, 30, 40$. In the top row: results for RGB sequences, bottom
+		row, results for grayscale sequences.} 
+	\label{fig:rank1-nsim1-fpsnr}
+\end{figure*}
+
+\begin{figure*}[htpb!]
+	\begin{center}
 		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-curves_s10_average_derf.eps}%
 		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-curves_s20_average_derf.eps}%
 		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-curves_s30_average_derf.eps}%
 		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-curves_s40_average_derf.eps}\\
-		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-image_s10_average_mono.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-image_s20_average_mono.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-image_s30_average_mono.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-image_s40_average_mono.eps}\\
+
+		\vspace{1cm}
+		\pcomment{TODO: Figures for grayscale sequences}
+		\vspace{1cm}
+
 	\end{center}
-	\caption{Top row: average PSNRs over four sequences, obtained by varying the
-		second stage parameters $r$ and $n$. From left to right, results for
-		$\sigma = 10, 20, 40$. In each image, the contrast has been stretched so
-		that white corresponds to the maximum PSNR and black to a decay of 1dB
-		bellow the maximum. 
-		Bottom: same for grayscale sequences.} 
-	\label{fig:rank-nsim-image-stage2}
+	\caption{Final estimate PSNR, averaged over four sequences, when varying the
+		second stage parameters $r_2$ and $n_2$. From left to right, results for
+		$\sigma = 10, 20, 30, 40$. In the top row: results for RGB sequences, bottom
+		row, results for grayscale sequences.} 
+	\label{fig:rank2-nsim2-fpsnr}
 \end{figure*}
 
 
-\begin{figure*}[htpb!]
-	\begin{center}
-		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s10_average_derf.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s20_average_derf.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s30_average_derf.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s40_average_derf.eps}\\
-		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s10_average_mono.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s20_average_mono.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s30_average_mono.eps}%
-		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-image_s40_average_mono.eps}\\
-	\end{center}
-	\caption{Same as Figure \ref{fig:rank-nsim-image-stage2} but for the first stage.}
-	\label{fig:rank-nsim-image-stage1}
-\end{figure*}
 
 %\begin{figure*}[htpb!]
 %	\begin{center}
