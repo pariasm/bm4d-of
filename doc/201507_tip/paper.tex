@@ -221,16 +221,17 @@ and data storage, video cameras are being used more each time, and in less
 favorable situations, such as low lighting conditions. This results in high 
 levels of noise, which negatively affects the visual quality of the video and
 hinders its use for any application. 
-\todo{Add references for claims about sensors, camera prices, etc.}
+\pcomment{It would be nice to have some reference for these claims about
+sensors, camera prices, etc.}
 
-Video denoising has received much less attention than still image denoising. 
-In principle, video denoising should be easier than image denoising, since the
-strong temporal redundancy along motion trajectories favours the denoising
-task. However, this additional form of redundancy creates challenges.  On one
-hand, the amount of data is much larger than for still images, and efficient
-ways of navigating through this data are needed. On the other hand, the output
-of the denoising algorithm should be temporally consistent according to the
-motion of the original sequence.
+Video denoising has received much less attention than still image denoising in
+the literature.  In principle, denoising videos should be easier than still
+images, since the strong temporal redundancy along motion trajectories favours
+the denoising task. However, this additional form of redundancy creates
+challenges.  On one hand, the amount of data is much larger than for still
+images, and efficient ways of navigating through this data are needed. On the
+other hand, the output of the denoising algorithm should be temporally
+consistent according to the motion of the original sequence.
 
 Early works proposed temporal or spatio-temporal filters which either compensate
 for motion on estimated motion trajectories or used some kind of mechanism to
@@ -242,11 +243,11 @@ of the frames \cite{Jin2006,Zlokolica2006a}.
 Some methods do not distinguish between the temporal and spatial dimensions,
 and treat the video as a volume, which is denoised in a transformed domain
 \cite{Rajpoot2003,Wilson2004,Selesnick2003}. 
-\todo{Read these references. Even if they consider a 3D transform, I think
+\pcomment{TODO: Read these references. Even if they consider a 3D transform, I think
 they DO distinguish between space and time}
 
-Until the advent of patch-based approaches, methods that do not compensate
-motion failed for sequences with moderate motion, and their main interest resided
+Until the advent of patch-based approaches, methods without motion compensation
+failed in the presence of moderate motion, and their main interest resided
 in their simplicity and low computational cost. First state-of-the-art results
 obtained without motion estimation were reported in \cite{Buades2005v}, with the
 non-local means algorithm. The authors argued that for their method, based on
@@ -262,9 +263,9 @@ on collaborative filtering of similar patches in a
 spatio-temporal neighborhood. 
 
 The methods in \cite{Buades2005v} and \cite{Dabov2007v} are extensions to video
-of still image patch-based denoising algorithms (non-local means REF and BM3D
-REF respectively). They are based on \suggest{filtering} similar 2D patches
-searched for in a 3D spatio-temporal neighborhood.  These methods exploit both
+of still image patch-based denoising algorithms (non-local means \cite{Buades2006} and BM3D
+\cite{Dabov2007tip} respectively). They are based on filtering similar 2D patches
+searched for in a 3D spatio-temporal neighborhood. These methods exploit both
 spatial and temporal redundancy, however, since each 2D patch is processed
 independently, there is no mechanism to impose coherence along trajectories.
 This results in flickering artifacts which become noticeable for high levels of
@@ -346,14 +347,30 @@ patches and which does not require motion estimation. Yet, it provides
 results which compare favourably to the current state-of-the-art,
 both quantitatively by a significant marging and qualitatively, specifically in
 terms of the temporal consistency attained.
+The method works by learning a Gaussian \emph{a priori} model from sets of 
+similar noisy patches. Each patch is denoised by computing the \emph{maximum a
+posteriori} (MAP) with the estimated prior.
+Learning the Gaussian prior amounts to estimating a covariance matrix with a
+limited number of samples in a high dimensional space. Motivated by recent 
+theoretical results and supported by an empirical analysis, we add the 
+assumtion that the \emph{a priori} model is of low rank (\ie the clean patches
+lie in a lower dimensional subspace). This assumtion lowers the computational cost
+of the algorithm, and improves the results.
+
+
 
 \bigskip
 
-The rest of the paper is structured as follows: in \S
+The rest of the paper is organized as follows: in \S
 \ref{sec:review_nonlocal_Bayes} we review the Bayesian patch denoising principle 
-and describe our extension to video. In \S \ref{sec:parameters}
-we discuss its parameters. Some results, including a comparison with VBM4D, are shown
-in \S \ref{sec:results}. Concluding remarks are given in \S \ref{sec:conclusion}
+and describe our extension to video. The final algorithm and details about its
+implementation are given in \S \ref{sec:algorithm}.
+Some relevant aspects of the proposed method are discussed in \S
+\ref{sec:discussion}.
+In \S \ref{sec:parameters}
+we explain the selection of the parameters. Some results, including a
+comparison with the state-of-the-art methods, are shown in \S
+\ref{sec:results}. Concluding remarks are given in \S \ref{sec:conclusion}.
 
 \section{Bayesian video denoising}
 \label{sec:review_nonlocal_Bayes}
@@ -462,9 +479,29 @@ where $\widehat \lambda_i$, $\widehat U_i$ denote the $i$-th largest
 eigenvalue and its corresponding eigenvector respectively.
 
 The Figures \ref{fig:patch_groups_pos} and \ref{fig:patch_groups_patches}
-show two example of groups of similar patches. Figure \ref{fig:patch_group_pos}
-shows the position of 200 nearest neighbors of a reference patch. It can be noticed
-that inspite of the noise 
+show two examples of groups of similar $9\times 9\times 4$ patches taken from
+a sequence contaminated with AGWN of $\sigma = 40$. Figure
+\ref{fig:patch_groups_pos} shows the position of 200 nearest neighbors of a
+reference patch searched in a $37\times 37\times 5$ search region. The
+reference patch is centered in the central frame. The position of the first 5
+similar patches are highlighted in red, and they follow the trajectory of the
+reference patch throughout the search region.  The next 40 similar patches are
+shown in red. In the first example they are spatially shifted versions of the
+five nearest neighbors. In the second example, in addition to these shifts
+other similar structures in the red sign are detected.  The next nearest
+neighbors are shown in blue.
+
+Figure \ref{fig:patch_groups_patches} shows the 20 nearest neighbors in 
+more detail. Each patch is displayed by vertically stacking its four $9\times
+9$ spatial slices. For the two examples shown in Figure \ref{fig:patch_groups_pos}
+the figure shows the noisy patches, the result of the MAP estimation (setting
+$r = 40$) and the mean patch together with the leading 19 principal directions.
+Since the patch is not motion-compensated, all spatial slices can be different,
+and thus the same applies to the principal directions.
+The spatial slices of the principal directions show oscillating patterns, with
+increasing frequency. In some cases these patterns are localized in a part of
+the spatial slice.
+
 
 
 \bigskip
@@ -500,9 +537,10 @@ oriented channel of the image at a given scale.
 	for patches of size $9\times 9\times 4$.
 	The images in each row show the five frames of a $37\times37\times5$ search region. 
 	In red we show the positions of the 5 nearest neighbors, in green the next 40 and in blue the rest.
-	Note the points shown correspond to the top-left pixel of the first temporal
+	Note the points shown correspond to the top-left pixel of the first spatial
 	slice of each patch.
-	The reference patch is the red patch in the center of the search region.}
+	The reference patch is the red patch in the center of the search region. To highlight the
+	position of the patches, the color of the images has been attenuated.}
 	\label{fig:patch_groups_pos}
 \end{figure*}
 
@@ -535,143 +573,12 @@ oriented channel of the image at a given scale.
 	\caption{For each of the two sets of patches of Fig. \ref{fig:patch_groups_pos} we show
 	the 20 nearest neighbors (top), the corresponding MAP estimates (middle) and the sample mean 
 	and first 19 principal directions computed from the sample covariance matrix (bottom).
-	For each image, each column corresponds to the 4 temporal slices of a $9\times9\times4$ patch.}
+	For each image, each column corresponds to the 4 spatial slices of a $9\times9\times4$ patch.}
 	\label{fig:patch_groups_patches}
 \end{figure}
 
-\section{Discussion}
-
-\subsection{Spatio-temporal patches}
-
-Patch-based methods filter similar patches to remove noise. When the noise is
-Gaussian, the patch similarity is determined based on the (squared) Euclidean distance 
-between patches. Due to the noise, the Euclidean distance follows a non-central
-$\chi^2$ distribution, with variance
-\[\textnormal{Var}\left\{\frac1{m}\|\ma q_1 - \ma q_2\|^2\right\} = \frac{8\sigma^2}{m}\left(\sigma^2 + \frac1{m}\|\ma p_1 - \ma p_2\|^2\right),\]
-where $\ma q_1, \ma q_2$ are the noisy versions of the patches $\ma p_1, \ma p_2$, 
-and $m$ denotes the number of pixels in the patch. The noise in the patch comparison
-can be reduced by considering larger patches.
-However, increasing the size of the patch also increases the distances between
-patches and reduces the likelihood of finding similar patches.
-%
-The additional temporal dimension in a spatio-temporal patch allows to increase
-the number of pixels in the patch, without increasing its spatial size.
-Due to the high redundancy of the video in the temporal dimension, increasing the 
-temporal size of the patch causes a much lower increase in the patch distances.
-%The high redundancy of the video in the temporal dimension, allows to have 
-%larger patches without affecting much the number of nearest neighbors of the patch.
-%
-
-Let us assume that 
-the brightness of the original video is constant along motion trajectories, so
-that $u(x,t + \tau) = u(\varphi(x,t + \tau; -\tau),t)$, where
-$\varphi(x,t+\tau;\, \cdot\, )$ denotes the motion trajectory passing though
-$(x,t + \tau)$.
-Furthermore, let us assume that the motion in the video is approximately
-translational.
-When the motion is known or can be estimated, then it is natural to consider
-motion compensated spatio-temporal patches. 
-With the assumptions we are considering, all spatial slices of a $s_x\times s_x\times s_t$ motion-compensated patch
-coincide, so the distance between two spatio-temporal patches is proportional to
-the distance of a 2D spatial patch of size $s_x\times s_x$.
-%
-As a consequence, by increasing $s_t$, on can reduce the 
-noise in the patch distance and have the same pattern of self-similarity as a 
-2D patch.
-
-However, motion estimation is challenging, and even more so in the presence of noise.
-%Most motion estimation techniques integrate spatial information either 
-%by matching 2D patches (or blocks, as they are commonly referred to in the
-%motion estimation literature) or by some spatial regularization term in an energy.
-An option that does not require motion is to use rectangular spatio-temporal patches.
-The distance between these can be also expressed as a distance between spatial patches,
-but their equivalent spatial support is larger than $s_x\times s_x$.
-
-%To see this, let us observe that the squared Euclidean distance can be expressed as
-%the convolution with a separable kernel.
-To see this, let us assume that the motion in the video is a constant translation $v$. 
-The squared Euclidean distance can be expressed as
-%\begin{multline*}
-%	d(\ma p_{xt}, \ma p_{ys})\\ %= [g_x\ast_x g_t \ast_t \left(u(x + \,\cdot\,,t + \,\cdot\,) -  u(y + \,\cdot\,,s + \,\cdot\,)\right)^2](0,0)\\
-%		 = \iint g_x(\rho)g_t(\tau) \left(u(x + \rho,t + \tau) -  u(y + \rho,s + \tau)\right)^2d\tau d\rho
-%\end{multline*}
-\[
-	d(\ma p_{xt}, \ma p_{ys}) = \iint g_x(\rho)g_t(\tau) f(\rho,\tau)d\tau d\rho
-\]
-where
-%$\ast_x, \ast_t$ denote the spatial and temporal convolution operators and 
-$f(\rho,\tau) = \left(u(x + \rho,t + \tau) -  u(y + \rho,s + \tau)\right)^2$,
-and 
-$g_xg_t$ is a separable spatio-temporal kernel which defines the
-shape of the spatio-temporal patch. For example, for a rectangular patch, $g_x$
-and $g_t$ are both box filters of sizes $s_x\times s_x$ and $s_t$ respectively.
-Because of the brightness constancy assumption, we have that $f(\rho,\tau) = f(\rho + v\tau, 0)$.
-%\pcomment{Note: this only holds if the motion at $t$ is equal than the one at $s$.}
-Using this fact, after some manipulations we can rewrite the distance as a distance between 2D patches:
-\[
-	d(\ma p_{xt}, \ma p_{ys}) = \int f(\rho,0)h(\rho) d\rho
-\]
-where \[h(\rho) = \int g_x(\rho - v\tau)g_t(\tau)  d\tau\] is the 
-equivalent spatial kernel. Note that this kernel is the result of integrating
-several shifted versions of the spatial patch kernel $g_x$ along a motion trajectory.
-%
-Thus, when the brightness constancy assumption holds under a constant
-translational motion $v$, the rectangular spatio-temporal patch is equivalent
-to a spatial patch whose support depends on $v$. When $v = 0$, then it reduces 
-to the $s_x\times s_x$ patch, and grows in the direction of the motion at $v$
-increases.
-%
-In these settings, rectangular spatio-temporal patches can be expected to perform as well
-as motion-compensated patches. 
-
-For more complex types of motion, using rectangular spatio-temporal patches will result in
-a larger variability in the set of nearest neighbors of a given patch, due to the fact that
-both the spatial texture and the motion pattern may vary. At least in principle, better 
-results should be obtained using motion compensation. However, in practice, the bad quality of
-the estimated motion undermines the final result.
-
-
-%\begin{align*}
-%	d(\ma p_{xt}, \ma p_{ys}) %= [g_x\ast_x g_t \ast_t \left(u(x + \,\cdot\,,t + \,\cdot\,) -  u(y + \,\cdot\,,s + \,\cdot\,)\right)^2](0,0)\\
-%		 &= \iint g_x(\rho)g_t(\tau) f(\rho,\tau)d\tau d\rho\\
-%		 &= \iint g_x(\rho)g_t(\tau) f(\rho + v(\tau),0) d\tau d\rho\\
-%		 &= \iint g_x(\rho - v(\tau))g_t(\tau) f(\rho,0) d\tau d\rho\\
-%		 &= \int f(\rho,0)\int g_x(\rho - v(\tau))g_t(\tau)  d\tau d\rho\\
-%		 &= \int f(\rho,0)h(\rho) d\rho\\
-%\end{align*}
-
-
-
-%after some manipulations the distance 
-%can be written as the convolution with a spatial kernel:
-%\begin{equation*}
-%	d(\ma p_{xt}, \ma p_{ys}) = [h \ast_x \left(u(x + \,\cdot\,,t) -  u(y + \,\cdot\,,s)\right)^2](0),
-%\end{equation*}
-%where 
-%\[
-%	h(\xi) = [g_t \ast g_x(v\,\cdot\,)](\xi/v) 
-%		= \int g_t(\eta)g_x(\xi - v\eta)d\eta.
-%\]
-
-
-
-
-
-
-\pcomment{
-\begin{itemize}
-%	\item Justify why 3D patches: Greater distance noise reduction with roughly the same 
-%		degree of self-similarity. One way to see this is that the 3D patches can be 
-%		seen, for a video in which the brightness constancy assumption holds, as a 2D patch
-%		by back-projecting all the slices to the first frame.
-	\item Relation with respect other iterative methods found in the literature
-		(SOS, twicing, diffusion, BM3D, I-SA-BM4D).
-	\item Variation of the results tables for different sequences.
-\end{itemize}}
-
-\subsection{Estimation of the covariance matrix}
-
 \section{Description of the algorithm}
+\label{sec:algorithm}
 
 Let us now describe the video denoising algorithm. As in
 \cite{Dabov2007tip,Dabov2007v,Maggioni2012,Lebrun2013a} we perform two stages, described in 
@@ -805,6 +712,7 @@ estimate have no noise. Thus we set $\sigma = 0$ in Eq.
 %\end{figure*}
 
 \subsection{Implementation details}
+\label{sse:implementation}
 
 \paragraph{Handling of color} Color videos are handled as in \cite{Lebrun2013a}.
 %
@@ -829,120 +737,203 @@ threshold $\tau$.  As in \cite{Lebrun2013ipol}, we set $\tau = 4$ (the distance 
 patches is normalized by the number of elements in the patch and the number of
 channels).
 
-\paragraph{Speed-ups} To accelerate the computation we apply two tricks
-considered in \cite{Lebrun2013ipol}. The first one visits a patch each $n$
-patches (similar to \cite{Dabov2007tip}). The second trick consists on the following.
-After filtering the patches in a group, these patches are not considered again
-as reference patches for a group. This reduces the number of groups of patches
-that need to be processed by a factor of $n$.
-\todo{Also describe that the 4 neighbors are flagged as processed.}
 
-
-\subsection{Computational complexity}
-\label{sec:complexity}
+\subsection{Computational complexity and speed-ups}
+\label{sse:complexity}
 
 Let us consider the complexity of constructing and filtering a group of
-$n$ similar patches. Due to the speed-ups described in the
-previous section, the actual number of groups of similar patches processed
-might vary between a $1\%$ and a $10\%$ of the total number of pixels in the
-video. 
-
+$n$ similar patches.
 Processing each group of similar patches is of asymptotic order $\mathcal
-O(w_x^2 w_t s_x^2 s_t + s_x^4s_t^2r + ns_x^4s_t^2)$.
-The first term comes from the exhaustive search of the $n$ most
-similar patches in the search window. 
-The second term comes from the computation of the truncated eigen-decomposition
-of the covariance matrix, and the last term contemplates computing the
-covariance matrix.
+O(w_x^2 w_t s_x^2 s_t + ns_x^4s_t^2 + s_x^4s_t^2r)$.
+The first term comes from the exhaustive search of the $n$ nearest patches in
+the search window.  The remaining terms correspond respectively to the
+computation of the covariance matrix and its truncated eigen-decomposition.
 
 The most expensive operations are the computation of the covariance matrix and
 of its principal directions.
 Let us note that there are methods for computing the $r$ principal directions
-of a set of points that do not require computing the covariance matrix\todo{referencia}. Instead
-these methods efficiently approximate a truncated SVD of the data matrix, and would 
+of a set of points that do not require computing the covariance matrix
+\cite{Halko2011}. Instead these methods efficiently approximate a truncated SVD
+of the data matrix, and would 
 allow to improve the computational complexity to $\mathcal O(w_x^2 w_t s_x^2
 s_t + s_x^2s_trn)$.
 
-\todo{Statistics of group of patches.}
 
-\subsection{Selection of parameters}
-\label{sec:parameters}
+The computation can be substantially accelerated by reducing the 
+number of groups of patches that are jointly processed.
+Each group of patches is associated to the reference patch from which 
+the nearest neighbors are computed.
+We apply two tricks
+considered in \cite{Lebrun2013ipol} in order to reduce the number of reference patches. 
+The first one consists on visiting only 
+those patches on a coarser spatial grid with vertical and horizontal separation of $s_x/2$
+(similar to \cite{Dabov2007tip}). This reduces the number of reference patches by a
+factor of $s_x^2/4$. The second trick consists on the following.  After
+filtering the patches in a group, these patches are not considered again
+as reference patches. 
+Note that we ensure that each reference patch is filtered at least once. 
+Due to the spacing of the coarse grid, this guarantees that each pixel is
+overlapped by four reference patches on the same frame, so it will receive at
+least four contributions in the aggregation. The actual number of aggregated
+estimates for each pixel is much higher, considering the reference and
+non-reference patches (which can also be filtered) in the neighboring frames.
 
-For each stage of the algorithm we need to specify 6 parameters: the spatial
-and temporal components of the patch size, $s_x$ and $s_t$, the spatial and
-temporal components of the search region, $w_x$ and $w_t$, the number of similar
-patches $n$ and the rank of the a priori covariance matrix $r$.
-When needed, we will add a subscript indicating the stage, \eg
-$n_{1}$ and $n_{2}$.
+Due to these speed-ups, the actual number of groups of similar patches processed
+depends on $n$, and varies between a $1\%$ ($n \approx 400$)  and a $10\%$ ($n
+\approx 50$) of the total number of pixels in the sequence. 
+\pcomment{Check this numbers!}
 
-\paragraph{Search region} Setting the size of the search region implies a
-trade-off between denoising performance and running time: A larger search
-region takes longer to traverse but yields better results, since more
-similar patches can be found. We fix the search
-region for both stages of the algorithm at 
-\begin{equation}
-w_x = 37 \quad \text{ and } \quad w_t = 5.
-\label{eq:search_region_parameters}
-\end{equation}
-With these values, the search region captures the $5$ frame trajectory of the
-target patch as long as it moves slower than $37/5 = 7.4$
-pixels/frame.
 
-\paragraph{Patch size} Let us consider first the spatial patch
-size $s_x$. This is a key parameter in patch-based methods that
-exploit the image self-similarity \pcomment{CITAS}. The distribution of the 
-patch distances is a non-central Chi-squared distribution \cite{Dabov2007tip}
-\pcomment{CHECK!}
-with variance 
-\[\textnormal{Var}\left\{\frac1{m}\|\ma q_1 - \ma q_2\|^2\right\} = \frac{8\sigma^2}{m}\left(\sigma^2 + \frac{\|\ma p_1 - \ma p_2\|^2}{m}\right),\]
-where $m = s_x^2s_t$ is the total number of pixels in the patch.
-Increasing the spatial patch size $s_x$ reduces the variance of the noise in the patch
-distance. 
-However, for larger
-patches it becomes less likely to find other patches with a similar texture
-pattern. The use spatio-temporal patches helps in solving this trade-off: for
-instance, with a spatio-temporal patch of size $5\times 5\times 4$, we obtain
-the same patch distance noise as with a spatial patch of size $10\times 10
-\times 1$. Moreover, if the motion in the video is approximately uniform, then the 
-amount of similar neighbors of a $5\times 5\times 4$ patch is roughly the same
-as for a $5\times 5\times 1$ patch.
-\pcomment{This discussion would be nice to have in the introduction. Furthermore,
-we could add a short computation on the relation between the distance between
-3D patches and their 2D lids. In this way, we could speak of an equivalent 
-2D patch size.}
+\section{Discussion}
+\label{sec:discussion}
 
-We will set the spatial patch size at \[s_x = 5\] for both stages. Larger
-patches (up to $s_x = 9$) lead to an mild improvement of the results (on
-average). This improvement comes at a considerable increase in the
-computation time, since our current implementation is $\mathcal O(s_x^4)$. Thus,
-have found that a good compromise between computation time and quality is given
-by $s_x = 5$.
+\subsection{Spatio-temporal patches}
+\label{sse:spatio-temporal-patches}
+Patch-based methods filter similar patches to remove noise. When the noise is
+Gaussian, the patch similarity is determined based on the (squared) Euclidean distance 
+between patches. Due to the noise, the Euclidean distance follows a non-central
+$\chi^2$ distribution, with variance
+\[\textnormal{Var}\left\{\frac1{m}\|\ma q_1 - \ma q_2\|^2\right\} = \frac{8\sigma^2}{m}\left(\sigma^2 + \frac1{m}\|\ma p_1 - \ma p_2\|^2\right),\]
+where $\ma q_1, \ma q_2$ are the noisy versions of the patches $\ma p_1, \ma p_2$, 
+and $m$ denotes the number of pixels in the patch. The noise in the patch comparison
+can be reduced by considering larger patches.
+However, increasing the size of the patch also increases the distances between
+patches and reduces the likelihood of finding similar patches.
+%
+The additional temporal dimension in a spatio-temporal patch allows to increase
+the number of pixels in the patch, without increasing its spatial size.
+Due to the high redundancy of the video in the temporal dimension, increasing the 
+temporal size of the patch causes a much lower increase in the patch distances.
+%The high redundancy of the video in the temporal dimension, allows to have 
+%larger patches without affecting much the number of nearest neighbors of the patch.
+%
 
-The impact of the temporal patch size $s_t$ will be discussed later in Section
-\ref{sec:results}, where we show results varying $s_t$ between $s_t = 1$ and $s_t = 4$.
+Let us assume that 
+the brightness of the original video is constant along motion trajectories, so
+that $u(x,t + \tau) = u(\varphi(x,t + \tau; -\tau),t)$, where
+$\varphi(x,t+\tau;\, \cdot\, )$ denotes the motion trajectory passing though
+$(x,t + \tau)$.
+Furthermore, let us assume that the motion in the video is approximately
+translational.
+When the motion is known or can be estimated, then it is natural to consider
+motion compensated spatio-temporal patches. 
+With the assumptions we are considering, all spatial slices of a $s_x\times s_x\times s_t$ motion-compensated patch
+coincide, so the distance between two spatio-temporal patches is proportional to
+the distance of a 2D spatial patch of size $s_x\times s_x$.
+%
+As a consequence, by increasing $s_t$, on can reduce the 
+noise in the patch distance and have the same pattern of self-similarity as a 
+2D patch.
 
-\paragraph{Rank and number of similar patches} These parameters are intimately
-linked. Together they determine the estimation of the local Gaussian models
-and thus control the bias-variance trade-off of the denoiser.
-\pcomment{This is probably inaccurate. There should be other parameters
-contributing to this.}
+However, motion estimation is challenging, and even more so in the presence of noise.
+%Most motion estimation techniques integrate spatial information either 
+%by matching 2D patches (or blocks, as they are commonly referred to in the
+%motion estimation literature) or by some spatial regularization term in an energy.
+An option that does not require motion is to use rectangular spatio-temporal patches.
+The distance between these can be also expressed as a distance between spatial patches,
+but their equivalent spatial support is larger than $s_x\times s_x$.
 
-The number of similar patches $n$ affects the estimation of the covariance
-matrix $C$.
-%Let us consider the trade-offs involved in the estimation of the covariance
-%matrix $C$.
+%To see this, let us observe that the squared Euclidean distance can be expressed as
+%the convolution with a separable kernel.
+To see this, let us assume that the motion in the video is a constant translation $v$. 
+The squared Euclidean distance can be expressed as
+%\begin{multline*}
+%	d(\ma p_{xt}, \ma p_{ys})\\ %= [g_x\ast_x g_t \ast_t \left(u(x + \,\cdot\,,t + \,\cdot\,) -  u(y + \,\cdot\,,s + \,\cdot\,)\right)^2](0,0)\\
+%		 = \iint g_x(\rho)g_t(\tau) \left(u(x + \rho,t + \tau) -  u(y + \rho,s + \tau)\right)^2d\tau d\rho
+%\end{multline*}
+\[
+	d(\ma p_{xt}, \ma p_{ys}) = \iint g_x(\rho)g_t(\tau) f(\rho,\tau)d\tau d\rho
+\]
+where
+%$\ast_x, \ast_t$ denote the spatial and temporal convolution operators and 
+$f(\rho,\tau) = \left(u(x + \rho,t + \tau) -  u(y + \rho,s + \tau)\right)^2$,
+and 
+$g_xg_t$ is a separable spatio-temporal kernel which defines the
+shape of the spatio-temporal patch. For example, for a rectangular patch, $g_x$
+and $g_t$ are both box filters of sizes $s_x\times s_x$ and $s_t$ respectively.
+Because of the brightness constancy assumption, we have that $f(\rho,\tau) = f(\rho + v\tau, 0)$.
+%\pcomment{Note: this only holds if the motion at $t$ is equal than the one at $s$.}
+Using this fact, after some manipulations we can rewrite the distance as a distance between 2D patches:
+\[
+	d(\ma p_{xt}, \ma p_{ys}) = \int f(\rho,0)h(\rho) d\rho
+\]
+where \[h(\rho) = \int g_x(\rho - v\tau)g_t(\tau)  d\tau\] is the 
+equivalent spatial kernel. Note that this kernel is the result of integrating
+several shifted versions of the spatial patch kernel $g_x$ along a motion trajectory.
+%
+Thus, when the brightness constancy assumption holds under a constant
+translational motion $v$, the rectangular spatio-temporal patch is equivalent
+to a spatial patch whose support depends on $v$. When $v = 0$, then it reduces 
+to the $s_x\times s_x$ patch, and grows in the direction of the motion at $v$
+increases.
+%
+In these settings, rectangular spatio-temporal patches can be expected to perform as well
+as motion-compensated patches. 
+
+For more complex types of motion, using rectangular spatio-temporal patches will result in
+a larger variability in the set of nearest neighbors of a given patch, due to the fact that
+both the spatial texture and the motion pattern may vary. At least in principle, better 
+results should be obtained using motion compensation. However, in practice, the bad quality of
+the estimated motion undermines the final result.
+
+
+%\begin{align*}
+%	d(\ma p_{xt}, \ma p_{ys}) %= [g_x\ast_x g_t \ast_t \left(u(x + \,\cdot\,,t + \,\cdot\,) -  u(y + \,\cdot\,,s + \,\cdot\,)\right)^2](0,0)\\
+%		 &= \iint g_x(\rho)g_t(\tau) f(\rho,\tau)d\tau d\rho\\
+%		 &= \iint g_x(\rho)g_t(\tau) f(\rho + v(\tau),0) d\tau d\rho\\
+%		 &= \iint g_x(\rho - v(\tau))g_t(\tau) f(\rho,0) d\tau d\rho\\
+%		 &= \int f(\rho,0)\int g_x(\rho - v(\tau))g_t(\tau)  d\tau d\rho\\
+%		 &= \int f(\rho,0)h(\rho) d\rho\\
+%\end{align*}
+
+
+
+%after some manipulations the distance 
+%can be written as the convolution with a spatial kernel:
+%\begin{equation*}
+%	d(\ma p_{xt}, \ma p_{ys}) = [h \ast_x \left(u(x + \,\cdot\,,t) -  u(y + \,\cdot\,,s)\right)^2](0),
+%\end{equation*}
+%where 
+%\[
+%	h(\xi) = [g_t \ast g_x(v\,\cdot\,)](\xi/v) 
+%		= \int g_t(\eta)g_x(\xi - v\eta)d\eta.
+%\]
+
+
+
+% \pcomment{
+% \begin{itemize}
+% %	\item Justify why 3D patches: Greater distance noise reduction with roughly the same 
+% %		degree of self-similarity. One way to see this is that the 3D patches can be 
+% %		seen, for a video in which the brightness constancy assumption holds, as a 2D patch
+% %		by back-projecting all the slices to the first frame.
+% 	\item Relation with respect other iterative methods found in the literature
+% 		(SOS, twicing, diffusion, BM3D, I-SA-BM4D).
+% %	\item Variation of the results tables for different sequences.
+% \end{itemize}}
+
+\subsection{Estimation of the covariance matrix}
+\label{sse:covariance-estimation}
+
+
+Learning the parameters of the \emph{a priori} distribution for each group of
+noisy patches amounts to estimating a covariance matrix is a high dimensional space 
+and with a limited number of samples. 
+%The latter is controlled by the $n$ parameter, which
+%should not be too high in order for the Gaussian prior to be valid.
+%
 The empirical covariance matrix $\widehat C$ converges to the true covariance matrix
 $C$ as the number of samples from the underlying Gaussian distribution grows to infinity.
-In our case, the number of samples we can ``draw'' from the Gaussian is limited:
+But in our case, the number of samples we can ``draw'' from the Gaussian is limited:
 %The Gaussian is only an approximate density model for the set of
 %$n$ nearest neighbors of a target patch.
 As we increase the number $n$ of neighbors of a patch, we include patches
 that are not as similar to the reference patch and the Gaussian model becomes less valid. 
-%
+
 Thus there is a trade-off between accuracy of Gaussian model and precision of the
-covariance matrix.
-We find a compromise to this trade-off empirically, by trying different values of this parameter on a 
-few training sequences and use the one yielding the best PSNR.
+covariance matrix. We will find a compromise to this trade-off empirically  in
+\S \ref{sec:parameters}. But it still intersting to review the literature 
+on the sample covariance matrix as an estimator of the population covariance.
 
 The problem of estimating the covariance matrix has received a lot of attention in the
 past ten years.
@@ -986,6 +977,82 @@ counterparts manifest themselves as noise, which then affects the MAP estimate.
 This suggest that better denoising should be obtained by discarding the
 eigenvectors associated with lower eigenvalues.
 
+\pcomment{Results of Bunea are still missing!}
+\pcomment{More detailed explanation of the results?}
+
+\section{Parameter selection}
+\label{sec:parameters}
+
+For each stage of the algorithm we need to specify 6 parameters: the spatial
+and temporal components of the patch size, $s_x$ and $s_t$, the spatial and
+temporal components of the search region, $w_x$ and $w_t$, the number of similar
+patches $n$ and the rank of the a priori covariance matrix $r$.
+When needed, we will add a subscript indicating the stage, \eg
+$n_{1}$ and $n_{2}$.
+
+\subsection{Search region and patch size}
+
+Setting the size of the search region implies a
+trade-off between denoising performance and running time: A larger search
+region takes longer to traverse but yields better results, since more
+similar patches can be found. We fix the search
+region for both stages of the algorithm at 
+\begin{equation}
+w_x = 37 \quad \text{ and } \quad w_t = 5.
+\label{eq:search_region_parameters}
+\end{equation}
+With these values, the search region captures the $5$ frame trajectory of the
+target patch as long as it moves slower than $37/5 = 7.4$
+pixels/frame.
+
+
+Let us now consider the spatial patch
+size $s_x$, which is a key parameter in patch-based methods \cite{Buades2006,Kervrann2006,Boulanger2007}.
+%The distribution of the 
+%patch distances is a non-central Chi-squared distribution \cite{Dabov2007tip}
+%\pcomment{CHECK!}
+%with variance 
+%\[\textnormal{Var}\left\{\frac1{m}\|\ma q_1 - \ma q_2\|^2\right\} = \frac{8\sigma^2}{m}\left(\sigma^2 + \frac{\|\ma p_1 - \ma p_2\|^2}{m}\right),\]
+%where $m = s_x^2s_t$ is the total number of pixels in the patch.
+Increasing the spatial patch size $s_x$ reduces the variance of the noise in the patch
+distance. 
+However, for larger
+patches it becomes less likely to find other patches with a similar texture
+pattern. The use spatio-temporal patches helps in solving this trade-off: for
+instance, with a spatio-temporal patch of size $5\times 5\times 4$, we obtain
+the same patch distance noise as with a spatial patch of size $10\times 10
+\times 1$. Moreover, as discussed in \S \ref{sse:spatio-temporal-patches}, for
+an approximately uniform motion, the 
+amount of similar neighbors of a $5\times 5\times 4$ patch is roughly the same
+as for a $5\times 5\times 1$ patch.
+
+We will set the spatial patch size at \[s_x = 5\] for both stages. Larger
+patches (up to $s_x = 9$) lead to an mild improvement of the results (on
+average). This improvement comes at a considerable increase in the
+computation time, since our current implementation is $\mathcal O(s_x^4)$. Thus,
+have found that a good compromise between computation time and quality is given
+by $s_x = 5$.
+
+The impact of the temporal patch size $s_t$ will be discussed later in Section
+\ref{sec:results}, where we show results varying $s_t$ between $s_t = 1$ and $s_t = 4$.
+
+\subsection{Rank and number of similar patches}
+
+The number of similar patches $n$ and the rank $r$ affect the estimation of the covariance
+matrix $C$, controlling the trade-off between the accuracy of Gaussian model
+and precision of the covariance matrix,
+which in turn has a direct effect on the denoising strength of the algorithm.
+% This have great impact on the bias-variance trade-off of the denoiser.
+%In practice, these parameters determine the denoising strength of the
+%algorithm. For example, using a large
+We find a compromise to this trade-off empirically, by trying different values of this parameter on a 
+few training sequences and use the one yielding the best PSNR.
+
+%The number of similar patches $n$ and the rank $r$ affect the estimation of the covariance
+%matrix $C$, controlling the trade-off between the accuracy of Gaussian model
+%and precision of the covariance matrix.
+
+
 %\prm{Intuitively speaking, by setting a lower rank we are estimating a covariance
 %matrix in a lower dimensional subspace. Then, according to
 %\cite{Vershynin2012}, we require a smaller number of samples for a given
@@ -1006,7 +1073,7 @@ The sequences were contaminated with AGWN of standard deviation $\sigma = 10,
 %
 %
 We can interpret the results in the light of the theoretical results
-described above.
+described in \S \ref{sse:covariance-estimation}.
 For all noise levels, best results are obtained when using a larger number of
 samples $n_1$. All curves of fixed $n_1$ show a maximum at a given rank lower than
 the dimensionality of the patch. As the noise level increases, this optimal rank
@@ -1575,11 +1642,12 @@ at a lower computational cost.
 %	\label{tab:psnr-middlebury}
 %\end{table*}
 
+
 \section{Results}
 \label{sec:results}
 
 In this section we present results obtained with the proposed
-method on some classic test sequences with Gaussian noise added.
+method on some classical test sequences with Gaussian noise added.
 We consider separatedly the cases of grayscale and color videos.
 
 \subsection{Results on grayscale videos}
@@ -1588,7 +1656,7 @@ We present denoising results on six classic test sequences used commonly in the
 literature. We compare against two state-of-the-art methods: V-BM4D
 \cite{Maggioni2012}, and the method of Li, Zhang and Dai \cite{LiZhangDai2011}
 which we call I-SA-BM4D, since it can be regarded as an iterative version of BM4D \cite{Maggioni2013}
-using shape adaptive 3D patches, as in \todo{REF}.  
+using shape adaptive 3D patches, as in \cite{Ercole2005}.  
 For V-BM4D, we show results corresponding to two
 different choices of parameters. The method labeled V-BM4D-tip
 corresponds to the results reported
@@ -1598,7 +1666,7 @@ implementation provides three parameter profiles of increasing quality and
 complexity: ``low complexity profile'', ``normal profile'' and ``modified
 profile''. We show the results obtained with the modified profile.
 
-Each sequence was contaminated with white Gaussian noise of $\sigma =
+Each sequence was contaminated with AGWN of $\sigma =
 10,20,30,40$. Table \ref{tab:psnr-classic-gray} shows the
 PSNR values obtained after denoising. For our method, we show results varying the temporal
 component of the patch size between $s_t = 1$ (2D patch) and $s_t = 4$ frames.
@@ -1630,7 +1698,12 @@ conclusions about iterative versions of the algorithm.
 %Still, it is early to exclude iteration as an valid option to
 %further improve the denoising performance.
 
-\pcomment{TODO: qualitative comparison.}
+For a qualitative comparison, Figure \ref{fig:results_mobile_mono}
+shows two details of the results obtained by our method and V-BM4D for the
+\emph{mobile} sequence, for noise of $\sigma = 10, 20, 40$. It can be observed
+that the proposed method preserves more details. It also exhibits a higher
+temporal consistency, as will be shown in \S \ref{sse:temporal-consistency}.
+
 
 Regarding the running time, let us note that the modified profile has a
 computation time lower to that of our method. Running with a
@@ -1670,40 +1743,39 @@ not be reliable for high noise levels.
 %against V-BM4D-np (see table \ref{tab:psnr-middlebury}. For these sequences, the
 %proposed method outpeforms V-BM4D-np.
 
-\pcomment{This paragraph has to change with the new qualitative results.}
-For a qualitative analysis we show in Figure \ref{fig:results} results obtained
-with nonlocal Bayes (setting $w_t = 5$) and V-BM4D-np. Interestingly, for $\sigma = 20$
-and $40$, V-BM4D-np is able to better recover the wallpaper texture in tennis,
-but does worse than VNLB for the foliage texture of the trees in bus. 
-%One
-%plausible reason for this is that the spatial bi-orthogonal wavelets and
-%DCT transforms used by BM4D are very well suited to the structured pattern of the
-%wallpaper.
-For high levels of noise, the wallpaper texture is masked by the noise. 
-It is possible that when comparing 2D patches the noise dominates in the
-comparison. Using spatio-temporal volumes reduces the distance noise,
-allowing to find similar patches with the same regular texture pattern.
-
-\begin{figure*}[htpb!]
-	\centering
-
-	\includegraphics[trim=0cm 7.4cm 0cm 0.5cm, clip=true, width=0.8\textwidth]{figs_cambridge/combined_videos/Army_s40/orig-nisy_004.png}
-
-%	\vspace{.1cm}
-%	\includegraphics[trim=0cm 6.9cm 0cm 0cm, clip=true, width=0.8\textwidth]{figs_cambridge/combined_videos/Army_s40/vnlb_pt4-orig_004.png}
+Figure \ref{fig:results-tennis} 
+shows two details of the results obtained by our method and V-BM4D for the
+\emph{tennis} sequence, for noise of $\sigma = 10, 20, 40$. As for grayscale
+sequences, it can be noticed that some details, such as the wallpaper texture,
+are better preserved by the proposed method. Some artifacts appear around 
+moving objects, for example the hand in the close-up of the racket,
+or the arm holding the racket in the second crop.
 %
-	\vspace{.1cm}
-	\includegraphics[trim=0cm 7.4cm 0cm 0.5cm, clip=true, width=0.8\textwidth]{figs_cambridge/combined_videos/Army_s40/vnlb_pt4-vnlb_pt1_004.png}
+Patches at the boundary between an object moving over a textured background 
+do not have exact matches. In this case, it is likely that patches tracking 
+the moving object are found similar, even if the background texture captured by 
+the patches do not match, creating artifacts on the recovered texture.
 
-	\vspace{.1cm}
-	\includegraphics[trim=0cm 7.4cm 0cm 0.5cm, clip=true, width=0.8\textwidth]{figs_cambridge/combined_videos/Army_s40/vnlb_pt4-bm4d_004.png}
-	\caption{Comparison of the results. To ease comparison and save space, we
-	juxtapose two results on each image in a checkerboard pattern. From top to
-	bottom: original and contaminated sequences, with $\sigma = 40$; result of
-	VNLB using $s_t = 1$ and $s_t = 4$; result of V-BM4D-mp and result of VNLB
-	with $s_t = 4$.}
-	\label{fig:results-army}
-\end{figure*}
+%\begin{figure*}[htpb!]
+%	\centering
+%
+%	\includegraphics[trim=0cm 7.4cm 0cm 0.5cm, clip=true, width=0.8\textwidth]{figs_cambridge/combined_videos/Army_s40/orig-nisy_004.png}
+%
+%%	\vspace{.1cm}
+%%	\includegraphics[trim=0cm 6.9cm 0cm 0cm, clip=true, width=0.8\textwidth]{figs_cambridge/combined_videos/Army_s40/vnlb_pt4-orig_004.png}
+%%
+%	\vspace{.1cm}
+%	\includegraphics[trim=0cm 7.4cm 0cm 0.5cm, clip=true, width=0.8\textwidth]{figs_cambridge/combined_videos/Army_s40/vnlb_pt4-vnlb_pt1_004.png}
+%
+%	\vspace{.1cm}
+%	\includegraphics[trim=0cm 7.4cm 0cm 0.5cm, clip=true, width=0.8\textwidth]{figs_cambridge/combined_videos/Army_s40/vnlb_pt4-bm4d_004.png}
+%	\caption{Comparison of the results. To ease comparison and save space, we
+%	juxtapose two results on each image in a checkerboard pattern. From top to
+%	bottom: original and contaminated sequences, with $\sigma = 40$; result of
+%	VNLB using $s_t = 1$ and $s_t = 4$; result of V-BM4D-mp and result of VNLB
+%	with $s_t = 4$.}
+%	\label{fig:results-army}
+%\end{figure*}
 
 \begin{figure*}[htpb!]
 	\centering
@@ -1787,6 +1859,7 @@ allowing to find similar patches with the same regular texture pattern.
 
 
 \subsection{Evaluating temporal consistency}
+\label{sse:temporal-consistency}
 
 An important aspect of the quality of any video processing algorithm is the 
 temporal consistency of the result. Similar to previous works \cite{Liu2010, Sutour2014}
@@ -1821,7 +1894,18 @@ Sintel's database, and four levels of noise. For non-local Bayes, we show result
 the temporal patch length $s_t$ varying from $1$ to $4$. We can observe that the best results
 are obtained by the proposed method with a patch of $3$ or $4$ frames depending
 on the sequence. The TCE gap with V-BM4D-mp increases with the noise level. 
-\todo{Comment on these results, but after the results have been recomputed with the right parameters!}
+\pcomment{TODO: Comment on these results, but after the results have been
+recomputed with the right parameters!}
+
+Another way of assessing the temporal consistency of the result is to visualize a 
+slice of the video volume at a fixed row (or column). Figure \ref{fig:time-diff} shows
+a horizontal slice of the \emph{mobile} sequence. Each row in the images shown corresponds
+to a different frame. The gray tube corresponds to a ball which is hit by a
+black train entering from the left. For high levels of noise, the result of V-BM4D
+shows a high frequence jittering in the temporal (vertical) dimension, a consequence
+of the flickering on the video sequence. On the other hand, the result of the
+video non-local Bayes method, shows a much slower variation in time.
+
 
 \begin{table*}[htp!]
 	\begin{center}
@@ -1883,7 +1967,6 @@ on the sequence. The TCE gap with V-BM4D-mp increases with the noise level.
 	Sintel's database. See text for details.}
 	\label{tab:sintel}
 \end{table*}
-
 
 \begin{figure*}[thpb!]
 	\begin{center}
@@ -1982,22 +2065,44 @@ on the sequence. The TCE gap with V-BM4D-mp increases with the noise level.
 \section{Conclusions}
 \label{sec:conclusion}
 
-We presented a Bayesian video denoising algorithm assuming a Gaussian model for similar patches. 
-We show preliminary results and compare it with two methods from the
-state-of-the-art, V-BM3D and V-BM4D.
-The resulting method does not require motion estimation.%, and as such it shows
-%lower temporal coherency than V-BM4D.
-In terms of PSNR
-the results obtained show state-of-the-art performance for low levels of noise.
-For higher levels of noise the performance is comparable to V-BM3D and improves
-over the default version of V-BM4D.
+We presented a Bayesian video denoising algorithm assuming a Gaussian prior
+model for similar spatio-temporal patches. 
+The proposed method does not require motion estimation, yet it provides 
+state-of-the-art results, both in terms of PSNR and qualitatively. 
+A key element of the proposed method is the estimation of the a priori
+covariance matrices from sets of noisy spatio-temporal patches. Since
+the dimensionality of the patches is high, and the number of available 
+similar patches is limited, we additionaly assume that the prior covariance
+is of low rank. In practice this amount to keeping only the principal 
+eigenvectors of the sample covariance matrix. This desicion is analized
+in the light of theoretical results on the estimation of covariance matrices 
+and with a thorough empirical evaluation. We found that using only the 
+main eigenvectors in the second stage of the algorithm improves both
+the running time and the quality of the results.
 
+Spetial attention is devoted to the evaluation of the temporal consistency of
+the result. In particular, we propose a way to quantify the temporal
+consistency error (TCE), by measuring the temporal inconsistencies in the
+residue using a ground truth optical flow. Our method shows better performance
+also with respect proposed TCE, evaluated in synthetic videos from MPI's Sintel
+database.
+%<>% We show preliminary results and compare it with two methods from the
+%<>% state-of-the-art, V-BM3D and V-BM4D.
+%<>% The resulting method does not require motion estimation.%, and as such it shows
+%<>% %lower temporal coherency than V-BM4D.
+%<>% In terms of PSNR
+%<>% the results obtained show state-of-the-art performance for low levels of noise.
+%<>% For higher levels of noise the performance is comparable to V-BM3D and improves
+%<>% over the default version of V-BM4D.
+
+The method is still computationally expensive, and current research focus
+on speeding up the search and the Bayesian estimation.
 
 %
 % ---- Bibliography ----
 %
 
 \bibliographystyle{IEEEtran}
-\bibliography{IEEEabrv,image_denoising,video_denoising}
+\bibliography{IEEEabrv,image_denoising,video_denoising,covariance_estimation}
 
 \end{document}

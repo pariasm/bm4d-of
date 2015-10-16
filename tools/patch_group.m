@@ -112,22 +112,6 @@ while (goon)
 		patches.coords = load('/tmp/patches.coords.out') + 1;
 		patches.distas = load('/tmp/patches.distas.out');
 
-		indr = sub2ind(size(nisy),patches.coords(:,2), ...
-		                          patches.coords(:,1), ...
-		                          ones(size(patches.coords,1),1), ...
-		                          patches.coords(:,3));
-
-		indg = sub2ind(size(nisy),patches.coords(:,2), ...
-		                          patches.coords(:,1), ...
-		                          2*ones(size(patches.coords,1),1), ...
-		                          patches.coords(:,3));
-
-		indb = sub2ind(size(nisy),patches.coords(:,2), ...
-		                          patches.coords(:,1), ...
-		                          3*ones(size(patches.coords,1),1), ...
-		                          patches.coords(:,3));
-		nisy(indr) = 255;
-
 		patches.nisy = zeros(prms.px, prms.px, 3, prms.pt, length(patches.distas));
 		for i = 1:length(patches.distas),
 			patches.nisy(:,:,:,:,i) = nisy0(patches.coords(i,2):patches.coords(i,2)+prms.px-1,...
@@ -162,34 +146,50 @@ while (goon)
 
 		% display also eigenvectors and eigenvalues
 		mU = min(255,max(0,[m, 255*(4*U(:,1:np_viz-1) + 0.5)]));
-		mU = build_patch_image(reshape(mU,[prms.px prms.px 3 prms.pt 1+np_viz]));
+		mU = build_patch_image(reshape(mU,[prms.px prms.px 3 prms.pt np_viz]));
 		figure(3)
 		imagesc(mU/255), axis equal, axis off
 
 
 
 
-		% show search region for all frames
-		a = 0.5;
-		orig(indr(1: 5))   = a*orig(indr(1: 5))   + (1-a)*255;
-		orig(indr(6:45))   = a*orig(indr(6:45))   + (1-a)*  0;
-		orig(indr(46:end)) = a*orig(indr(46:end)) + (1-a)*  0;
-		orig(indg(1: 5))   = a*orig(indg(1: 5))   + (1-a)*  0;
-		orig(indg(6:45))   = a*orig(indg(6:45))   + (1-a)*255;
-		orig(indg(46:end)) = a*orig(indg(46:end)) + (1-a)*  0;
-		orig(indb(1: 5))   = a*orig(indb(1: 5))   + (1-a)*  0;
-		orig(indb(6:45))   = a*orig(indb(6:45))   + (1-a)*  0;
-		orig(indb(46:end)) = a*orig(indb(46:end)) + (1-a)*255;
+		% show search region with selected patches
+		indr = sub2ind(size(nisy),patches.coords(:,2), ...
+		                          patches.coords(:,1), ...
+		                          ones(size(patches.coords,1),1), ...
+		                          patches.coords(:,3));
+
+		indg = sub2ind(size(nisy),patches.coords(:,2), ...
+		                          patches.coords(:,1), ...
+		                          2*ones(size(patches.coords,1),1), ...
+		                          patches.coords(:,3));
+
+		indb = sub2ind(size(nisy),patches.coords(:,2), ...
+		                          patches.coords(:,1), ...
+		                          3*ones(size(patches.coords,1),1), ...
+		                          patches.coords(:,3));
+
+		a = 0.0;
+		tmp = 0.5*repmat(mean(nisy,3),[1 1 3]) + 0.5*nisy;
+		tmp(indr(1: 5))   = a*tmp(indr(1: 5))   + (1-a)*255;
+		tmp(indr(6:45))   = a*tmp(indr(6:45))   + (1-a)*  0;
+		tmp(indr(46:end)) = a*tmp(indr(46:end)) + (1-a)*  0;
+		tmp(indg(1: 5))   = a*tmp(indg(1: 5))   + (1-a)*  0;
+		tmp(indg(6:45))   = a*tmp(indg(6:45))   + (1-a)*255;
+		tmp(indg(46:end)) = a*tmp(indg(46:end)) + (1-a)*  0;
+		tmp(indb(1: 5))   = a*tmp(indb(1: 5))   + (1-a)*  0;
+		tmp(indb(6:45))   = a*tmp(indb(6:45))   + (1-a)*  0;
+		tmp(indb(46:end)) = a*tmp(indb(46:end)) + (1-a)*255;
 		search.rx = floor(prms.wx/2);
 		search.rt =       prms.wt;
-		search.box_x = [max(0, pax - search.rx - prms.px), min(size(nisy,2), pax + search.rx + prms.px)];
-		search.box_y = [max(0, pay - search.rx - prms.px), min(size(nisy,1), pay + search.rx + prms.px)];
-		search.box_t = [max(0, pat - search.rt          ), min(size(nisy,4), pat + search.rt          )];
-		search.orig = orig(search.box_y(1): search.box_y(2),...
+		search.box_x = [max(1, pax - search.rx - prms.px), min(size(nisy,2), pax + search.rx + prms.px)];
+		search.box_y = [max(1, pay - search.rx - prms.px), min(size(nisy,1), pay + search.rx + prms.px)];
+		search.box_t = [max(1, pat - search.rt          ), min(size(nisy,4), pat + search.rt          )];
+		search.image = tmp(search.box_y(1): search.box_y(2),...
 		                   search.box_x(1): search.box_x(2),:,...
 		                   search.box_t(1): search.box_t(2));
 
-		aa = search.orig;
+		aa = search.image;
 		sza = size(aa);
 		aa = reshape( cat(2, permute(aa, [1 2 4 3]), 255*ones(sza(1),3, sza(4), sza(3))),...
 		              [sza(1), sza(4)*(sza(2) + 3), sza(3)]);
@@ -203,7 +203,7 @@ while (goon)
 		fname = sprintf('patch_group_%s_%03d_%03d_%03d_s%02d_wx%d_wt%d_sx%d_st%d_r%03d_n%03d_pcas.png',seq.name, pax,pay,pat, sigma, prms.wx,prms.wt,prms.px,prms.pt, rank, prms.np);
 		imwrite(uint8(mU),fname)                                                                                            
 		fname = sprintf('patch_group_%s_%03d_%03d_%03d_s%02d_wx%d_wt%d_sx%d_st%d_r%03d_n%03d_coor.png',seq.name, pax,pay,pat, sigma, prms.wx,prms.wt,prms.px,prms.pt, rank, prms.np);
-		imwrite(uint8(aa),fname)                                                                                            
+		imwrite(uint8(aa/255*255),fname)                                                                                            
 		fname = sprintf('patch_group_%s_%03d_%03d_%03d_s%02d_wx%d_wt%d_sx%d_st%d_r%03d_n%03d_orig.png',seq.name, pax,pay,pat, sigma, prms.wx,prms.wt,prms.px,prms.pt, rank, prms.np);
 		imwrite(uint8(oo),fname)                                                                                            
 		fname = sprintf('patch_group_%s_%03d_%03d_%03d_s%02d_wx%d_wt%d_sx%d_st%d_r%03d_n%03d_nisy.png',seq.name, pax,pay,pat, sigma, prms.wx,prms.wt,prms.px,prms.pt, rank, prms.np);
