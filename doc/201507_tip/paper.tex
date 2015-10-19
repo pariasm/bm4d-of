@@ -951,7 +951,7 @@ results known for Gaussian covariance matrices. It would be interesting to see w
 \cite{bunea2015} says regarding covariance matrices with low-effective rank.}
 
 The rank also plays a role in the estimation of the covariance matrix.
-As explained in \S \ref{sec:complexity}, alleviating the computational cost is
+As explained in \S \ref{sse:complexity}, alleviating the computational cost is
 one of the reasons for using a low rank approximation of the empirical
 covariance matrix. But there are also good reasons regarding the denoising
 performance. In situations in which the number of samples 
@@ -989,22 +989,19 @@ temporal components of the search region, $w_x$ and $w_t$, the number of similar
 patches $n$ and the rank of the a priori covariance matrix $r$.
 When needed, we will add a subscript indicating the stage, \eg
 $n_{1}$ and $n_{2}$.
+We will consider different parameter settings for color and grayscale videos.
 
 \subsection{Search region and patch size}
 
-Setting the size of the search region implies a
-trade-off between denoising performance and running time: A larger search
-region takes longer to traverse but yields better results, since more
-similar patches can be found. We fix the search
-region for both stages of the algorithm at 
-\begin{equation}
-w_x = 37 \quad \text{ and } \quad w_t = 5.
-\label{eq:search_region_parameters}
-\end{equation}
+Setting the size of the search region implies a trade-off between denoising
+performance and running time: A larger search region takes longer to traverse
+but yields better results, since more similar patches can be found. We use same 
+search region in both stages. The
+temporal search window is fixed at $w_t = 5$. The spatial search region is set at
+$w_x = 37$ for color videos and $w_x = 45$ for grayscale videos.
 With these values, the search region captures the $5$ frame trajectory of the
-target patch as long as it moves slower than $37/5 = 7.4$
-pixels/frame.
-
+target patch as long as it moves slower than $37/5 = 7.4$ pixels/frame (for
+color videos).
 
 Let us now consider the spatial patch
 size $s_x$, which is a key parameter in patch-based methods \cite{Buades2006,Kervrann2006,Boulanger2007}.
@@ -1026,12 +1023,12 @@ an approximately uniform motion, the
 amount of similar neighbors of a $5\times 5\times 4$ patch is roughly the same
 as for a $5\times 5\times 1$ patch.
 
-We will set the spatial patch size at \[s_x = 5\] for both stages. Larger
-patches (up to $s_x = 9$) lead to an mild improvement of the results (on
-average). This improvement comes at a considerable increase in the
-computation time, since our current implementation is $\mathcal O(s_x^4)$. Thus,
-have found that a good compromise between computation time and quality is given
-by $s_x = 5$.
+For color videos, we will set the spatial patch size at $s_x = 5$ for both
+stages, whereas for grayscale videos we use $s_x = 7$. Larger patches (up to $s_x = 9$) lead to an mild improvement of the
+results (on average). This improvement comes at a considerable increase in the
+computation time, since our current implementation is $\mathcal O(s_x^4)$.
+Thus, have found that a good compromise between computation time and quality is
+given by $s_x = 5$.
 
 The impact of the temporal patch size $s_t$ will be discussed later in Section
 \ref{sec:results}, where we show results varying $s_t$ between $s_t = 1$ and $s_t = 4$.
@@ -1129,7 +1126,8 @@ Due the coupling of the first and second stages, determining the optimal values
 for the ranks $r_1, r_2$ and the number of patches $n_1,n_2$ requires a four
 dimensional parameter search.
 %
-Instead, we fix the first stage parameters at
+Instead, we fix the first stage parameters, both for color and grayscale videos
+at
 \[r_1 = s_{x,1}^2s_{t,1}\quad\quad n_{1} = 400,\]
 which we found to give good results. In doing so, we are being conservative and
 use the full rank covariance matrix to eliminate the least signal components.
@@ -1139,8 +1137,29 @@ The results is the ones shown in Figure \ref{fig:rank1-nsim1-fpsnr}. From here
 establish the following values as a function of $\sigma$:
 %\[r_2(\sigma) = 40 - \frac13(\sigma - 10)\quad\quad n_{2} = 150.\]
 \[r_2(\sigma) = 35 - \frac12(\sigma - 10)\quad\quad n_{2} = 100.\]
+The same values are used for color and grayscale videos.
 Note that a higher value for $n_{2}$ would give slightly worse results,
 at a lower computational cost.
+
+
+\begin{table}
+	\centering
+	\begin{tabular}{l | c c | c c }
+		& \multicolumn{2}{c|}{color} 
+		& \multicolumn{2}{c}{grayscale}\\
+		Stage                            & 1st    & 2nd   & 1st   & 2nd   \\\hline\hline
+		$s_x$        &  5 & 5 & 7 & 7 \\
+		$s_t$        &  1--4  & 1--4  & 1--4  & 1--4  \\
+		$w_x$        &  37    & 37    & 45    & 45    \\
+		$w_x$        &   5    & 5     & 5     & 5    \\
+		$n$          & 400    & 100   & 400   & 100  \\
+		$r$          & full   & $35 - \frac12(\sigma - 10)$    & full  & $35 - \frac12(\sigma - 10)$   \\
+%		Distance threshold $\tau$   & n/a  & 432  & n/a  & 432  & n/a  & 432 \\
+%		Beta                        & 1    & 1.2  & 1    & 1.2  & 1    & 1.2 \\\hline
+	\end{tabular}
+	\caption{Selected parameters.}
+	\label{tab:parameters}
+\end{table}
 
 
 %Intuitively, smaller groups obtained by keeping only the most similar patches have 
@@ -1286,10 +1305,10 @@ at a lower computational cost.
 		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-curves_s30_average_derf.eps}%
 		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-curves_s40_average_derf.eps}\\
 
-		\vspace{1cm}
-		\pcomment{TODO: Figures for grayscale sequences}
-		\vspace{1cm}
-
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-curves_s10_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-curves_s20_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-curves_s30_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr_r1-np1-curves_s40_average_mono.eps}\\
 	\end{center}
 	\caption{Basic estimate PSNR, averaged over four sequences, when varying the
 		second stage parameters $r_1$ and $n_1$. From left to right, results for
@@ -1305,10 +1324,10 @@ at a lower computational cost.
 		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr-fpsnr_r1-np1-curves_s30_average_derf.eps}%
 		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr-fpsnr_r1-np1-curves_s40_average_derf.eps}\\
 
-		\vspace{1cm}
-		\pcomment{TODO: Figures for grayscale sequences}
-		\vspace{1cm}
-
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr-fpsnr_r1-np1-curves_s10_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr-fpsnr_r1-np1-curves_s20_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr-fpsnr_r1-np1-curves_s30_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/bpsnr-fpsnr_r1-np1-curves_s40_average_mono.eps}\\
 	\end{center}
 	\caption{PSNRs of final vs. basic estimate. Averages over four sequences, when varying the
 		second stage parameters $r_1$ and $n_1$. From left to right, results for
@@ -1329,10 +1348,10 @@ at a lower computational cost.
 		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r1-np1-curves_s30_average_derf.eps}%
 		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r1-np1-curves_s40_average_derf.eps}\\
 
-		\vspace{1cm}
-		\pcomment{TODO: Figures for grayscale sequences}
-		\vspace{1cm}
-
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r1-np1-curves_s10_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r1-np1-curves_s20_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r1-np1-curves_s30_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r1-np1-curves_s40_average_mono.eps}\\
 	\end{center}
 	\caption{Final estimate PSNR, averaged over four sequences, when varying the
 		second stage parameters $r_1$ and $n_1$. From left to right, results for
@@ -1348,9 +1367,10 @@ at a lower computational cost.
 		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-curves_s30_average_derf.eps}%
 		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-curves_s40_average_derf.eps}\\
 
-		\vspace{1cm}
-		\pcomment{TODO: Figures for grayscale sequences}
-		\vspace{1cm}
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-curves_s10_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-curves_s20_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-curves_s30_average_mono.eps}%
+		\includegraphics[width=.25\textwidth]{figs/params_tables/fpsnr_r2-np2-curves_s40_average_mono.eps}\\
 
 	\end{center}
 	\caption{Final estimate PSNR, averaged over four sequences, when varying the
@@ -1480,7 +1500,7 @@ at a lower computational cost.
 
 \begin{table*}[htp!]
 	\begin{center}
-		{%\small
+		{\small
 		\renewcommand{\tabcolsep}{1.6mm}
 		\renewcommand{\arraystretch}{1.3}
 		\begin{tabular}{ c | l |c c | c c | c c | c c | c c | c c}
@@ -1549,8 +1569,8 @@ at a lower computational cost.
 	\end{center}
 % Command to print rounded psnrs
 % for i in $(cat bus_s40_pt*/measures | grep PSNR_final | sed "s/^-PSNR_final\ =\ "//); do  echo "scale=2;(((10^2)*$i)+0.5)/(10^2)" | bc; done
-	\caption{PSNRs obtained for the four classic color test sequences used in
-	\cite{Maggioni2012}. See text for details.}
+	\caption{PSNRs obtained for the classic color test sequences. See text for
+		details. \pcomment{NOTE: the values in the table need to be updated!!}}
 	\label{tab:psnr-classic-color}
 \end{table*}
 
@@ -1610,7 +1630,7 @@ at a lower computational cost.
 % Command to print rounded psnrs
 % for i in $(cat bus_s40_pt*/measures | grep PSNR_final | sed "s/^-PSNR_final\ =\ "//); do  echo "scale=2;(((10^2)*$i)+0.5)/(10^2)" | bc; done
 	\end{center}
-	\caption{Quantitative denoising results for some classic grayscale test sequences. See text for details.}
+	\caption{Quantitative denoising results for some classic grayscale test sequences. See text for details. \pcomment{NOTE: the values in the table need to be updated!!}}
 	\label{tab:psnr-classic-gray}
 \end{table*}
 
@@ -1649,6 +1669,7 @@ at a lower computational cost.
 In this section we present results obtained with the proposed
 method on some classical test sequences with Gaussian noise added.
 We consider separatedly the cases of grayscale and color videos.
+All results were computed with the parameters shown in Table \ref{tab:parameters}.
 
 \subsection{Results on grayscale videos}
 
@@ -1909,7 +1930,7 @@ video non-local Bayes method, shows a much slower variation in time.
 
 \begin{table*}[htp!]
 	\begin{center}
-		{%\small
+		{\small
 		\renewcommand{\tabcolsep}{1.6mm}
 		\renewcommand{\arraystretch}{1.3}
 %		\begin{tabular}{ c | l |c c | c c | c c | c c | c c}
@@ -1964,7 +1985,8 @@ video non-local Bayes method, shows a much slower variation in time.
 		\end{tabular}}
 	\end{center}
 	\caption{PSNRs and TCEs obtained for the four CGI sequences from MPI
-	Sintel's database. See text for details.}
+	Sintel's database. See text for details.
+	\pcomment{NOTE: the values in the table need to be updated!!}}
 	\label{tab:sintel}
 \end{table*}
 
