@@ -183,17 +183,17 @@ de Cachan, 61 Av. du Pr\'esident Wilson, F-94230 Cachan, France}}
 \maketitle              % typeset the title of the contribution
 
 \begin{abstract}
-	The quality provided by image/video sensors increases steadily, and
-	for a fixed spatial resolution the sensor noise has been gradually reduced.
-	However, modern sensors are also capable of acquiring at higher spatial
-	resolutions which are still affected by noise, specially at low lighting
-	conditions. The situation is even worse in video cameras, where the capture
-	time is bounded by the frame rate. The noise in the video degrades its visual 
-	quality and hinders its analysis.
-	In this paper we present a new video denoising method extending 
-	the non-local Bayes image denoising algorithm. The method does not require 
-	motion estimation, and yet preliminary results show that it outperforms the
-	state-of-the-art methods in terms of PSNR.
+In this paper we present a new patch-based empirical Bayesian video denoising algorithm.
+The method builds a Bayesian model for each group of similar space-time
+patches. These patches are not motion compensated, and therefore avoid the
+risk of inaccuracies caused by motion estimation errors. The main drawback of empirical Bayesian
+methods is the computational load for estimating rich statistics in high
+dimension. We therefore explore dimensionality reduction strategies on groups
+of similar patches. Our analysis, based on the literature
+on empirical covariance estimation, leads to a significant complexity
+reduction and better denoising performance. A comparison on classic benchmark
+videos demonstrates improved visual quality and an increased PSNR with respect
+to state-of-the-art video denoising methods.
 \end{abstract}
 
 % Note that keywords are not normally used for peerreview papers.
@@ -232,7 +232,8 @@ the denoising task. However, this additional form of redundancy creates
 challenges.  On one hand, the amount of data is much larger than for still
 images, and efficient ways of navigating through this data are needed. On the
 other hand, the output of the denoising algorithm should be temporally
-consistent according to the motion of the original sequence.
+consistent with to the motion of the original sequence, which is an essential
+quality criterion.
 
 Early works proposed temporal or spatio-temporal filters which either compensate
 for motion on estimated motion trajectories or used some kind of mechanism to
@@ -272,9 +273,6 @@ independently, there is no mechanism to impose coherence along trajectories.
 This results in flickering artifacts which become noticeable for high levels of
 noise. 
 %
-While these methods exploit spatio-temporal redundancy, they do not impose
-coherence of the trajectories, resulting in flickering
-artifacts which become noticeable for high levels of noise. 
 
 An interesting alternative was proposed in \cite{Liu2010},
 based on non-local means.
@@ -306,8 +304,8 @@ Two types of 3D patches have been used: rectangular and motion-compensated.
 Motion-compensated 3D patches follow a motion trajectory previously estimated.
 Each approach has its pros and cons.
 
-Motion-compensated patches have the benefit that their spatial slices are very
-similar between each other. As a consequence, temporal filtering can be easily performed by
+Motion-compensated patches have the benefit that their spatial slices are 
+to between each other. As a consequence, temporal filtering can be easily performed by
 filtering inside the patch in the temporal direction. 
 Because of this, methods that use motion-compensated 3D patches only look for
 similar motion-compensated 3D patches starting in the same frame.
@@ -321,43 +319,54 @@ regularization term, which favours trajectories with small velocity and low
 acceleration. The results of this algorithm show higher PSNR and temporal
 consistency, resulting in a higher overall quality.
 
-One of the main difficulties in using motion-compensated patches is estimating
-motion. Motion estimation is a paramount problem in noiseless sequences, and
-noise makes it much harder.
+One of the main difficulties in using motion-compensated patches is motion
+estimation in the presence of noise.
 
 Rectangular 3D patches offer an appealing
-alternative, since they do not require estimating motion. 
+alternative, since they do not require motion estimation.
 In \cite{Protter2007,Protter2009} the authors extend the K-SVD \cite{Elad2006}
 image denoising method to video by learning a dictionary of spatio-temporal
 rectangular 3D patches.
 
 Each rectangular 3D patch results from the combination of a 2D texture and a
-motion pattern. For arbitrary motion, each combination of texture and motion is
-not likely to occur together again. Thus rectangular 3D patches should have
-less repeatability in the video compared to motion compensated patches.  An
-exception is when the motion is a global translation of the frame, in which
-case, the motion pattern is equal for each patch. Furthermore, if there is no
-acceleration (uniform motion), rectangular 3D patches are constant along motion
-trajectories. Global uniform motion is indeed a too restrictive model, but in
-many cases, it is a valid approximation in a local neighborhood in space and
-time.
+motion pattern. For arbitrary motion it would seem that each combination of
+texture and motion is unlikely to repeat across the video. Thus rectangular 3D
+patches should have less repeatability in the video compared to motion
+compensated patches. 
+This objection is mitigated in two ways. First, if the motion is uniform on the
+trajectory, rectangular 3D patches will be similar along the trajectory.
+Second, if the motion pattern is spatially homogeneous in a region of the
+image, then the image self-similarity still extends to space-time patches
+starting at the same frame, regardless of the complexity of the motion. 
 
 \bigskip
 
-In this work we present new Bayesian patch-based video denoising method using
+In this work we present a new Bayesian patch-based video denoising method using
 3D rectangular patches and not requiring motion estimation.
 Yet, it provides
 results which compare favourably to the current state-of-the-art,
 both quantitatively by a significant margin and qualitatively, specifically in
-terms of the temporal consistency attained.
+terms of temporal consistency.
 In the spirit of  \cite{Lebrun2013a,Lebrun2013ipol},
 the method works by learning a Gaussian \emph{a priori} model from sets of 
 similar noisy patches. Each patch is denoised by computing the \emph{maximum a
 posteriori} (MAP) with the estimated prior.
-Learning the Gaussian prior amounts to estimating a covariance matrix with a
-limited number of samples in a high dimensional space. Motivated by recent 
+The main difficulty of such a method is the problem of estimation a high
+dimensional covariance matrix with a limited number of samples. 
+%
+There are two possible solutions to this problem. One that works in image
+denoising, is to estimate a fixed \cite{Zoran2011} or an image dependent
+Gaussian mixture model \cite{Chatterjee2012}.  The computational burden of the first
+strategy is huge, but it is paid once, as it delivers to a fixed prior. And it
+shows excellent performance. Yet its extension to video is challenging because
+of the curse of dimensionality. The second strategy, of estimating a different
+Gaussian mixture from each video, also raises serious complexity issues. Thus
+we shall stick to the idea of using video redundancy to build a local Gaussian
+model for each patch.
+%
+Motivated by recent 
 theoretical results and supported by an empirical analysis, we add the 
-assumption that the \emph{a priori} model is of low rank (\ie the clean patches
+assumption that the \emph{a priori} local patch model is of low rank (\ie the clean patches
 lie in a lower dimensional subspace). This assumption lowers the computational cost
 of the algorithm, and improves the results.
 
@@ -366,11 +375,11 @@ of the algorithm, and improves the results.
 \bigskip
 
 The rest of the paper is organized as follows: in \S
-\ref{sec:review_nonlocal_Bayes} we review our patch-based Bayesian optimal estimator for
-video denoising. The final algorithm and details about its implementation are
+\ref{sec:review_nonlocal_Bayes} we describe the proposed patch-based Bayesian optimal estimator for
+video denoising. The resulting algorithm and details about its implementation are
 given in \S \ref{sec:algorithm}.
-Some relevant aspects of the proposed method are discussed in \S
-\ref{sec:discussion}.
+The structure of spatio-temporal  patches and the issues of the estimation of
+their covariance are discussed in \ref{sec:discussion}.
 In \S \ref{sec:parameters}
 we explain the selection of the parameters. Some results, including a
 comparison with the state-of-the-art methods, are shown in \S
@@ -455,14 +464,14 @@ which correspond to a Wiener filter on the principal components.
 \subsection{Learning a low-rank \textit{a priori} model}
 
 The parameters of the \textit{a priori} model are learnt from the noisy video as
-follows. For each noisy patch $\ma q$, we select the most $n$
+follows. For each noisy patch $\ma q$, we select the $n$ most
 similar 3D patches found in a search region centered at $\ma q$. The
 search region is a spatio-temporal rectangle of size $w_x \times
 w_x \times w_t$ ($w_x, w_t$ are odd numbers). 
 
-Let us note by $\ma q_i$, $i = 1, \dots, n$ the set of patches
+Let us denote by $\ma q_i$, $i = 1, \dots, n$ the set of patches
 similar to $\ma q$ (with $\ma q_1 = \ma q$). We assume that these 
-patches correspond to different noisy observations of the Gaussian linear model
+patches correspond to noisy observations of the Gaussian linear model
 \eqref{eq:prior} and \eqref{eq:obs}. The corresponding marginal distribution is given by
 \[\mathds P(\ma q) = \mathcal N(\overline{\ma p}, C + \sigma^2I). \]
 Therefore, the maximum likelihood estimates for $\overline{\ma p}$ and $C$ are given by 
@@ -472,17 +481,17 @@ Therefore, the maximum likelihood estimates for $\overline{\ma p}$ and $C$ are g
 	\label{eq:learn_parameters}
 \end{equation}
 
-We will also assume that the covariance matrix has a lower rank $k$.  In this
+We will also assume that the covariance matrix has a lower rank $r$.  In this
 case, it has been shown \cite{Tipping1999} that the maximum likelihood estimate is given by
-truncating the spectral decomposition of $\widehat C$ to the $k$ largest
+truncating the spectral decomposition of $\widehat C$ to the $r$ largest
 eigenvalues 
 \begin{equation}
-\widehat C_k = \sum_{i = 1}^k\widehat \lambda_i\widehat U_i\widehat U_i^T,
+\widehat C_r = \sum_{i = 1}^r\widehat \lambda_i\widehat U_i\widehat U_i^T,
 \end{equation}
 where $\widehat \lambda_i$, $\widehat U_i$ denote the $i$-th largest
 eigenvalue and its corresponding eigenvector respectively.
 
-\padd{The estimated eigenvalues are given by $\widehat \lambda_i = \widehat
+The estimated eigenvalues are given by $\widehat \lambda_i = \widehat
 \nu_i - \sigma^2$, where $\widehat \nu_i$ are the eigenvalues of the empirical
 covariance matrix of the noisy patches. In practice, some of the smallest
 estimated eigenvalues $\widehat \nu_i$ can be smaller than $\sigma^2,$ causing
@@ -492,7 +501,7 @@ corresponding weights have a negative impact on the MAP estimate. This is an
 issue of empirical Wiener filters and it is typically addressed by zeroing out
 the negative coefficients. Later in \S
 \ref{sec:parameters} we compare the results obtained by zeroing out negative
-coefficients against using them.}
+coefficients against using them.
 
 Figures \ref{fig:patch_groups_pos} and \ref{fig:patch_groups_patches}
 show two examples of groups of similar $9\times 9\times 4$ patches taken from
@@ -513,30 +522,31 @@ more detail. Each patch is displayed by vertically stacking its four $9\times
 the figure shows the noisy patches, the result of the MAP estimation and the
 mean patch together with the leading 19 principal directions. The Gaussian
 models were learnt from the $n = 200$ similar patches shown in Figure
-\ref{fig:patch_groups_pos}. The MAP estimates were computed setting $r = 40$.
-Since the patch is not
-motion-compensated, all spatial slices can be different,
-and thus the same applies to the principal directions.
+\ref{fig:patch_groups_pos}. The MAP estimates were computed setting the rank $r = 40$.
+%Since the patch is not
+%motion-compensated, its spatial slices can have little correlation.
+%The same applies to the spatial slices of the principal directions.
 The spatial slices of the principal directions show oscillating patterns, with
-increasing frequency. In some cases these patterns are localized in a part of
-the spatial slice.
+increasing frequency. 
+In some cases these patterns are localized in a smaller region.
+%
+These oscillations are oriented in the direction of the
+dominant edges in the corresponding slices of the patches in the group.
 
 
 
 \bigskip
 
-Other methods for image denoising have been proposed in the
-literature based on Gaussian models for the patch density. In \cite{Yu2012},
+Using a Gaussian patch model for for image denoising has several antecedents.
+In \cite{Yu2012},
 the authors introduce a framework for solving inverse problems, based on the
 assumption that the patches of an image are distributed according to a Gaussian
 Mixture Model (GMM) which is learnt from
 the image. A GMM is also used in \cite{Zoran2011}, but it is trained from a
 database of $2\cdot 10^6$ patches randomly sampled from the Berkeley database.
-
-In \cite{Zhang2010} a PCA-based algorithm is introduced which is equivalent to 
-the nonlocal Bayes method. In fact, nonlocal Bayes can be regarded as a Bayesian 
-interpretation of \cite{Zhang2010}.
-
+In \cite{Zhang2010} an algorithm that applies PCA on groups of similar patches
+is introduced. It can be interpreted as a non-local empirical Bayesian method.
+%
 The BLS-GSM method \cite{Portilla2003} (Bayes least square estimate of Gaussian
 scale mixture) models noiseless ``wavelet coefficient neighborhoods'' with a
 Gaussian scale mixture defined as a random scaling of a zero-mean Gaussian
@@ -556,7 +566,7 @@ oriented channel of the image at a given scale.
 	for patches of size $9\times 9\times 4$.
 	The images in each row show the five frames of a $37\times37\times5$ search region. 
 	In red we show the positions of the 5 nearest neighbors, in green the next 40 and in blue the rest.
-	Note that the points shown correspond to the top-left pixel of the first spatial
+	The points shown correspond to the top-left pixel of the first spatial
 	slice of each patch.
 	The reference patch is the red patch in the center of the search region. To highlight the
 	position of the patches, the color of the images has been attenuated.}
@@ -601,16 +611,16 @@ oriented channel of the image at a given scale.
 
 Let us now describe the video denoising algorithm. As in
 \cite{Dabov2007tip,Dabov2007v,Maggioni2012,Lebrun2013a} we perform two stages, described in 
-Algorithms \ref{alg:nlbayes} and \ref{alg:nlbayes2}. In the first stage we
-compute a \emph{basic} estimate, which we denote $\widetilde u^{(1)}$. 
+Algorithms \ref{alg:nlbayes} and \ref{alg:nlbayes2}. The first stage 
+computes a \emph{basic} estimate, which we denote $\widetilde u^{(1)}$. 
 
-In the second stage computes the final estimate $\widetilde u^{(2)}$ using the
+The second stage computes the final estimate $\widetilde u^{(2)}$ using the
 basic estimate as an oracle. This entails two modifications with respect to the
 first stage (highlighted in italics in Algorithm \ref{alg:nlbayes2}). Firstly, the
 computation of the patch distances is performed using the patches of the basic
 estimate instead of the noisy ones. And secondly, we assume that the patches of
 the basic estimate are drawn from the \textit{a priori} Gaussian model and use
-them to learn the mean and covariance matrix. Note that in the second stage,
+them to learn the mean and covariance matrix. In the second stage,
 when estimating the covariance matrix, we assume that the patches of the basic
 estimate have no noise. Thus we set $\sigma = 0$ in Eq.
 \eqref{eq:learn_parameters}.
@@ -755,8 +765,8 @@ Gaussian model of tripled dimensionality.
 patches during the second stage, more than $n$ patches are allowed
 if their distances with respect to the reference patch are smaller than a
 threshold $\tau$.  As in \cite{Lebrun2013ipol}, we set $\tau = 4$ (the distance between
-patches is normalized by the number of elements in the patch and the number of
-channels and the values of each channel are in the range  $[0,255]$).
+patches is jointly normalized by the number of elements in the patch, the number of
+channels, and the values of each channel are in the range  $[0,255]$).
 
 
 \subsection{Computational complexity and speed-ups}
@@ -786,22 +796,26 @@ Each group of patches is associated to the reference patch from which
 the nearest neighbors are computed.
 We apply two tricks
 considered in \cite{Dabov2007tip,Lebrun2013ipol} in order to reduce the number of reference patches. 
-The first one consists on visiting only 
+The first one consists in visiting only 
 those patches on a coarser spatial grid with vertical and horizontal separation
 of $s_x/2$. This reduces the number of reference patches by a factor of
-$s_x^2/4$. The second trick consists on the following.  After
-filtering the patches in a group, these patches are not considered again
-as reference patches. 
-Note that we ensure that each reference patch is filtered at least once. 
-Due to the spacing of the coarse grid, this guarantees that each pixel is
-overlapped by four reference patches on the same frame, so it will receive at
-least four contributions in the aggregation. The actual number of aggregated
-estimates for each pixel is much higher, considering the reference and
-non-reference patches (which can also be filtered) in the neighboring frames.
+$s_x^2/4$. The second acceleration trick is to give up taking as reference
+patch the patches that have been already once filtered in another group. 
+%Note that we ensure that each reference patch is filtered at least once. 
+%Due to the spacing of the coarse grid, this guarantees that each pixel is
+%overlapped by four reference patches on the same frame, so it will receive at
+%least four contributions in the aggregation. The actual number of aggregated
+%estimates for each pixel is much higher, considering the reference and
+%non-reference patches (which can also be filtered) in the neighboring frames.
+The actual number of aggregated estimates for each pixel remains anyway high,
+simply because each pixel is contained in 100 different patches, and at least
+25 of them have been filtered, either as reference patches, or as patches
+similar to a reference patch.
 
 Due to these speed-ups, the actual number of groups of similar patches processed
-depends on $n$, and varies between a $1\%$ ($n \approx 400$)  and a $10\%$ ($n
-\approx 50$) of the total number of pixels in the sequence. 
+depends on $n$, and varies across video sequences. We have measured empirically
+that it ranges roughly from $1\%$ ($n \approx 400$) to $10\%$ ($n \approx 50$) of the total
+number of pixels in the sequence. 
 \pcomment{Check this numbers!}
 
 
@@ -984,11 +998,11 @@ The case of Gaussian models with covariance matrices of the form $C = A + \sigma
 where $A$ does not have full rank, has been studied in the statistics and physics
 literature. The authors in \cite{johnstone2009,paul2007,nadler2008} study the
 limit when the number of samples $n$ and the dimension $p$ grow to infinity at
-same rate, such that $p/n\to\gamma < \infty$.  These works show that, for a
+the same rate, $p/n\to\gamma < \infty$.  These works show that, for a
 non-zero ratio $\gamma$, the empirical eigenvectors 
 and eigenvalues are inconsistent estimators of the population ones.
 Furthermore, the smaller eigenvalues and their eigenvectors will have a higher
-error and eventually, if the signal-to-noise ratio drops bellow $\sqrt{\gamma}$, 
+error and eventually, if the signal-to-noise ratio drops below $\sqrt{\gamma}$, 
 the eigenvector is confused with the noise and the resulting estimate will be,
 in expectation, orthogonal to the actual value.
 Finite sample bounds for the eigenvalues and eigenvectors have been also studied 
@@ -1000,7 +1014,7 @@ counterparts manifest themselves as noise, which then affects the MAP estimate.
 %
 These asymptotic results suggest to discard the eigenvectors associated with 
 lower eigenvalues. How many should be discarded in practice when $n$ and $p$ are finite, 
-can only be fixed empirically, as we do in \$ \ref{sec:parameters}.
+can only be fixed empirically, as we do in \S \ref{sec:parameters}.
 
 \pcomment{Results of Bunea are still missing!}
 \pcomment{More detailed explanation of the results?}
@@ -1060,7 +1074,7 @@ The impact of the temporal patch size $s_t$ will be discussed later in Section
 
 \subsection{Rank and number of similar patches}
 
-The number of similar patches $n$ and the rank $r$ affect the estimation of the covariance
+The number $n$ of similar patches and the rank $r$ affect the estimation of the covariance
 matrix $C$, controlling the trade-off between the accuracy of the Gaussian model
 and the precision of the covariance matrix,
 which in turn has a direct effect on the denoising strength of the algorithm.
@@ -1098,26 +1112,26 @@ grayscale version of the same sequences.
 %
 %
 
-\padd{For the basic estimate, we show two set of curves. The dashed curves were
+{For the basic estimate, we show two sets of curves. The dashed curves were
 obtained by zeroing out negative eigenvalues of the estimated a priori covariance
 matrix $\widehat C$, computed according to \eqref{eq:learn_parameters}. The continuous curves 
 were obtained by retaining negative eigenvalues. In this case the MAP is estimated
 with an empirical Wiener filter that may have some negative coefficients.}
 
-\padd{For lower values of the rank parameter $r$, both curves coincide, since the first
+{For lower values of the rank parameter $r$, both curves coincide, since the first
 eigenvalues are positive. 
-For all noise levels, all curves of fixed $n_1$ present a first peak at a low value of the rank $r$.
+For all noise levels, all curves with fixed $n_1$ present a first peak at a low value of the rank $r$.
 The behaviour of the basic estimate around this peak can be
 interpreted in the light of the theoretical results described in \S
 \ref{sse:covariance-estimation}.
 As the noise level increases, the rank at which the peak is attained
 shifts to the left. This makes sense, as the reliability of the computed eigenvectors
-decrease with increasing noise.
+decreases with increasing noise.
 %
 Also, for a fixed noise level, when the number of samples $n_1$ increases, the value
 of the peak increases also, and so does the rank at which it is attained.
 This is again explainable, as smaller groups obtained by keeping only the
-most similar patches have less modes of variation, and thus a worse signal-to-noise ratio
+most similar patches have fewer modes of variation, and thus a worse signal-to-noise ratio
 in the eigenvectors with lower eigenvalues.}
 %As the group of patches grows
 %bigger, patches in the group are not as similar anymore, and a higher rank is
@@ -1130,23 +1144,25 @@ in the eigenvectors with lower eigenvalues.}
 %$\widehat \nu_i$ are smaller than $\sigma^2$. These translate into negative
 %coefficients $w_{ii}$ in the empirical Wiener filter \eqref{eq:wiener_coeffs},
 %which result in a poorer estimation of the MAP.
-\padd{As the rank parameter increases, both curves diverge. 
+{As the rank parameter increases, both curves diverge. 
 The dashed curves become almost constant at the point when
 most eigenvalues become negative. After that point increasing the
 rank has no effect if the negative eigenvalues are zeroed out.
 %
 Surprisingly, these negative coefficients have a positive effect on the final 
 result, creating the second peak for high values of the rank shown by the
-continuous plots. Currently we do not have an explanation for this behaviour
-although it is related to the aggregation: even if the estimated MAP for the
+continuous plots.
+%Currently we do not have an explanation for this behaviour
+%although it is related to the aggregation:
+Even if the estimated MAP for the
 patches in each group have larger errors, after aggregation these errors seem
 to cancel, yielding an overall better estimate of the clean image.}
 
-\padd{The final estimate shows the same qualitative behaviour with respect to the first
+{The final estimate shows the same qualitative behaviour with respect to the first
 stage parameters. The dashed curves obtained by zeroing out the negative
 eigenvalues are not shown to avoid cluttering the figure. Essentially the
 second step has the effect of reducing the differences between results obtained
-with different parameters. Based on these curves, we fix the first stage parameters at
+with different parameters. Based on these curves, we fixed the first stage parameters at
 $n_1 = 300$ and $r_1 = 95$ for color videos, and at $n_1 = 300$ and $r_1 = 180$ for grayscale videos.}
 
 Using these parameters for the first stage, we analyzed the impact when varying the second stage
@@ -1155,7 +1171,7 @@ parameters $n_2$ and $r_2$. The plots obtained are shown in Figure
 %
 Note that in this case, the \emph{a
 priori} covariance matrix is estimated from the basic estimate (without having
-to subtract $\sigma^2I$). As a consequence, the are no negative filter coefficients.
+to subtract $\sigma^2I$). As a consequence, there are no negative filter coefficients.
 %
 In the second stage the quality drops when
 using a number of patches $n_2$ higher than $100$. This differs from the first stage,
@@ -1445,7 +1461,7 @@ All parameters are summarized in Table \ref{tab:parameters}.
 %	\caption{Top row: average PSNRs over four sequences, obtained by varying the second stage parameters
 %		$r$ and $n$. From left to right, results for $\sigma = 10,
 %		20, 40$. In each image, the contrast has been stretched so that white
-%		corresponds to the maximum PSNR and black to a decay of 1dB bellow the
+%		corresponds to the maximum PSNR and black to a decay of 1dB below the
 %		maximum. 
 %		Bottom: corresponding average running times. White corresponds to $50$ s/frame (using parallelization with four threads).}
 %	\label{fig:rank-nsim-image-stage2}
@@ -1809,7 +1825,7 @@ and the results show that it is inferior to V-BM4D, at least
 for low to moderate noise levels. The method of Li, Zhang and Dai \cite{LiZhangDai2011} 
 considers shape adaptive patches, and performs several iterations. In each iteration,
 the previous iterate is used as an oracle to compute patch distances.
-\padd{An additional difference is that the oracle is not used to determine the
+{An additional difference is that the oracle is not used to determine the
 signal components for the Wiener filter. Instead, these are estimated with a fixed
 point iteration from the original noisy patches.}
 
@@ -1822,7 +1838,7 @@ but we have not found yet a significant improvement. Something similar was
 reported in \cite{Lebrun2013ipol,Lebrun2013a} for the NL-Bayes method in still
 images. %It may be that the current parameters are not suitable for
 %iteration. 
-A more systematic study is has to be conducted before drawing any
+A more systematic study should be conducted before drawing any
 conclusions about iterative versions of the algorithm.
 %This is the matter of ongoing work, but is out of the scope of the paper.
 %Still, it is early to exclude iteration as an valid option to
@@ -1836,17 +1852,16 @@ lines of the drawing in the first example, or the calendar numbers in the
 second example. It also exhibits a higher temporal consistency, as will be
 shown in \S \ref{sse:temporal-consistency}.
 
-
-Regarding the running time, let us note that the modified profile has a
-computation time lower to that of our method. Running with a
-single core in an Intel Xeon X7560 (2.27GHz) CPU, 
-our current implementation takes on average $XXs$ per frame for a video of CIF
-resolution ($352\times288$). V-BM4D takes $44s$ with the modified profile.
-The running times of \cite{LiZhangDai2011} are not reported, but we expect them
-to be significantly higher given that the algorithm is iterative, with each iteration 
-being comparable to one of the stages of V-BM4D.
-\pcomment{TODO: Compute running times!!!}
-\pcomment{We should include computation times for grayscale videos, instead of color}
+% Regarding the running time, let us note that the modified profile has a
+% lower computation time than our method. Running with a
+% single core in an Intel Xeon X7560 (2.27GHz) CPU, 
+% our current implementation takes on average $XXs$ per frame for a video of CIF
+% resolution ($352\times288$). V-BM4D takes $44s$ with the modified profile.
+% The running times of \cite{LiZhangDai2011} are not reported, but we expect them
+% to be significantly higher given that the algorithm is iterative, with each iteration 
+% being itself far more complex to one of the stages of V-BM4D.
+% \pcomment{TODO: Compute running times!!!}
+% \pcomment{We should include computation times for grayscale videos, instead of color}
 
 
 \subsection{Results on color videos}
@@ -2011,7 +2026,7 @@ motion trajectories of the denoising error $e = \widetilde u - u$ as follows:
 	0 & \text{if } (x,t)\in \mathcal{K}.
 \end{array}
 \right.\]
-Here $\mathcal K$ is the set of pixels that are occluded or escape out of the video
+Here $\mathcal K$ is the set of pixels that are occluded or get out of the video
 domain. The occlusion set $\mathcal K$ is also provided in MPI Sintel's database.
 Note that since the optical flow has sub-pixel accuracy, the value of $e(x + v(x,t),t+1)$
 needs to be interpolated. We used bilinear interpolation.
@@ -2021,7 +2036,7 @@ We define a temporal consistency error as follows:
 where $\|\,\cdot\,\|_2^2$ is the $\ell_2$ norm, and $c, T, |\Omega|$ are the numbers
 of channels, frames, and pixels in each frame, respectively.
 
-Table \ref{tab:sintel} shows the PSNR and the TCE results obatained for four sequences of the
+Table \ref{tab:sintel} shows the PSNR and the TCE results obtained for four sequences of the
 Sintel's database, and four levels of noise. For VNLB, we show results obtained with 
 the temporal patch length $s_t$ varying from $1$ to $4$. We can observe that the best results
 are obtained by the proposed method with a patch of $3$ or $4$ frames depending
@@ -2205,25 +2220,25 @@ video non-local Bayes method, shows a much slower variation in time.
 \label{sec:conclusion}
 
 We presented a Bayesian video denoising algorithm assuming a Gaussian prior
-model for similar spatio-temporal patches. 
+model for each group of similar spatio-temporal patches. 
 The proposed method does not require motion estimation, yet it provides 
 state-of-the-art results, both in terms of PSNR and qualitatively. 
 A key element of the proposed method is the estimation of the \textit{a priori}
 covariance matrices from sets of noisy spatio-temporal patches. Since
 the dimensionality of the patches is high, and the number of available 
-similar patches is limited, we additionally assume that the prior covariance
+similar patches is limited, we additionally assumed that the prior covariance
 is of low rank. In practice this amounts to keeping only the principal 
-eigenvectors of the sample covariance matrix. This decision is analyzed
+eigenvectors of the sample covariance matrix. This decision was analyzed
 in the light of theoretical results on the estimation of covariance matrices 
 and with a thorough empirical evaluation. We found that using only the 
 main eigenvectors in the second stage of the algorithm improves both
 the running time and the quality of the results.
 
-Special attention is devoted to the evaluation of the temporal consistency of
-the result. In particular, we propose a way to quantify the temporal
+Special attention was devoted to the evaluation of the temporal consistency of
+the result. In particular, we proposed a way to quantify the temporal
 consistency error (TCE), by measuring the temporal inconsistencies in the
-residue using a ground truth optical flow. Our method shows better performance
-also with respect proposed TCE, evaluated in synthetic videos from MPI's Sintel
+residue using a ground truth optical flow. Our method also shows a better performance
+for the proposed TCE, evaluated in synthetic videos from MPI's Sintel
 database.
 %<>% We show preliminary results and compare it with two methods from the
 %<>% state-of-the-art, V-BM3D and V-BM4D.
@@ -2234,7 +2249,7 @@ database.
 %<>% For higher levels of noise the performance is comparable to V-BM3D and improves
 %<>% over the default version of V-BM4D.
 
-The method is still computationally expensive, and current research focus
+The method is still computationally expensive, and current research focuses
 on speeding up the search and the Bayesian estimation.
 
 %
