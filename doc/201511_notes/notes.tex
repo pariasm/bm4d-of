@@ -266,6 +266,10 @@ $\hat{\text{snr}}(k)$ to be large enough. The number of samples $N$ has the effe
 reducing the support of the distribution, where increasing $\hat{\text{snr}}$ shifts the
 distribution towards larger values of $v$, where $\varphi$ has less curvature.
 
+Figures \ref{fig:wiener_pdf_N} and \ref{fig:wiener_pdf_snr} show some examples of 
+the weights distribution, together with the Gaussian approximation, for some values of
+$N$ and $\hat{\text{snr}}$.
+
 \begin{figure}[htpb!]
 	\centering
 	\includegraphics[width=0.9\textwidth]{weight_pdf}
@@ -281,7 +285,7 @@ distribution towards larger values of $v$, where $\varphi$ has less curvature.
 	\caption{PDF of the Wiener coefficients, varying $\hat{\text{snr}}$, for $N = 40$. The mean of each PDF
 	is shown as a square on the graph. The Gaussian approximations are shown as
 	the dashed curves. The dashed vertical lines indicate $\varphi(\mathbb E\{v_j\})$.}
-	\label{fig:wiener_pdf_N}
+	\label{fig:wiener_pdf_snr}
 \end{figure}
 
 \section{Wiener estimates of the signal}
@@ -488,30 +492,32 @@ weights, making them larger. This reduces the bias of the Wiener filter.
 
 \section{Summary}
 
-The main aim of this analysis was to find an explanation for the good performance of 
-the negative weights in the NL-Bayes algorithm. We didn't achieve that objective. 
-\emph{The model adopted here is too simple, and it does not replicate the behaviour of the 
-NL-Bayes. On the contrary, in this setting thresholding the weights is better.}
+The model adopted here is too simple, and it does not replicate the behaviour of the 
+NL-Bayes. On the contrary, in this setting thresholding the weights is better.
 
-However we did learn interesting things which might be usefull in analyzing more
-complex models which might be closer to NL-Bayes. \emph{The Wiener filter is biased
-(because it damps components with low SNR), and aggregation does not fix the
-bias.} Furthermore, \emph{the thresholded coefficients help in reducing the bias} since
-they increase the expected value of the coefficient, thus reducing the damping. 
+The Wiener filter is biased (because it damps components with low SNR), and
+aggregation does not fix the bias. 
+Furthermore, the thresholded
+coefficients help in reducing the bias since they increase the expected value
+of the coefficient, thus reducing the damping. 
 
-In this example we consider a single Gaussian model. Thefore there exists a
-unique theoretical Wiener filter.
-The situation in non-local Bayes is much more complex. 
-A single patch might be part
-of different Gaussian models, and for each there is a Wiener filter that needs
-to be estimated. 
-Furthermore, a pixel receives contributions from different patches that overlap the
-pixel. This seems harder to model. In order to model this, one could consider 
-the aggregation as an aggregation of images instead of patches. Each image results
-from an empirical Wiener filter in a basis. This basis is built with the DCT or
+In this example we consider a single Gaussian model, and consequently a unique
+Wiener filter.
+The situation in non-local Bayes is more complex. 
+A single patch might participate 
+in different Gaussian models, each with its own Wiener filter. 
+Furthermore, a pixel receives contributions from different patches overlapping
+it. This seems harder to model. One could consider the
+an aggregation of image estimates instead of patches. Each image results
+from an empirical Wiener filter in a basis built with the DCT or
 PCA vectors of each non-overlapping patch. For an $s\times s$ patch, there are $s^2$
-of these bases, built by shifting the non-overlapping patches. An image is computed
-for each basis with a Wiener filter, and these $s^2$ images are aggregated.
+of these bases, that correspond to shifts of the non-overlapping grid of patches. An
+Wiener estimate of the image is computed for each basis, and these $s^2$ images
+are aggregated.
+
+This is a different type of aggregation: 
+a single observation is filtered in multiple bases, instead filtering multiple
+observations in the same basis.
 
 In order to model this, we can consider a set of random rotations of a given basis,
 and perform an empirical Wiener estimate in each rotation, before aggregating them. 
