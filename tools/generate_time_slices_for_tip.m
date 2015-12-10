@@ -3,10 +3,12 @@
 
 % path to data
 base_path = '/media/pariasm/tera/funes/denoising/';
+base_path = '~/Work/denoising/';
 bm4d_path = [base_path 'algos/results/VBM4D/'];
 orig_path = [base_path 'data/derf/'];
 %nlb3_path = [base_path 'projects/video_nlbayes3d/results/vnlbayes/table_1ps5_2ps5_2wx37_2r16_2np160/'];
-nlb3_path = [base_path 'projects/video_nlbayes3d/results/vnlbayes/table_1ps7_2ps5_2wx45_r16/'];
+%nlb3_path = [base_path 'projects/video_nlbayes3d/results/vnlbayes/table_1ps7_2ps5_2wx45_r16/'];
+nlb3_path = [base_path 'projects/video_nlbayes3d/results/vnlbayes/tip_table_1ps7_2ps7-neg/'];
 
 % sequence data
 seqnames = {'football_mono','mobile_mono','stefan_mono','tennis_mono'};
@@ -20,7 +22,7 @@ sequences = struct('name',seqnames,'first',first,'last',last);
 clear seqnames first last
 
 % parameters
-sigma = '10';
+sigma = '40';
 
 addpath '../../time_filter/src/';
 
@@ -28,7 +30,7 @@ for seqi = [2],%1:length(sequences),
 
 	seq = sequences(seqi);
 
-	for pt = 2:7,
+	for pt = 1:4,
 		if pt < 5,
 			u_pat = [nlb3_path seq.name '_s' sigma '_pt' num2str(pt) '/deno_%03d.png']; % nlb3 pt4
 			out_name = ['_vnlb_pt' num2str(pt) '_s' sigma];
@@ -67,7 +69,7 @@ for seqi = [2],%1:length(sequences),
 	u = load_sequence(u_pat, seq.first, seq.last);
 	slice_orig = squeeze(u(220,40:180,:,80:220))';
 
-	for pt = 2:5,
+	for pt = 1:4,
 		if pt < 5,
 			u_pat = [nlb3_path seq.name '_s' sigma '_pt' num2str(pt) '/deno_%03d.png']; % nlb3 pt4
 			out_name = ['_diff_vnlb_pt' num2str(pt) '_s' sigma];

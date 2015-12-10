@@ -1,10 +1,11 @@
 root_folder =  '/media/pariasm/tera/funes/denoising/projects/video_nlbayes3d/results/vnlbayes/';
+root_folder =  '../results/vnlbayes/';
 
-%stage2_folder = [root_folder 'tip_table_2r_vs_2np_derf/'];
-%stage1_folder = [root_folder 'tip_table_1r_vs_1np_derf/'];
+stage2_folder = [root_folder 'tip_table_2r_vs_2np_derf-neg/'];
+stage1_folder = [root_folder 'tip_table_1r_vs_1np_derf-neg/'];
 
-stage2_folder = [root_folder 'tip_table_2r_vs_2np_mono/'];
-stage1_folder = [root_folder 'tip_table_1r_vs_1np_mono/'];
+%stage2_folder = [root_folder 'tip_table_2r_vs_2np_mono-neg/'];
+%stage1_folder = [root_folder 'tip_table_1r_vs_1np_mono-neg/'];
 
 % stage 2 ---------------------------------------------------
 
@@ -96,11 +97,13 @@ stage1_folder = [root_folder 'tip_table_1r_vs_1np_mono/'];
 %(!)% % THIS IS USEFULL FOR DISPLAYING RESULTS WITH PLOT
 %(!)% %ranks = [5,10,15,20,25,30,35,40,45,50,60,70,90,110];
 %(!)% ranks = [5,10,15,20,25,30,35,40,50,70,90,110];
+%(!)% ranks = [5,10,15,20,25,30,35,40,45,60,80,100,120];
 %(!)% nsims = [50:50:350];
 %(!)% seqs = {'bus', 'football', 'foreman', 'tennis'};
 %(!)% 
 %(!)% mff = zeros(length(nsims),length(ranks),length(seqs));
-%(!)% idx_r = [9,11,12,13,15,16,17,19,20,21];
+%(!)% %idx_r = [9,11,12,13,15,16,17,19,20,21];
+%(!)% idx_r = [10,11,13,14,15,17,18,19,21,22,23];
 %(!)% 
 %(!)% fig_i = 1;
 %(!)% for s = 10:10:40,
@@ -128,7 +131,7 @@ stage1_folder = [root_folder 'tip_table_1r_vs_1np_mono/'];
 %(!)% 	for ii = length(nsims):-1:1,
 %(!)% 		color = [0.14*(ii-1) 1-0.14*(ii-1) 1-0.14*(ii-1) ];
 %(!)% 		plot(ranks, eff(ii,:),'-', 'Color',color,'LineWidth', 4,'Marker','o','MarkerSize',4,'MarkerFaceColor',color)
-%(!)% 		axis([0 110 m-1 m+.2])
+%(!)% 		axis([0 125 m-1 m+.2])
 %(!)% 		grid on
 %(!)% 	end
 %(!)% 	hold off
@@ -202,15 +205,18 @@ stage1_folder = [root_folder 'tip_table_1r_vs_1np_mono/'];
 
 
 % stage 1 ---------------------------------------------------
-ranks = [5,10,15,20,25,30,35,40,50,60,80,100];
+ranks = [5,10,15,20,25,30,35,40,45,50,55,60,65,70,80,90,100,110,120,130,140,150,160,170,180,190,195,196];
+ranks = [5,10,15,20,25,30,35,40,45,50,55,60,65,70,80,90,95,100];
 nsims = [100:100:800];
 seqs = {'bus', 'football', 'foreman', 'tennis'};
 
 eff = zeros(length(nsims),length(ranks),4);
 ebb = zeros(length(nsims),length(ranks),4);
 
+
 % indices to be removed
-idx_r = [9,11,13,14,15,17,18,19];
+idx_r = [15,17,19,21,23,25,27,29,31,33,35,37];
+idx_r = [15,17];
 
 fig_i = 10;
 for s = 10:10:40,
@@ -218,12 +224,13 @@ for s = 10:10:40,
 	ff = zeros(length(nsims),length(ranks),length(seqs));
 	for i = 1:length(seqs),
 		tmp = load([stage1_folder 'table_fpsnr_' seqs{i} '_s' num2str(s)]);
-		tmp(tmp == 0) = NaN;
-		tmp(1,20) = NaN; % with n = 100, r = 100 the system is ill-conditioned and we remove it
 
-		% remove last two ranks, 90 and 100, only for visualization
-		tmp(:,19) = NaN;
-		tmp(:,20) = NaN;
+		tmp(tmp == 0) = NaN;
+%		tmp(1,20) = NaN; % with n = 100, r = 100 the system is ill-conditioned and we remove it
+
+%		% remove last two ranks, 90 and 100, only for visualization
+%		tmp(:,19) = NaN;
+%		tmp(:,20) = NaN;
 
 		% remove indices that have not been computed
 		tmp(:,idx_r) = [];
@@ -234,11 +241,11 @@ for s = 10:10:40,
 	for i = 1:length(seqs),
 		tmp = load([stage1_folder 'table_bpsnr_' seqs{i} '_s' num2str(s)]);
 		tmp(tmp == 0) = NaN;
-		tmp(1,20) = NaN; % with n = 100, r = 100 the system is ill-conditioned and we remove it
+		%tmp(1,20) = NaN; % with n = 100, r = 100 the system is ill-conditioned and we remove it
 
-		% remove last two ranks, 90 and 100, only for visualization
-		tmp(:,19) = NaN;
-		tmp(:,20) = NaN;
+%		% remove last two ranks, 90 and 100, only for visualization
+%		tmp(:,19) = NaN;
+%		tmp(:,20) = NaN;
 
 		tmp(:,idx_r) = [];
 		bb(:,:,i) = tmp;
@@ -260,27 +267,40 @@ for s = 10:10:40,
 	for ii = length(nsims):-1:1,
 		color = [0.14*(ii-1) 1-0.14*(ii-1) 1-0.14*(ii-1) ];
 		plot(ranks, eff(ii,:,s/10),'-', 'Color',color,'LineWidth', 4,'Marker','o','MarkerSize',4,'MarkerFaceColor',color)
-		axis([0 80 m-3 m+.2])
+%		axis([0 105 m-3 m+.2])
+		axis([0 200 m-3 m+.2])
 		grid on
 	end
 	hold off
-	h_leg = legend('n = 800',...
-	               'n = 700',...
-	               'n = 600',...
-	               'n = 500',...
-	               'n = 400',...
-	               'n = 300',...
-	               'n = 200',...
-	               'n = 100','Location','SouthEast');
-	h_xlab = xlabel('r');
-	h_ylab = ylabel('final PSNR (dB)');
+	h_leg = legend('$n_1 = 800$',...
+	               '$n_1 = 700$',...
+	               '$n_1 = 600$',...
+	               '$n_1 = 500$',...
+	               '$n_1 = 400$',...
+	               '$n_1 = 300$',...
+	               '$n_1 = 200$',...
+	               '$n_1 = 100$','Location','SouthEast');
+	set(h_leg,'Interpreter','latex');
+	h_xlab = xlabel('$r_1$','Interpreter','latex');
+	h_ylab = ylabel('final PSNR (dB)','Interpreter','latex');
 
 	% NewCenturySchlbk, AvantGarde, Helvetica
 	set([gca, h_xlab, h_ylab], 'FontName', 'AvantGarde', 'FontSize',20)
 	set([h_leg], 'FontName', 'AvantGarde', 'FontSize',18)
 	set([h_xlab, h_leg], 'FontAngle', 'Oblique')
 	box on
-	print(gcf, '-depsc2', ['fpsnr_r1-np1-curves_s' num2str(s) '_average_mono']);
+
+	% leave only integer labels, so that final PsNR and basic PSNR figures have
+	% same width
+	ylls = get(gca,'yticklabel');
+	for ll = 1:size(ylls,1),
+		if mod(str2num(ylls(ll,:)),1) ~= 0,
+			ylls(ll,:) = ' ' * ones(1,size(ylls,2));
+		end
+	end
+	set(gca,'yticklabel', ylls(:,1:2));
+
+%	print(gcf, '-depsc2', ['fpsnr_r1-np1-curves_s' num2str(s) '_average_mono']);
 
 	figure(fig_i + 10), clf,
 	m = max(max(ebb(:,:,s/10)));
@@ -289,66 +309,68 @@ for s = 10:10:40,
 	for ii = length(nsims):-1:1,
 		color = [0.14*(ii-1) 1-0.14*(ii-1) 1-0.14*(ii-1) ];
 		plot(ranks, ebb(ii,:,s/10),'-', 'Color',color,'LineWidth', 4,'Marker','o','MarkerSize',4,'MarkerFaceColor',color)
-		axis([0 80 m-5 m+.2])
+%		axis([0 105 m-5 m+.2])
+		axis([0 200 m-5 m+.2])
 		grid on
 	end
 	hold off
-	h_leg = legend('n = 800',...
-	               'n = 700',...
-	               'n = 600',...
-	               'n = 500',...
-	               'n = 400',...
-	               'n = 300',...
-	               'n = 200',...
-	               'n = 100','Location','SouthEast');
-	h_xlab = xlabel('r');
-	h_ylab = ylabel('basic PSNR (dB)');
+	h_leg = legend('$n_1 = 800$',...
+	               '$n_1 = 700$',...
+	               '$n_1 = 600$',...
+	               '$n_1 = 500$',...
+	               '$n_1 = 400$',...
+	               '$n_1 = 300$',...
+	               '$n_1 = 200$',...
+	               '$n_1 = 100$','Location','SouthEast');
+	set(h_leg,'Interpreter','latex');
+	h_xlab = xlabel('$r_1$','Interpreter','latex');
+	h_ylab = ylabel('basic PSNR (dB)','Interpreter','latex');
 
 	% NewCenturySchlbk, AvantGarde, Helvetica
 	set([gca, h_xlab, h_ylab], 'FontName', 'AvantGarde', 'FontSize',20)
 	set([h_leg], 'FontName', 'AvantGarde', 'FontSize',18)
 	set([h_xlab, h_leg], 'FontAngle', 'Oblique')
 	box on
-	print(gcf, '-depsc2', ['bpsnr_r1-np1-curves_s' num2str(s) '_average_mono']);
+%	print(gcf, '-depsc2', ['bpsnr_r1-np1-curves_s' num2str(s) '_average_mono']);
 
 
-	figure(fig_i + 20), clf,
-	mb = max(max(ebb(:,:,s/10)));
-	mf = max(max(eff(:,:,s/10)));
-
-	hold on
-	for jj = 1:length(ranks)-1,
-		lw = (1*(jj-1) + 4*(length(ranks) - jj))/(length(ranks) - 1);
-		for ii = length(nsims):-1:1,
-			color = [0.14*(ii-1) 1-0.14*(ii-1) 1-0.14*(ii-1) ];
-
-			plot(ebb(ii,jj:jj+1,s/10),eff(ii,jj:jj+1,s/10),'-', 'Color',color,'LineWidth', lw,'Marker','o','MarkerSize',lw,'MarkerFaceColor',color)
-			axis([mb-.6 mb+.2 mf-.6 mf+.2])
-
-		end
-
-		if jj == 1,
-			h_leg = legend('n = 800',...
-								'n = 700',...
-								'n = 600',...
-								'n = 500',...
-								'n = 400',...
-								'n = 300',...
-								'n = 200',...
-								'n = 100','Location','SouthEast');
-		end
-	end
-	grid on
-	hold off
-	h_xlab = xlabel('r');
-	h_ylab = ylabel('basic PSNR (dB)');
-
-	% NewCenturySchlbk, AvantGarde, Helvetica
-	set([gca, h_xlab, h_ylab], 'FontName', 'AvantGarde', 'FontSize',20)
-	set([h_leg], 'FontName', 'AvantGarde', 'FontSize',18)
-	set([h_xlab, h_leg], 'FontAngle', 'Oblique')
-	box on
-	print(gcf, '-depsc2', ['bpsnr-fpsnr_r1-np1-curves_s' num2str(s) '_average_mono']);
+%	figure(fig_i + 20), clf,
+%	mb = max(max(ebb(:,:,s/10)));
+%	mf = max(max(eff(:,:,s/10)));
+%
+%	hold on
+%	for jj = 1:length(ranks)-1,
+%		lw = (1*(jj-1) + 4*(length(ranks) - jj))/(length(ranks) - 1);
+%		for ii = length(nsims):-1:1,
+%			color = [0.14*(ii-1) 1-0.14*(ii-1) 1-0.14*(ii-1) ];
+%
+%			plot(ebb(ii,jj:jj+1,s/10),eff(ii,jj:jj+1,s/10),'-', 'Color',color,'LineWidth', lw,'Marker','o','MarkerSize',lw,'MarkerFaceColor',color)
+%			axis([mb-.6 mb+.2 mf-.6 mf+.2])
+%
+%		end
+%
+%		if jj == 1,
+%			h_leg = legend('n = 800',...
+%								'n = 700',...
+%								'n = 600',...
+%								'n = 500',...
+%								'n = 400',...
+%								'n = 300',...
+%								'n = 200',...
+%								'n = 100','Location','SouthEast');
+%		end
+%	end
+%	grid on
+%	hold off
+%	h_xlab = xlabel('r');
+%	h_ylab = ylabel('basic PSNR (dB)');
+%
+%	% NewCenturySchlbk, AvantGarde, Helvetica
+%	set([gca, h_xlab, h_ylab], 'FontName', 'AvantGarde', 'FontSize',20)
+%	set([h_leg], 'FontName', 'AvantGarde', 'FontSize',18)
+%	set([h_xlab, h_leg], 'FontAngle', 'Oblique')
+%	box on
+%	print(gcf, '-depsc2', ['bpsnr-fpsnr_r1-np1-curves_s' num2str(s) '_average_mono']);
 
 end
 
