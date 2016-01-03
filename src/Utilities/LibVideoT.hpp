@@ -1107,8 +1107,8 @@ namespace VideoUtils
 			int ori_t = 0       ;
 
 			//! end of inner crop
-			int end_x = (q+1) * wTmp;
-			int end_y = (p+1) * hTmp;
+			int end_x = std::min((q+1) * wTmp, (int)o_vid.sz.width );
+			int end_y = std::min((p+1) * hTmp, (int)o_vid.sz.height);
 			int end_t = 0       ;
 
 			//! start of inner crop, with inner coordinates
