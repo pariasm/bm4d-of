@@ -36,6 +36,8 @@
 // choose implementation for low-rank Bayes estimate 
 //#define USE_SVD_LAPACK
 //#define USE_SVD_IDDIST
+#define FRAMES_DECOUPLED
+#define THRESHOLD_WEIGHTS
 
 //#define DEBUG_SHOW_WEIGHT
 //#define DEBUG_SHOW_PATCH_GROUPS
@@ -366,6 +368,21 @@ std::vector<float> runNlBayes(
 	if (! (chnls == 1 || chnls == 3 || chnls == 4))
 		throw std::runtime_error("VideoNLB::runNlBayes: Wrong number of "
 				"channels. Must be 1, 3 or 4.");
+
+	//! Print compiler options
+	if (p_prms1.verbose)
+	{
+#ifdef THRESHOLD_WEIGHTS
+		printf(ANSI_BCYN ">>> Thresholded Wiener weights\n" ANSI_RST);
+#endif
+#ifdef FRAMES_DECOUPLED
+		printf(ANSI_BCYN ">>> Assuming Gaussian model with independent frames\n" ANSI_RST);
+#endif
+#ifdef USE_SVD_IDDIST
+		printf(ANSI_BCYN ">>> Computing SVD using ID (thresholded weights and joint Gaussian for frames)\n" ANSI_RST);
+#endif
+	}
+
 
 	//! Number of available cores
 	unsigned nThreads = 1;
@@ -1386,8 +1403,11 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 			//! Substract sigma2 and compute variance captured by the r leading eigenvectors
 			for (int i = 0; i < r; ++i)
 			{
+#ifdef THRESHOLD_WEIGHTS
 				i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
-//				i_mat.covEigVals[i] -= sigma2;
+#else
+				i_mat.covEigVals[i] -= sigma2;
+#endif
 				rank_variance  += i_mat.covEigVals[i];
 			}
 
@@ -1648,7 +1668,11 @@ float computeBayesEstimateStep1_LR_SVD_IDDIST(
 		for (int i = 0; i < r; ++i)
 		{
 			i_mat.svd_S[i] *= i_mat.svd_S[i]/(float)p_nSimP;
+#ifdef THRESHOLD_WEIGHTS
 			i_mat.svd_S[i] -= std::min(i_mat.svd_S[i], sigma2);
+#else
+			i_mat.svd_S[i] -= sigma2;
+#endif
 			rank_variance  += i_mat.svd_S[i];
 			total_variance += i_mat.svd_S[i];
 		}
@@ -1795,6 +1819,7 @@ float computeBayesEstimateStep2_FR(
 	return 1.f;
 }
 
+#ifndef FRAMES_DECOUPLED
 /**
  * @brief Implementation of computeBayesEstimateStep2_LR computing the
  * principal directions of the a priori covariance matrix. This functions
@@ -1895,6 +1920,151 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 	return r_variance / total_variance;
 
 }
+#else
+/**
+ * @brief Implementation of computeBayesEstimateStep2_LR computing the
+ * principal directions of the a priori covariance matrix. In this version
+ * we consider that the different frames of the 3D patch are decoupled.
+ * Thus instead of performing one Wiener filtering in IR^{sx sx st}
+ * we do st independent Wiener filters in IR^{sx sx}.
+ * This functions computes the eigenvectors/values of the data covariance
+ * matrix using LAPACK.
+ *
+ * See computeBayesEstimateStep2_LR for information about the arguments.
+ **/
+float computeBayesEstimateStep2_LR_EIG_LAPACK(
+	std::vector<float> &io_groupNoisy
+,	std::vector<float>  &i_groupBasic
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	const VideoSize &p_imSize
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+){
+	//! Parameters initialization
+	const int sPx = p_params.sizePatch;
+	const int sPt = p_params.sizePatchTime;
+	const int chnls = p_imSize.channels;
+
+	//! Alloc memory for the patch frames
+	std::vector<float> frame_groupNoisy(sPx * sPx * chnls * p_nSimP);
+	std::vector<float> frame_groupBasic(sPx * sPx * chnls * p_nSimP);
+
+	float r_variance = 0.f;
+	float total_variance = 1.f;
+
+	for (int t = 0; t < sPt; ++t)
+	{
+		//! Adapt the data: store each patch frame in contiguous memory
+		for (unsigned c = 0, k = 0; c < chnls; c++)
+		{
+			unsigned kc = c * sPx * sPx * p_nSimP * sPt + 
+				           t * sPx * sPx * p_nSimP;
+
+			for (unsigned hy = 0; hy < sPx; hy++)
+			for (unsigned hx = 0; hx < sPx; hx++)
+			for (unsigned n = 0; n < p_nSimP; n++, k++, kc++)
+			{
+				frame_groupNoisy[k] = io_groupNoisy[kc];
+				frame_groupBasic[k] =  i_groupBasic[kc];
+			}
+		}
+
+		//! Wiener filtering of patch frame t starts here	
+		const float sigma2 = p_params.beta * p_params.sigma * p_params.sigma;
+		const unsigned sPC = sPx * sPx * chnls;
+		const unsigned r   = p_params.rank;
+
+		//! Center 3D groups around their baricenter
+		centerData(frame_groupBasic, i_mat.baricenter, p_nSimP, sPC);
+		centerData(frame_groupNoisy, i_mat.baricenter, p_nSimP, sPC);
+
+		if (r > 0)
+		{
+			//! Compute the covariance matrix of the set of similar patches
+			covarianceMatrix(frame_groupBasic, i_mat.covMat, p_nSimP, sPC);
+
+			//! Compute total variance
+			total_variance = 0.f;
+			for (int i = 0; i < sPC; ++i)
+				total_variance += i_mat.covMat[i*sPC + i];
+
+			//! Compute leading eigenvectors
+			int info = matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
+
+			//! Compute variance captured by the r leading eigenvectors
+			for (int i = 0; i < r; ++i)
+				r_variance += i_mat.covEigVals[i];
+
+			//! Compute eigenvalues-based coefficients of Bayes' filter
+			for (unsigned k = 0; k < r; ++k)
+				i_mat.covEigVals[k] = 1.f / ( 1. + sigma2 / i_mat.covEigVals[k] );
+
+			/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
+			 * row a patch. Thus, in column-major storage it corresponds to X^T, where
+			 * each column of X contains a centered data point.
+			 *
+			 * We need to compute the noiseless estimage hX as 
+			 * hX = U * W * U' * X
+			 * where U is the matrix with the eigenvectors and W is a diagonal matrix
+			 * with the filter coefficients.
+			 *
+			 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
+			 * we compute 
+			 * hX' = X' * U * (W * U')
+			 */
+
+			//! Z' = X'*U
+			productMatrix(i_mat.groupTranspose,
+							  frame_groupNoisy,
+							  i_mat.covEigVecs,
+							  p_nSimP, r, sPC,
+							  false, false);
+
+			//! U * W
+			float *eigVecs = i_mat.covEigVecs.data();
+			for (unsigned k = 0; k < r  ; ++k)
+			for (unsigned i = 0; i < sPC; ++i)
+				*eigVecs++ *= i_mat.covEigVals[k];
+
+			//! hX' = Z'*(U*W)'
+			productMatrix(frame_groupNoisy,
+							  i_mat.groupTranspose,
+							  i_mat.covEigVecs,
+							  p_nSimP, sPC, r,
+							  false, true);
+
+			//! Add baricenter
+			for (unsigned j = 0, k = 0; j < sPC; j++)
+				for (unsigned i = 0; i < p_nSimP; i++, k++)
+					frame_groupNoisy[k] += i_mat.baricenter[j];
+		}
+		else
+			//! r = 0: set all patches as baricenter
+			for (unsigned j = 0, k = 0; j < sPC; j++)
+				for (unsigned i = 0; i < p_nSimP; i++, k++)
+					frame_groupNoisy[k] = i_mat.baricenter[j];
+
+		//! Wiener filtering of patch frame t done
+
+		//! Copy the filtered frame data back to 3D patches
+		for (unsigned c = 0, k = 0; c < chnls; c++)
+		{
+			unsigned kc = c * sPx * sPx * p_nSimP * sPt + 
+				           t * sPx * sPx * p_nSimP;
+
+			for (unsigned hy = 0; hy < sPx; hy++)
+			for (unsigned hx = 0; hx < sPx; hx++)
+			for (unsigned n = 0; n < p_nSimP; n++, k++, kc++)
+				io_groupNoisy[kc] = frame_groupNoisy[k];
+		}
+	}
+
+	// return percentage of captured variance
+	return r_variance / total_variance;
+
+}
+#endif
 
 /**
  * @brief Implementation of computeBayesEstimateStep2_LR computing the
