@@ -35,6 +35,8 @@ using namespace std;
  * @author PABLO ARIAS  <pariasm@gmail.com>
  **/
 
+enum Mode { BSIC_DENO, BSIC_ONLY, DENO_ONLY, NISY_ONLY };
+
 int main(int argc, char **argv)
 {
 	clo_usage("Video NL-Bayes video denoising");
@@ -79,6 +81,60 @@ int main(int argc, char **argv)
 	const int rank1         = clo_option("-r1" , 4, "> Rank or covariance matrix, step 1");
 	const int rank2         = clo_option("-r2" , 4, "> Rank or covariance matrix, step 2");
 
+	//! Check inputs
+	if (input_path == "")
+	{
+		fprintf(stderr, "%s: no input sequence.\nTry `%s --help' for more information.\n",
+				argv[0], argv[0]);
+		return EXIT_FAILURE;
+	}
+
+	if (patch_sizex1 == 0 && patch_sizex2 > 0 && inbsc_path == "")
+	{
+		fprintf(stderr, "%s: if px1 = 0 and px2 > 0, a basic sequence path must be given.\nTry `%s --help' for more information.\n",
+				argv[0], argv[0]);
+		return EXIT_FAILURE;
+	}
+
+	if ((patch_sizex1 < 0 && patch_sizex1 != -1) ||
+	    (patch_sizex2 < 0 && patch_sizex2 != -1) ||
+	    (patch_sizet1 < 0 || patch_sizet2 <   0) )
+	{
+		fprintf(stderr, "%s: px1, px2, pt1 and pt2 cannot be negative.\nTry `%s --help' for more information.\n",
+				argv[0], argv[0]);
+		return EXIT_FAILURE;
+	}
+
+	if ((num_patches1 < 0 && num_patches1 != -1) ||
+	    (num_patches2 < 0 && num_patches2 != -1) ||
+	    (rank1 < 0 || rank2 <   0) )
+	{
+		fprintf(stderr, "%s: np1, np2, r1 and r2 cannot be negative.\nTry `%s --help' for more information.\n",
+				argv[0], argv[0]);
+		return EXIT_FAILURE;
+	}
+
+	if ((space_search1 < 0 && space_search1 != -1) ||
+	    (space_search2 < 0 && space_search2 != -1) ||
+	    ( time_search1 < 0 ||  time_search2 <   0) )
+	{
+		fprintf(stderr, "%s: wx1, wx2, wt1 and wt2 cannot be negative.\nTry `%s --help' for more information.\n",
+				argv[0], argv[0]);
+		return EXIT_FAILURE;
+	}
+
+	if (patch_sizex1 > 0 && inbsc_path != "")
+		fprintf(stderr, "\x1b[33;1mWarning:\x1b[0m a basic sequence path ignored since px1 > 0.\n");
+
+
+	//! Determine mode
+	Mode mode;
+	if ((patch_sizex1 != 0) && (patch_sizex2 != 0)) mode = BSIC_DENO;
+	if ((patch_sizex1 != 0) && (patch_sizex2 == 0)) mode = BSIC_ONLY;
+	if ((patch_sizex1 == 0) && (patch_sizex2 != 0)) mode = DENO_ONLY;
+	if ((patch_sizex1 == 0) && (patch_sizex2 == 0)) mode = NISY_ONLY;
+
+
 	//! Only print parameters
 	if (print_prms)
 	{
@@ -104,27 +160,8 @@ int main(int argc, char **argv)
 		VideoNLB::printNlbParameters(prms1);
 		VideoNLB::printNlbParameters(prms2);
 
-		return EXIT_FAILURE;
+		return EXIT_SUCCESS;
 	}
-
-
-	//! Check inputs
-	if (input_path == "")
-	{
-		fprintf(stderr, "%s: no input sequence.\nTry `%s --help' for more information.\n",
-				argv[0], argv[0]);
-		return EXIT_FAILURE;
-	}
-
-	if (patch_sizex1 == 0 && inbsc_path == "")
-	{
-		fprintf(stderr, "%s: if px1 = 0, a basic sequence path must be given.\nTry `%s --help' for more information.\n",
-				argv[0], argv[0]);
-		return EXIT_FAILURE;
-	}
-
-	if (patch_sizex1 > 0 && inbsc_path != "")
-		fprintf(stderr, "\x1b[33;1mWarning:\x1b[0m a basic sequence path ignored since px1 > 0.\n");
 
 
 	//! Declarations
@@ -132,16 +169,23 @@ int main(int argc, char **argv)
 
 	//! Load input videos
 	                       original.loadVideo(input_path, firstFrame, lastFrame, frameStep);
-	if (patch_sizex1 == 0) basic   .loadVideo(inbsc_path, firstFrame, lastFrame, frameStep);
+	if (mode == DENO_ONLY) basic   .loadVideo(inbsc_path, firstFrame, lastFrame, frameStep);
 
 	//! Add noise
 	if (sigma)
-	{
 		VideoUtils::addNoise(original, noisy, sigma, verbose);
+
+	if (mode == NISY_ONLY)
+	{
+		float noisy_psnr = -1, noisy_rmse = -1;
+		VideoUtils::computePSNR(original, noisy, noisy_psnr, noisy_rmse);
+		writingMeasures("measures.txt", sigma, noisy_psnr, noisy_rmse, 0, true, "_noisy");
 
 		//! Save noisy video
 		if (verbose) printf("Saving noisy video\n");
 		noisy.saveVideo(noisy_path, firstFrame, frameStep);
+
+		return EXIT_SUCCESS;
 	}
 
 	//! Denoising
