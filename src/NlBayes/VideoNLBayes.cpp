@@ -33,11 +33,41 @@
 #include <omp.h>
 #endif
 
-// choose implementation for low-rank Bayes estimate 
+/* Choose implementation for low-rank Bayes estimate in both steps. If both
+ * options are commented, the spectral decomposition of the covariance matrix
+ * is computed using LAPACK's low-rank eigs */
 //#define USE_SVD_LAPACK
-//#define USE_SVD_IDDIST
-#define FRAMES_DECOUPLED
-#define THRESHOLD_WEIGHTS
+#define USE_SVD_IDDIST
+
+/* Compute the 2nd step covariance matrix from the noisy patches. In this way,
+ * the basic estimate is used only in the computation of the patch distances.*/
+//#define NOISY_COVARIANCE
+
+/* Uses an adaptation of Li,Zhand,Dai fixed point iteration to estimate the
+ * signal power in the empirical Wiener filter. It applies whenever the Gaussian
+ * model is learnt from the noisy patches, but currently it is implemented only 
+ * in the second step (it should always be used together with the NOISY_COVARIANCE
+ * option defined). */
+//#define LI_ZHANG_DAI
+
+/* Corrects the 'centering bug' discovered by Nicola. In the second step, basic
+ * and noisy patches are centered using the basic baricenter. If left undefined,
+ * each set of patches (noisy and basic) are centered using their own baricenter. */
+//#define BARICENTER_BASIC
+
+/* Avoid negative weights in the empirical Wiener filter. When the estimated
+ * variance of a certain component is lower than the noise variance, the filter
+ * coefficient is set to zero. This applies whenever the Gaussian model is
+ * estimated from the noisy patches: in the first step, or in the second step
+ * if NOISY_COVARIANCE option is defined. */
+//#define THRESHOLD_WEIGHTS
+
+/* Decouple the frames of the 3D patches in the 2nd step. This implies that
+ * each frame is considered independent of the others. Thus instead of
+ * computing a single Gaussian model of dimensionality st*ch*sx*sx, we compute
+ * st Gaussian models each of dimensionality ch*sx*sx. This greatly reduces the
+ * computation time, but also the quality.*/
+//#define FRAMES_DECOUPLED
 
 //#define DEBUG_SHOW_WEIGHT
 //#define DEBUG_SHOW_PATCH_GROUPS
@@ -372,14 +402,23 @@ std::vector<float> runNlBayes(
 	//! Print compiler options
 	if (p_prms1.verbose)
 	{
+#ifdef USE_SVD_IDDIST
+		printf(ANSI_BCYN "USE_SVD_IDDIST > Computing SVD using ID\n" ANSI_RST);
+#endif
+#ifdef NOISY_COVARIANCE
+		printf(ANSI_BCYN "NOISY_COVARIANCE > Computing 2nd step cov. matrix from noisy patches.\n" ANSI_RST);
+#endif
+#ifdef LI_ZHANG_DAI
+		printf(ANSI_BCYN "LI_ZHANG_DAI > Using Li-Zhang-Dai's signal estimate for empirical Wiener.\n" ANSI_RST);
+#endif
+#ifdef BARICENTER_BASIC
+		printf(ANSI_BCYN "BARICENTER_BASIC > Centering noisy patches with basic baricenter.\n" ANSI_RST);
+#endif
 #ifdef THRESHOLD_WEIGHTS
-		printf(ANSI_BCYN ">>> Thresholded Wiener weights\n" ANSI_RST);
+		printf(ANSI_BCYN "THRESHOLD_WEIGHTS > Thresholding negative Wiener weights\n" ANSI_RST);
 #endif
 #ifdef FRAMES_DECOUPLED
-		printf(ANSI_BCYN ">>> Assuming Gaussian model with independent frames\n" ANSI_RST);
-#endif
-#ifdef USE_SVD_IDDIST
-		printf(ANSI_BCYN ">>> Computing SVD using ID (thresholded weights and joint Gaussian for frames)\n" ANSI_RST);
+		printf(ANSI_BCYN "FRAMES_DECOUPLED > Assuming Gaussian model with independent frames\n" ANSI_RST);
 #endif
 	}
 
@@ -1843,8 +1882,29 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 	const unsigned r    = p_params.rank;
 
 	//! Center 3D groups around their baricenter
-	centerData( i_groupBasic, i_mat.baricenter, p_nSimP, sPC);
+#ifdef NOISY_COVARIANCE
+	//! Center noisy patches with their baricenter
 	centerData(io_groupNoisy, i_mat.baricenter, p_nSimP, sPC);
+
+#else //NOISY_COVARIANCE
+ #ifdef BARICENTER_BASIC
+	//! Center basic patches with their baricenter
+	centerData( i_groupBasic, i_mat.baricenter, p_nSimP, sPC);
+
+	//! Remove basic's baricenter from Noisy patches
+	for (unsigned j = 0, k = 0; j < sPC; j++)
+		for (unsigned i = 0; i < p_nSimP; i++, k++)
+			io_groupNoisy[k] -= i_mat.baricenter[j];
+
+ #else //BARICENTER_BASIC
+	//! Center noisy patches with their baricenter
+	centerData(io_groupNoisy, i_mat.baricenter, p_nSimP, sPC);
+
+	//! Center basic patches with their baricenter
+	centerData( i_groupBasic, i_mat.baricenter, p_nSimP, sPC);
+
+ #endif//BARICENTER_BASIC
+#endif//NOISY_COVARIANCE
 
 	float r_variance = 0.f;
 	float total_variance = 1.f;
@@ -1852,7 +1912,11 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 	if (r > 0)
 	{
 		//! Compute the covariance matrix of the set of similar patches
+#ifndef NOISY_COVARIANCE
 		covarianceMatrix(i_groupBasic, i_mat.covMat, p_nSimP, sPC);
+#else
+		covarianceMatrix(io_groupNoisy, i_mat.covMat, p_nSimP, sPC);
+#endif
 
 		//! Compute total variance
 		total_variance = 0.f;
@@ -1862,13 +1926,31 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 		//! Compute leading eigenvectors
 		int info = matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
 
+#ifdef NOISY_COVARIANCE
+		//! Substract sigma2 and compute variance captured by the r leading eigenvectors
+		for (int i = 0; i < r; ++i)
+		{
+#ifdef THRESHOLD_WEIGHTS
+			i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
+#else
+			i_mat.covEigVals[i] -= sigma2;
+#endif
+		}
+#endif
+
 		//! Compute variance captured by the r leading eigenvectors
 		for (int i = 0; i < r; ++i)
 			r_variance += i_mat.covEigVals[i];
 
 		//! Compute eigenvalues-based coefficients of Bayes' filter
 		for (unsigned k = 0; k < r; ++k)
+#ifndef LI_ZHANG_DAI
 			i_mat.covEigVals[k] = 1.f / ( 1. + sigma2 / i_mat.covEigVals[k] );
+#else
+			i_mat.covEigVals[k] = (i_mat.covEigVals[k] > 4*sigma2)
+			                    ? 0.5 * ( 1. + sqrt(1 - 4*sigma2 / i_mat.covEigVals[k])) 
+			                    : 0;
+#endif
 
 		/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
 		 * row a patch. Thus, in column-major storage it corresponds to X^T, where
@@ -1920,7 +2002,7 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 	return r_variance / total_variance;
 
 }
-#else
+#else //FRAMES_DECOUPLED
 /**
  * @brief Implementation of computeBayesEstimateStep2_LR computing the
  * principal directions of the a priori covariance matrix. In this version
