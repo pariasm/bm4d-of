@@ -37,7 +37,7 @@
  * options are commented, the spectral decomposition of the covariance matrix
  * is computed using LAPACK's low-rank eigs */
 //#define USE_SVD_LAPACK
-#define USE_SVD_IDDIST
+//#define USE_SVD_IDDIST
 
 /* Compute the 2nd step covariance matrix from the noisy patches. In this way,
  * the basic estimate is used only in the computation of the patch distances.*/

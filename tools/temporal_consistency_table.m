@@ -1,16 +1,16 @@
 % computes convective derivative of a result on a sequence of sintel database
 
 % add folders to path
-addpath ~/Work/denoising/projects/video_nlbayes3d/tools/
-addpath ~/Work/doctorado/codigo/algos/video_poisson/rida/vp_clean/matlab/paper_code
-addpath ~/Work/doctorado/codigo/algos/optical_flow/flow-code-matlab/               
+addpath ~/denoising/projects/video_nlbayes3d/tools/
+addpath ~/video_tools/propa/
+addpath ~/video_tools/flow-code-matlab/
 
 % sequence name
 seqs   = {'bamboo_1', 'bandage_1', 'cave_4', 'market_5'};
 sigmas = {'10','20','40'};
 pts    = {'0','1','2','3','4'};
 
-root_folder = '/media/pariasm/tera/funes/denoising/';
+root_folder = '~/denoising/';
 
 results = zeros(length(pts),length(seqs),length(sigmas));
 
@@ -20,22 +20,24 @@ for iseq = 1:length(seqs), seq = seqs{iseq};
 	% flow data folder
 	orig_pat = [root_folder 'data/sintel_training/final/'      seq '/frame_%04d.png'];
 	occl_pat = [root_folder 'data/sintel_training/occlusions/' seq '/frame_%04d.png'];
+	inva_pat = [root_folder 'data/sintel_training/invalid/'    seq '/frame_%04d.png'];
 	flow_pat = [root_folder 'data/sintel_training/flow/'       seq '/frame_%04d.flo'];
 	
 	% load denoised sequence
 	orig =    load_sequence(orig_pat,1,50);
 	occl =    load_sequence(occl_pat,1,49);
+	inva =    load_sequence(inva_pat,1,49);
 	flow = readFlowSequence(flow_pat,1,50);
 
 	% compute convective derivative operator
 	flow_x = squeeze(flow(:,:,1,:));
 	flow_y = squeeze(flow(:,:,2,:));
-	occl = 1 - occl/255;
+	occl = 1 - single(occl + inva > 0);
 
 	Dflow = convective_derivative(flow_x, flow_y, [], [], occl, [], 'forward');   
 
 	
-	for ipt = 1:length(pts), pt = pts{ipt};
+	for ipt = 2:length(pts), pt = pts{ipt};
 
 		if ipt == 1,
 			% bm4d pattern 
@@ -43,7 +45,7 @@ for iseq = 1:length(seqs), seq = seqs{iseq};
 		else
 			% vnlb pattern 
 			deno_pat = [root_folder 'projects/video_nlbayes3d/results/vnlbayes/' ... 
-											'table_1ps5_2ps5_2wx37_2r16_2np160_1r16_1np15sigma/' ...
+											'table_1ps5_2ps5_tip-neg/' ...
 											seq '_s' sigma '_pt' pt '/deno_%03d.png'];
 		end
 
