@@ -945,104 +945,111 @@ unsigned estimateSimilarPatchesStep1(
 ,	const unsigned pidx
 ,	const nlbParams &p_params
 ){
-	//! Initialization
-	int sWx   = p_params.sizeSearchWindow;
-	int sWy   = p_params.sizeSearchWindow;
-	const int sWt_f = p_params.sizeSearchTimeRangeFwd;
-	const int sWt_b = p_params.sizeSearchTimeRangeBwd;
 	const int sPx   = p_params.sizePatch;
 	const int sPt   = p_params.sizePatchTime;
+	unsigned nSimP = 1;
 
-	//! Coordinates of center of search box
-	unsigned px, py, pt, pc;
-	i_im.sz.coords(pidx, px, py, pt, pc);
+	if (p_params.nSimilarPatches > 1)
+	{
+		//! Coordinates of center of search box
+		unsigned px, py, pt, pc;
+		i_im.sz.coords(pidx, px, py, pt, pc);
 
-	unsigned rangex[2];
-	unsigned rangey[2];
-	unsigned ranget[2];
+		//! Determine search range
+		int sWx   = p_params.sizeSearchWindow;
+		int sWy   = p_params.sizeSearchWindow;
+		const int sWt_f = p_params.sizeSearchTimeRangeFwd;
+		const int sWt_b = p_params.sizeSearchTimeRangeBwd;
+
+		unsigned rangex[2];
+		unsigned rangey[2];
+		unsigned ranget[2];
 
 #ifdef CENTRED_SEARCH
-	rangex[0] = std::max(0, (int)px - (sWx-1)/2);
-	rangey[0] = std::max(0, (int)py - (sWy-1)/2);
-	ranget[0] = std::max(0, (int)pt -  sWt_b   );
+		rangex[0] = std::max(0, (int)px - (sWx-1)/2);
+		rangey[0] = std::max(0, (int)py - (sWy-1)/2);
+		ranget[0] = std::max(0, (int)pt -  sWt_b   );
 
-	rangex[1] = std::min((int)i_im.sz.width  - sPx, (int)px + (sWx-1)/2);
-	rangey[1] = std::min((int)i_im.sz.height - sPx, (int)py + (sWy-1)/2);
-	ranget[1] = std::min((int)i_im.sz.frames - sPt, (int)pt +  sWt_f   );
+		rangex[1] = std::min((int)i_im.sz.width  - sPx, (int)px + (sWx-1)/2);
+		rangey[1] = std::min((int)i_im.sz.height - sPx, (int)py + (sWy-1)/2);
+		ranget[1] = std::min((int)i_im.sz.frames - sPt, (int)pt +  sWt_f   );
 #else
-	int shift_x = std::min(0, (int)px - (sWx-1)/2); 
-	int shift_y = std::min(0, (int)py - (sWy-1)/2); 
-	int shift_t = std::min(0, (int)pt -  sWt_b   ); 
+		int shift_x = std::min(0, (int)px - (sWx-1)/2); 
+		int shift_y = std::min(0, (int)py - (sWy-1)/2); 
+		int shift_t = std::min(0, (int)pt -  sWt_b   ); 
 
-	shift_x += std::max(0, (int)px + (sWx-1)/2 - (int)i_im.sz.width  + sPx); 
-	shift_y += std::max(0, (int)py + (sWy-1)/2 - (int)i_im.sz.height + sPx); 
-	shift_t += std::max(0, (int)pt +  sWt_f    - (int)i_im.sz.frames + sPt); 
+		shift_x += std::max(0, (int)px + (sWx-1)/2 - (int)i_im.sz.width  + sPx); 
+		shift_y += std::max(0, (int)py + (sWy-1)/2 - (int)i_im.sz.height + sPx); 
+		shift_t += std::max(0, (int)pt +  sWt_f    - (int)i_im.sz.frames + sPt); 
 
-	rangex[0] = std::max(0, (int)px - (sWx-1)/2 - shift_x);
-	rangey[0] = std::max(0, (int)py - (sWy-1)/2 - shift_y);
-	ranget[0] = std::max(0, (int)pt -  sWt_b    - shift_t);
+		rangex[0] = std::max(0, (int)px - (sWx-1)/2 - shift_x);
+		rangey[0] = std::max(0, (int)py - (sWy-1)/2 - shift_y);
+		ranget[0] = std::max(0, (int)pt -  sWt_b    - shift_t);
 
-	rangex[1] = std::min((int)i_im.sz.width  - sPx, (int)px + (sWx-1)/2 - shift_x);
-	rangey[1] = std::min((int)i_im.sz.height - sPx, (int)py + (sWy-1)/2 - shift_y);
-	ranget[1] = std::min((int)i_im.sz.frames - sPt, (int)pt +  sWt_f    - shift_t);
+		rangex[1] = std::min((int)i_im.sz.width  - sPx, (int)px + (sWx-1)/2 - shift_x);
+		rangey[1] = std::min((int)i_im.sz.height - sPx, (int)py + (sWy-1)/2 - shift_y);
+		ranget[1] = std::min((int)i_im.sz.frames - sPt, (int)pt +  sWt_f    - shift_t);
 #endif
 
-	//! Redefine size of search range
-	sWx = rangex[1] - rangex[0] + 1;
-	sWy = rangey[1] - rangey[0] + 1;
-	int sWt = ranget[1] - ranget[0] + 1;
+		//! Redefine size of search range
+		sWx = rangex[1] - rangex[0] + 1;
+		sWy = rangey[1] - rangey[0] + 1;
+		int sWt = ranget[1] - ranget[0] + 1;
 
-	std::vector<std::pair<float, unsigned> > distance(sWx * sWy * sWt);
+		std::vector<std::pair<float, unsigned> > distance(sWx * sWy * sWt);
 
-	//! Compute distance between patches in search range
-	for (unsigned qt = ranget[0], dt = 0; qt <= ranget[1]; qt++, dt++)
-	for (unsigned qy = rangey[0], dy = 0; qy <= rangey[1]; qy++, dy++)
-	for (unsigned qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
-	{
-		//! Squared L2 distance
-		float dist = 0.f, dif;
-		for (unsigned ht = 0; ht < sPt; ht++)
-		for (unsigned hy = 0; hy < sPx; hy++)
-		for (unsigned hx = 0; hx < sPx; hx++)
-			dist += (dif = i_im(px + hx, py + hy, pt + ht)
-			             - i_im(qx + hx, qy + hy, qt + ht)) * dif;
+		//! Compute distance between patches in search range
+		for (unsigned qt = ranget[0], dt = 0; qt <= ranget[1]; qt++, dt++)
+		for (unsigned qy = rangey[0], dy = 0; qy <= rangey[1]; qy++, dy++)
+		for (unsigned qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
+		{
+			//! Squared L2 distance
+			float dist = 0.f, dif;
+			for (unsigned ht = 0; ht < sPt; ht++)
+			for (unsigned hy = 0; hy < sPx; hy++)
+			for (unsigned hx = 0; hx < sPx; hx++)
+				dist += (dif = i_im(px + hx, py + hy, pt + ht)
+				             - i_im(qx + hx, qy + hy, qt + ht)) * dif;
 
-		//! Save distance and corresponding patch index
-		distance[dt * sWx*sWy + dy * sWx + dx] = 
-			std::make_pair(dist, i_im.sz.index(qx, qy, qt, 0));
+			//! Save distance and corresponding patch index
+			distance[dt * sWx*sWy + dy * sWx + dx] = 
+				std::make_pair(dist, i_im.sz.index(qx, qy, qt, 0));
+		}
+
+//		printf("distance.size() = %d", distance.size());
+//		for (int i = 0; i < distance.size(); i++)
+//		{
+//			unsigned cx, cy, ct, cc;
+//			i_im.sz.coords(distance[i].second, cx, cy, ct, cc);
+//			printf("d[%03d] = %g - p = [%02d,%02d,%02d,%2d]\n", i, distance[i].first,
+//					cx, cy, ct, cc);
+//		}
+
+		//! Keep only the N2 best similar patches
+		nSimP = std::min(p_params.nSimilarPatches, (unsigned)distance.size());
+		std::partial_sort(distance.begin(), distance.begin() + nSimP,
+		                  distance.end(), comparaisonFirst);
+
+		if (nSimP <  p_params.nSimilarPatches)
+		{
+			printf("SR1 [%d,%d,%d] ~ [%d-%d, %d-%d, %d-%d] - nsim = %d\n", 
+					px,py,pt,rangex[0], rangex[1], rangey[0], rangey[1], ranget[0], ranget[1], nSimP);
+		}
+
+//		for (int i = 0; i < nSimP; i++)
+//		{
+//			unsigned cx, cy, ct, cc;
+//			i_im.sz.coords(distance[i].second, cx, cy, ct, cc);
+//			printf("d[%03d] = %g - p = [%02d,%02d,%02d,%2d]\n", i, distance[i].first,
+//					cx, cy, ct, cc);
+//		}
+
+
+		//! Register position of patches
+		for (unsigned n = 0; n < nSimP; n++) o_index[n] = distance[n].second;
 	}
-
-//	printf("distance.size() = %d", distance.size());
-//	for (int i = 0; i < distance.size(); i++)
-//	{
-//		unsigned cx, cy, ct, cc;
-//		i_im.sz.coords(distance[i].second, cx, cy, ct, cc);
-//		printf("d[%03d] = %g - p = [%02d,%02d,%02d,%2d]\n", i, distance[i].first,
-//				cx, cy, ct, cc);
-//	}
-
-	//! Keep only the N2 best similar patches
-	const unsigned nSimP = std::min(p_params.nSimilarPatches, (unsigned)distance.size());
-	std::partial_sort(distance.begin(), distance.begin() + nSimP,
-	                  distance.end(), comparaisonFirst);
-
-	if (nSimP <  p_params.nSimilarPatches)
-	{
-		printf("SR1 [%d,%d,%d] ~ [%d-%d, %d-%d, %d-%d] - nsim = %d\n", 
-				px,py,pt,rangex[0], rangex[1], rangey[0], rangey[1], ranget[0], ranget[1], nSimP);
-	}
-
-//	for (int i = 0; i < nSimP; i++)
-//	{
-//		unsigned cx, cy, ct, cc;
-//		i_im.sz.coords(distance[i].second, cx, cy, ct, cc);
-//		printf("d[%03d] = %g - p = [%02d,%02d,%02d,%2d]\n", i, distance[i].first,
-//				cx, cy, ct, cc);
-//	}
-
-
-	//! Register position of patches
-	for (unsigned n = 0; n < nSimP; n++) o_index[n] = distance[n].second;
+	else // nSimilarPatches == 1
+		o_index[0] = pidx;
 
 	//! Stack selected patches into the 3D group
 	const unsigned w   = i_im.sz.width;
@@ -1087,95 +1094,102 @@ unsigned estimateSimilarPatchesStep2(
 ,	const unsigned pidx
 ,	const nlbParams &p_params
 ){
-	//! Initialization
-	int sWx   = p_params.sizeSearchWindow;
-	int sWy   = p_params.sizeSearchWindow;
-	const int sWt_f = p_params.sizeSearchTimeRangeFwd;
-	const int sWt_b = p_params.sizeSearchTimeRangeBwd;
 	const int sPx   = p_params.sizePatch;
 	const int sPt   = p_params.sizePatchTime;
+	const int chnls = i_imNoisy.sz.channels;
+	unsigned nSimP = 1;
 
-	//! Coordinates of center of search box
-	unsigned px, py, pt, pc;
-	i_imBasic.sz.coords(pidx, px, py, pt, pc);
+	if (p_params.nSimilarPatches > 1)
+	{
+		//! Coordinates of center of search box
+		unsigned px, py, pt, pc;
+		i_imBasic.sz.coords(pidx, px, py, pt, pc);
 
-	unsigned rangex[2];
-	unsigned rangey[2];
-	unsigned ranget[2];
+		//! Determine search range
+		int sWx   = p_params.sizeSearchWindow;
+		int sWy   = p_params.sizeSearchWindow;
+		const int sWt_f = p_params.sizeSearchTimeRangeFwd;
+		const int sWt_b = p_params.sizeSearchTimeRangeBwd;
+
+		unsigned rangex[2];
+		unsigned rangey[2];
+		unsigned ranget[2];
 
 #ifdef CENTRED_SEARCH
-	rangex[0] = std::max(0, (int)px - (sWx-1)/2);
-	rangey[0] = std::max(0, (int)py - (sWy-1)/2);
-	ranget[0] = std::max(0, (int)pt -  sWt_b   );
+		rangex[0] = std::max(0, (int)px - (sWx-1)/2);
+		rangey[0] = std::max(0, (int)py - (sWy-1)/2);
+		ranget[0] = std::max(0, (int)pt -  sWt_b   );
 
-	rangex[1] = std::min((int)i_imNoisy.sz.width  - sPx, (int)px + (sWx-1)/2);
-	rangey[1] = std::min((int)i_imNoisy.sz.height - sPx, (int)py + (sWy-1)/2);
-	ranget[1] = std::min((int)i_imNoisy.sz.frames - sPt, (int)pt +  sWt_f   );
+		rangex[1] = std::min((int)i_imNoisy.sz.width  - sPx, (int)px + (sWx-1)/2);
+		rangey[1] = std::min((int)i_imNoisy.sz.height - sPx, (int)py + (sWy-1)/2);
+		ranget[1] = std::min((int)i_imNoisy.sz.frames - sPt, (int)pt +  sWt_f   );
 #else
-	int shift_x = std::min(0, (int)px - (sWx-1)/2); 
-	int shift_y = std::min(0, (int)py - (sWy-1)/2); 
-	int shift_t = std::min(0, (int)pt -  sWt_b   ); 
+		int shift_x = std::min(0, (int)px - (sWx-1)/2); 
+		int shift_y = std::min(0, (int)py - (sWy-1)/2); 
+		int shift_t = std::min(0, (int)pt -  sWt_b   ); 
 
-	shift_x += std::max(0, (int)px + (sWx-1)/2 - (int)i_imNoisy.sz.width  + sPx); 
-	shift_y += std::max(0, (int)py + (sWy-1)/2 - (int)i_imNoisy.sz.height + sPx); 
-	shift_t += std::max(0, (int)pt +  sWt_f    - (int)i_imNoisy.sz.frames + sPt); 
+		shift_x += std::max(0, (int)px + (sWx-1)/2 - (int)i_imNoisy.sz.width  + sPx); 
+		shift_y += std::max(0, (int)py + (sWy-1)/2 - (int)i_imNoisy.sz.height + sPx); 
+		shift_t += std::max(0, (int)pt +  sWt_f    - (int)i_imNoisy.sz.frames + sPt); 
 
-	rangex[0] = std::max(0, (int)px - (sWx-1)/2 - shift_x);
-	rangey[0] = std::max(0, (int)py - (sWy-1)/2 - shift_y);
-	ranget[0] = std::max(0, (int)pt -  sWt_b    - shift_t);
+		rangex[0] = std::max(0, (int)px - (sWx-1)/2 - shift_x);
+		rangey[0] = std::max(0, (int)py - (sWy-1)/2 - shift_y);
+		ranget[0] = std::max(0, (int)pt -  sWt_b    - shift_t);
 
-	rangex[1] = std::min((int)i_imNoisy.sz.width  - sPx, (int)px + (sWx-1)/2 - shift_x);
-	rangey[1] = std::min((int)i_imNoisy.sz.height - sPx, (int)py + (sWy-1)/2 - shift_y);
-	ranget[1] = std::min((int)i_imNoisy.sz.frames - sPt, (int)pt +  sWt_f    - shift_t);
+		rangex[1] = std::min((int)i_imNoisy.sz.width  - sPx, (int)px + (sWx-1)/2 - shift_x);
+		rangey[1] = std::min((int)i_imNoisy.sz.height - sPx, (int)py + (sWy-1)/2 - shift_y);
+		ranget[1] = std::min((int)i_imNoisy.sz.frames - sPt, (int)pt +  sWt_f    - shift_t);
 #endif
 
-	//! Redefine size of search range
-	sWx = rangex[1] - rangex[0] + 1;
-	sWy = rangey[1] - rangey[0] + 1;
-	int sWt = ranget[1] - ranget[0] + 1;
+		//! Redefine size of search range
+		sWx = rangex[1] - rangex[0] + 1;
+		sWy = rangey[1] - rangey[0] + 1;
+		int sWt = ranget[1] - ranget[0] + 1;
 
-	std::vector<std::pair<float, unsigned> > distance(sWx * sWy * sWt);
+		std::vector<std::pair<float, unsigned> > distance(sWx * sWy * sWt);
 
-	//! Compute distance between patches in search range
-	const int chnls = i_imNoisy.sz.channels;
-	for (unsigned qt = ranget[0], dt = 0; qt <= ranget[1]; qt++, dt++)
-	for (unsigned qy = rangey[0], dy = 0; qy <= rangey[1]; qy++, dy++)
-	for (unsigned qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
-	{
-		//! Squared L2 distance between color patches of basic image
-		float dist = 0.f, dif;
-		for (unsigned c = 0; c < chnls; c++)
-		for (unsigned ht = 0; ht < sPt; ht++)
-		for (unsigned hy = 0; hy < sPx; hy++)
-		for (unsigned hx = 0; hx < sPx; hx++)
-			dist += (dif = i_imBasic(px + hx, py + hy, pt + ht, c)
-			             - i_imBasic(qx + hx, qy + hy, qt + ht, c) ) * dif;
+		//! Compute distance between patches in search range
+		for (unsigned qt = ranget[0], dt = 0; qt <= ranget[1]; qt++, dt++)
+		for (unsigned qy = rangey[0], dy = 0; qy <= rangey[1]; qy++, dy++)
+		for (unsigned qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
+		{
+			//! Squared L2 distance between color patches of basic image
+			float dist = 0.f, dif;
+			for (unsigned c = 0; c < chnls; c++)
+			for (unsigned ht = 0; ht < sPt; ht++)
+			for (unsigned hy = 0; hy < sPx; hy++)
+			for (unsigned hx = 0; hx < sPx; hx++)
+				dist += (dif = i_imBasic(px + hx, py + hy, pt + ht, c)
+				             - i_imBasic(qx + hx, qy + hy, qt + ht, c) ) * dif;
 
-		//! Save distance and corresponding patch index
-		distance[dt * sWx*sWy + dy * sWx + dx] = 
-			std::make_pair(dist, i_imBasic.sz.index(qx, qy, qt, 0));
+			//! Save distance and corresponding patch index
+			distance[dt * sWx*sWy + dy * sWx + dx] = 
+				std::make_pair(dist, i_imBasic.sz.index(qx, qy, qt, 0));
+		}
+
+		//! Keep only the nSimilarPatches best similar patches
+		nSimP = std::min(p_params.nSimilarPatches, (unsigned)distance.size());
+		std::partial_sort(distance.begin(), distance.begin() + nSimP,
+		                  distance.end(), comparaisonFirst);
+
+		if (nSimP <  p_params.nSimilarPatches)
+		{
+			printf("SR2 [%d,%d,%d] ~ [%d-%d, %d-%d, %d-%d] - nsim = %d\n", 
+					px,py,pt,rangex[0], rangex[1], rangey[0], rangey[1], ranget[0], ranget[1], nSimP);
+		}
+
+		//! Save index of similar patches
+		const float threshold = (p_params.tau > distance[nSimP - 1].first ?
+		                         p_params.tau : distance[nSimP - 1].first);
+		nSimP = 0;
+
+		//! Register position of similar patches
+		for (unsigned n = 0; n < distance.size(); n++)
+			if (distance[n].first < threshold)
+				o_index[nSimP++] = distance[n].second;
 	}
-
-	//! Keep only the nSimilarPatches best similar patches
-	unsigned nSimP = std::min(p_params.nSimilarPatches, (unsigned)distance.size());
-	std::partial_sort(distance.begin(), distance.begin() + nSimP,
-	                  distance.end(), comparaisonFirst);
-
-	if (nSimP <  p_params.nSimilarPatches)
-	{
-		printf("SR2 [%d,%d,%d] ~ [%d-%d, %d-%d, %d-%d] - nsim = %d\n", 
-				px,py,pt,rangex[0], rangex[1], rangey[0], rangey[1], ranget[0], ranget[1], nSimP);
-	}
-
-	//! Save index of similar patches
-	const float threshold = (p_params.tau > distance[nSimP - 1].first ?
-	                         p_params.tau : distance[nSimP - 1].first);
-	nSimP = 0;
-
-	//! Register position of similar patches
-	for (unsigned n = 0; n < distance.size(); n++)
-		if (distance[n].first < threshold)
-			o_index[nSimP++] = distance[n].second;
+	else // nSimilarPatches == 1
+		o_index[0] = pidx;
 
 	//! Save similar patches into 3D groups
 	const unsigned w   = i_imNoisy.sz.width;
