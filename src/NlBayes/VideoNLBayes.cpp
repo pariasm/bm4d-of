@@ -213,6 +213,14 @@ void initializeNlbParameters(
 
 	//! Boost the paste trick
 	o_params.doPasteBoost = true;
+
+	//! Color space to be used
+#ifndef DCT_BASIS
+	o_params.colorSpace = (p_step == 1) ? YUV : RGB;
+#else
+	o_params.colorSpace = YUV;
+#endif
+	
 }
 
 //	depend on sigma:
@@ -471,7 +479,8 @@ std::vector<float> runNlBayes(
 
 		//! RGB to YUV
 		Video<float> imNoisy = i_imNoisy;
-		VideoUtils::transformColorSpace(imNoisy, true);
+		if (p_prms1.colorSpace == YUV)
+			VideoUtils::transformColorSpace(imNoisy, true);
 
 		//! Divide the noisy image into sub-images in order to easier parallelize the process
 		std::vector<Video<float> > imNoisySub(nParts);
@@ -498,7 +507,8 @@ std::vector<float> runNlBayes(
 		VideoUtils::subBuildTight(imBasicSub, o_imBasic, p_prms1.boundary);
 
 		//! YUV to RGB
-		VideoUtils::transformColorSpace(o_imBasic, false);
+		if (p_prms1.colorSpace == YUV)
+			VideoUtils::transformColorSpace(o_imBasic, false);
 
 		for (int n = 0; n < (int)nParts; n++)
 			groupsRatio[0] += 100.f * (float)groupsProcessedSub[n]/(float)imSize.whf;
@@ -542,12 +552,20 @@ std::vector<float> runNlBayes(
 			for (int p = 0; p < nParts; ++p) printf("\x1b[2K\n");
 		}
 
+		//! RGB to YUV
+		Video<float> imNoisy = i_imNoisy;
+		if (p_prms2.colorSpace == YUV)
+		{
+			VideoUtils::transformColorSpace(  imNoisy, true);
+			VideoUtils::transformColorSpace(o_imBasic, true);
+		}
+
 		//! Divide the noisy and basic images into sub-images in order to easier parallelize the process
 		std::vector<Video<float> > imNoisySub(nParts);
 		std::vector<Video<float> > imBasicSub(nParts);
 		std::vector<VideoUtils::CropPosition > imCrops(nParts);
 
-		VideoUtils::subDivideTight(i_imNoisy, imNoisySub, imCrops, p_prms2.boundary, nParts);
+		VideoUtils::subDivideTight(  imNoisy, imNoisySub, imCrops, p_prms2.boundary, nParts);
 		VideoUtils::subDivideTight(o_imBasic, imBasicSub, imCrops, p_prms2.boundary, nParts);
 
 		//! Process all sub-images
@@ -567,6 +585,13 @@ std::vector<float> runNlBayes(
 
 		//! Get the final result
 		VideoUtils::subBuildTight(imFinalSub, o_imFinal, p_prms2.boundary);
+
+		//! Undo color transform
+		if (p_prms2.colorSpace == YUV)
+		{
+			VideoUtils::transformColorSpace(o_imBasic, false);
+			VideoUtils::transformColorSpace(o_imFinal, false);
+		}
 
 		for (int n = 0; n < (int)nParts; n++)
 			groupsRatio[1] += 100.f * (float)groupsProcessedSub[n]/(float)imSize.whf;

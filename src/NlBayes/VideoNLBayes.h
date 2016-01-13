@@ -19,6 +19,8 @@
 namespace VideoNLB
 {
 
+enum ColorSpace {RGB, YUV};
+
 /**
  * @brief Structures of parameters dedicated to NL-Bayes process
  *
@@ -58,6 +60,7 @@ struct nlbParams
 	bool isFirstStep;
 	bool doPasteBoost;
 	bool verbose;
+	ColorSpace colorSpace;
 };
 
 /**
