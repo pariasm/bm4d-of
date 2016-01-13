@@ -98,6 +98,9 @@ struct matWorkspace
 	std::vector<double> svd_dS;    // sing. values of X ~ sqrt of eigen vecs of C
 	std::vector<double> svd_ddata; // 
 	std::vector<double> svd_dwork;
+
+	// store a fixed patch basis (eg. DCT)
+	std::vector<float> patch_basis;
 };
 
 /**

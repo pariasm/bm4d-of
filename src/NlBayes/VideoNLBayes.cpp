@@ -33,6 +33,9 @@
 #include <omp.h>
 #endif
 
+#define DCT_BASIS
+#define DCT_CENTER
+
 /* Choose implementation for low-rank Bayes estimate in both steps. If both
  * options are commented, the spectral decomposition of the covariance matrix
  * is computed using LAPACK's low-rank eigs */
@@ -736,6 +739,71 @@ unsigned processNlBayes(
 	mat.covMat          .resize(patch_dim * patch_dim);
 	mat.covMatTmp       .resize(patch_dim * patch_dim);
 	mat.baricenter      .resize(patch_dim);
+
+	//! Store DCT basis
+	mat.patch_basis.resize(patch_dim * patch_dim);
+	{
+		// channels in patch
+		const unsigned sPc = step1 ? 1 : sz.channels;
+
+		// 1D DCT basis for signals of length sPx
+		std::vector<float> cosx(sPx * sPx);
+		for (unsigned kx = 0, i = 0; kx < sPx; kx++)
+		for (unsigned nx = 0       ; nx < sPx; nx++, i++)
+			cosx[i] = cos( (0.5 + (float)nx)*  (float)kx * M_PI / (float)sPx )
+			        * sqrt( (kx == 0 ? 1. : 2.) / (float) sPx ); 
+
+		// 1D DCT basis for signals of length sPt
+		std::vector<float> cost(sPt * sPt);
+		for (unsigned kt = 0, i = 0; kt < sPt; kt++)
+		for (unsigned nt = 0       ; nt < sPt; nt++, i++)
+//			cost[i] = nt == kt ? 1 : 0; 
+			cost[i] = cos( (0.5 + (float)nt)*  (float)kt * M_PI / (float)sPt )
+			        * sqrt( (kt == 0 ? 1. : 2.) / (float) sPt ); 
+
+		//! 3D DCT basis
+		for (unsigned kc = 0, i = 0; kc < sPc; kc++)
+		for (unsigned kt = 0       ; kt < sPt; kt++) // triplets (kt,ky,kx) are
+		for (unsigned ky = 0       ; ky < sPx; ky++) // frequencies and index
+		for (unsigned kx = 0       ; kx < sPx; kx++) // basis vectors
+			for (unsigned nc = 0    ; nc < sPc; nc++)
+			for (unsigned nt = 0    ; nt < sPt; nt++)
+			for (unsigned ny = 0    ; ny < sPx; ny++)      // triplets (nt,ny,nx) are
+			for (unsigned nx = 0    ; nx < sPx; nx++, i++) // patch positions 
+				mat.patch_basis[i] = (nc == kc) ? cosx[kx * sPx + nx] 
+				                                * cosx[ky * sPx + ny] 
+				                                * cost[kt * sPt + nt] : 0; 
+	
+		/*! Verify
+		for (unsigned kx = 0, i = 0; kx < sPx; kx++)
+		{
+			float norm = 0.;
+			for (unsigned nx = 0; nx < sPx; nx++, i++) norm += cosx[i]*cosx[i];
+			printf("|cosx[%d]| = %f\n",kx,norm);
+		}
+
+		for (unsigned kt = 0, i = 0; kt < sPt; kt++)
+		{
+			float norm = 0.;
+			for (unsigned nt = 0; nt < sPt; nt++, i++) norm += cost[i]*cost[i];
+			printf("|cost[%d]| = %f\n",kt,norm);
+		}
+
+		for (unsigned kc = 0, i = 0; kc < sPc; kc++)
+		for (unsigned kt = 0       ; kt < sPt; kt++) // triplets (kt,ky,kx) are
+		for (unsigned ky = 0       ; ky < sPx; ky++) // frequencies and index
+		for (unsigned kx = 0       ; kx < sPx; kx++) // basis vectors
+		{
+			float norm = 0.;
+			for (unsigned nc = 0; nc < sPc; nc++)
+			for (unsigned nt = 0; nt < sPt; nt++)
+			for (unsigned ny = 0; ny < sPx; ny++)      // triplets (nt,ny,nx) are
+			for (unsigned nx = 0; nx < sPx; nx++, i++) // patch positions 
+				norm += mat.covEigVecs[i]*mat.covEigVecs[i];
+
+			printf("|v[%d,%d,%d,%d]| = %f\n",kc,kt,ky,kx,norm);
+		}*/
+	}
 
 	//! Variance captured by the principal components
 	Video<float> variance(mask.sz);
@@ -1524,6 +1592,158 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 }
 
 /**
+ * @brief Implementation of computeBayesEstimateStep1_LR using an 
+ * external basis provided by the user in the workspace i_mat.covEigVecs.
+ *
+ * See computeBayesEstimateStep1_LR for information about the arguments.
+ **/
+float computeBayesEstimateStep1_externalBasis(
+	std::vector<std::vector<float> > &io_group
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+){
+	//! Parameters initialization
+	const float sigma2 = p_params.beta * p_params.sigma * p_params.sigma;
+	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
+	                    * p_params.sizePatchTime;
+	const unsigned r    = sPC; // p_params.rank; // XXX FIXME TODO
+
+	//! Variances
+	float  rank_variance = 0.f;
+	float total_variance = 0.f;
+
+	for (unsigned c = 0; c < io_group.size(); c++)
+	{
+#ifdef DCT_CENTER
+		//! Center 3D group
+		centerData(io_group[c], i_mat.baricenter, p_nSimP, sPC);
+#endif
+
+		if (r > 0)
+		{
+			/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
+			 * row a patch. Thus, in column-major storage it corresponds to X^T, where
+			 * each column of X contains a centered data point.
+			 *
+			 * We need to compute the noiseless estimage hX as 
+			 * hX = U * W * U' * X
+			 * where U is the matrix with the eigenvectors and W is a diagonal matrix
+			 * with the filter coefficients.
+			 *
+			 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
+			 * we compute 
+			 * hX' = X' * U * (W * U')
+			 */
+
+			//! Project over basis: Z' = X'*U
+			productMatrix(i_mat.groupTranspose,
+							  io_group[c],
+							  i_mat.patch_basis,
+							  p_nSimP, sPC, sPC,
+							  false, false);
+
+			//! Compute variance over each component
+			//  TODO: compute r leading components
+			i_mat.covEigVals.resize(sPC);
+			for (int k = 0; k < sPC; ++k)
+			{
+				float  comp_k_var = 0.f;
+				float *comp_k = i_mat.groupTranspose.data() + k * p_nSimP;
+
+				for (int i = 0; i < p_nSimP; ++i)
+					comp_k_var += comp_k[i] * comp_k[i];
+
+				i_mat.covEigVals[k] = comp_k_var / (float)p_nSimP;
+				total_variance += i_mat.covEigVals[k];
+			}
+
+//		printMatrix(i_mat.covEigVals, 1, sPC, "/tmp/variances.asc");
+
+
+			//! Substract sigma2 and compute variance captured by the r leading eigenvectors
+			for (int i = 0; i < r; ++i)
+			{
+#ifdef THRESHOLD_WEIGHTS
+				i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
+#else
+				i_mat.covEigVals[i] -= sigma2;
+#endif
+				rank_variance  += i_mat.covEigVals[i];
+			}
+
+//		printMatrix(i_mat.covEigVals, 1, sPC, "/tmp/variances_apriori.asc");
+
+//			printf("V %f - ", i_mat.covEigVals[0]);
+
+
+			//! Compute eigenvalues-based coefficients of Bayes' filter
+			for (unsigned k = 0; k < r; ++k)
+				i_mat.covEigVals[k] = (k < 1000) ? 1. / ( 1. + sigma2 / i_mat.covEigVals[k] ) : 0;
+//				i_mat.covEigVals[k] = (k == 0) ? 1. : 0; // / ( 1. + sigma2 / i_mat.covEigVals[k] );
+
+//		printMatrix(i_mat.covEigVals , 1  , sPC    , "/tmp/weights.asc");
+//		printMatrix(i_mat.patch_basis, sPC, sPC    , "/tmp/u.asc");
+
+
+//			printf("W %f - \n", i_mat.covEigVals[0]);
+
+
+			//! U * W
+			i_mat.covEigVecs.resize(sPC* sPC);
+			float *eigVecs = i_mat.covEigVecs .data();
+			float *basis   = i_mat.patch_basis.data();
+			for (unsigned k = 0; k < r  ; ++k)
+			for (unsigned i = 0; i < sPC; ++i)
+				*eigVecs++ = *basis++ * i_mat.covEigVals[k];
+
+//		printMatrix(io_group[c], sPC, p_nSimP, "/tmp/x.asc");
+
+			//! hX' = Z'*(U*W)'
+			productMatrix(io_group[c],
+							  i_mat.groupTranspose,
+							  i_mat.covEigVecs,
+							  p_nSimP, sPC, r,
+							  false, true);
+
+//		printMatrix(i_mat.groupTranspose, sPC, p_nSimP, "/tmp/z.asc");
+//		printMatrix(io_group[c]         , sPC, p_nSimP, "/tmp/x_filtered.asc");
+
+//		if (i_mat.covEigVals[0] < 1e-10)
+//		{
+//			// stop here
+//			printf("stopped: PRESS Ctrl-C or prepare for the WORST!!\n");
+//			while (1) int a = 1;
+//		}
+
+
+#ifdef DCT_CENTER
+			//! Add baricenter
+			for (unsigned j = 0, k = 0; j < sPC; j++)
+				for (unsigned i = 0; i < p_nSimP; i++, k++)
+					io_group[c][k] += i_mat.baricenter[j];
+#endif
+		}
+		else
+		{
+#ifdef DCT_CENTER
+			//! rank = 0: set as baricenter
+			for (unsigned j = 0, k = 0; j < sPC; j++)
+				for (unsigned i = 0; i < p_nSimP; i++, k++)
+					io_group[c][k] = i_mat.baricenter[j];
+#endif
+
+			//! Avoid 0/0 in return statement
+			total_variance = 1.f;
+		}
+	}
+
+	// return percentage of captured variance
+	return rank_variance / total_variance;
+}
+
+/**
  * @brief Implementation of computeBayesEstimateStep1_LR computing the
  * principal directions of the a priori covariance matrix. This functions
  * computes the full SVD of the data matrix using LAPACK.
@@ -1802,6 +2022,9 @@ float computeBayesEstimateStep1_LR(
 			io_nInverseFailed, p_params, p_nSimP);
 #elif defined(USE_SVD_LAPACK)
 		computeBayesEstimateStep1_LR_SVD_LAPACK(io_group, i_mat,
+			io_nInverseFailed, p_params, p_nSimP);
+#elif defined(DCT_BASIS)
+		computeBayesEstimateStep1_externalBasis(io_group, i_mat,
 			io_nInverseFailed, p_params, p_nSimP);
 #else
 		computeBayesEstimateStep1_LR_EIG_LAPACK(io_group, i_mat,
@@ -2165,6 +2388,184 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 /**
  * @brief Implementation of computeBayesEstimateStep2_LR computing the
  * principal directions of the a priori covariance matrix. This functions
+ * computes the eigenvectors/values of the data covariance matrix using LAPACK.
+ *
+ * See computeBayesEstimateStep2_LR for information about the arguments.
+ **/
+float computeBayesEstimateStep2_externalBasis(
+	std::vector<float> &io_groupNoisy
+,	std::vector<float>  &i_groupBasic
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	const VideoSize &p_imSize
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+){
+	//! Parameters initialization
+	const float sigma2 = p_params.beta * p_params.sigma * p_params.sigma;
+	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
+	                    * p_params.sizePatchTime * p_imSize.channels;
+	const unsigned r    = sPC; // p_params.rank; // XXX FIXME TODO
+
+	//! Center 3D groups around their baricenter
+#ifdef DCT_CENTER
+ #ifdef NOISY_COVARIANCE
+	//! Center noisy patches with their baricenter
+	centerData(io_groupNoisy, i_mat.baricenter, p_nSimP, sPC);
+
+ #else //NOISY_COVARIANCE
+  #ifdef BARICENTER_BASIC
+	//! Center basic patches with their baricenter
+	centerData( i_groupBasic, i_mat.baricenter, p_nSimP, sPC);
+
+	//! Remove basic's baricenter from Noisy patches
+	for (unsigned j = 0, k = 0; j < sPC; j++)
+		for (unsigned i = 0; i < p_nSimP; i++, k++)
+			io_groupNoisy[k] -= i_mat.baricenter[j];
+
+  #else //BARICENTER_BASIC
+	//! Center noisy patches with their baricenter
+	centerData(io_groupNoisy, i_mat.baricenter, p_nSimP, sPC);
+
+	//! Center basic patches with their baricenter
+	centerData( i_groupBasic, i_mat.baricenter, p_nSimP, sPC);
+
+  #endif//BARICENTER_BASIC
+ #endif//NOISY_COVARIANCE
+#endif//DCT_CENTER
+
+	float r_variance = 0.f;
+	float total_variance = 1.f;
+
+	if (r > 0)
+	{
+		/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
+		 * row a patch. Thus, in column-major storage it corresponds to X^T, where
+		 * each column of X contains a centered data point.
+		 *
+		 * We need to compute the noiseless estimage hX as 
+		 * hX = U * W * U' * X
+		 * where U is the matrix with the eigenvectors and W is a diagonal matrix
+		 * with the filter coefficients.
+		 *
+		 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
+		 * we compute 
+		 * hX' = X' * U * (W * U')
+		 */
+
+		//! Project over basis: Z' = X'*U
+#ifndef NOISY_COVARIANCE
+		productMatrix(i_mat.groupTranspose,
+						  i_groupBasic,
+						  i_mat.patch_basis,
+						  p_nSimP, sPC, sPC,
+						  false, false);
+#else
+		productMatrix(i_mat.groupTranspose,
+						  io_groupNoisy,
+						  i_mat.patch_basis,
+						  p_nSimP, sPC, sPC,
+						  false, false);
+#endif
+
+		//! Compute variance over each component
+		//  TODO: compute r leading components
+		i_mat.covEigVals.resize(sPC);
+		for (int k = 0; k < sPC; ++k)
+		{
+			float  comp_k_var = 0.f;
+			float *comp_k = i_mat.groupTranspose.data() + k * p_nSimP;
+
+			for (int i = 0; i < p_nSimP; ++i)
+				comp_k_var += comp_k[i] * comp_k[i];
+
+			i_mat.covEigVals[k] = comp_k_var / (float)p_nSimP;
+			total_variance += i_mat.covEigVals[k];
+		}
+
+//	printMatrix(i_mat.covEigVals, 1, sPC, "/tmp/variances.asc");
+
+#ifdef NOISY_COVARIANCE
+		//! Substract sigma2 and compute variance captured by the r leading eigenvectors
+		for (int i = 0; i < r; ++i)
+		{
+ #ifdef THRESHOLD_WEIGHTS
+			i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
+ #else
+			i_mat.covEigVals[i] -= sigma2;
+ #endif
+		}
+#endif
+
+//	printMatrix(i_mat.covEigVals, 1, sPC, "/tmp/variances_apriori.asc");
+
+		//! Compute variance captured by the r leading eigenvectors
+		for (int i = 0; i < r; ++i)
+			r_variance += i_mat.covEigVals[i];
+
+		//! Compute eigenvalues-based coefficients of Bayes' filter
+		for (unsigned k = 0; k < r; ++k)
+#ifndef LI_ZHANG_DAI
+			i_mat.covEigVals[k] = 1.f / ( 1. + sigma2 / i_mat.covEigVals[k] );
+#else
+			i_mat.covEigVals[k] = (i_mat.covEigVals[k] > 4*sigma2)
+			                    ? 0.5 * ( 1. + sqrt(1 - 4*sigma2 / i_mat.covEigVals[k])) 
+			                    : 0;
+#endif
+
+//	printMatrix(i_mat.covEigVals , 1  , sPC, "/tmp/weights.asc");
+//	printMatrix(i_mat.patch_basis, sPC, sPC, "/tmp/u.asc");
+
+		//! U * W
+		i_mat.covEigVecs.resize(sPC*sPC);
+		float *basis   = i_mat.patch_basis.data();
+		float *eigVecs = i_mat.covEigVecs .data();
+		for (unsigned k = 0; k < r  ; ++k)
+		for (unsigned i = 0; i < sPC; ++i)
+			*eigVecs++ = *basis++ * i_mat.covEigVals[k];
+
+//	printMatrix(io_groupNoisy, sPC, p_nSimP, "/tmp/x.asc");
+
+		//! hX' = Z'*(U*W)'
+		productMatrix(io_groupNoisy,
+						  i_mat.groupTranspose,
+						  i_mat.covEigVecs,
+						  p_nSimP, sPC, r,
+						  false, true);
+
+//	printMatrix(i_mat.groupTranspose, sPC, p_nSimP, "/tmp/z.asc");
+//	printMatrix(io_groupNoisy       , sPC, p_nSimP, "/tmp/x_filtered.asc");
+//
+//	if (1)
+//	{
+//		// stop here
+//		printf("stopped: PRESS Ctrl-C or prepare for the WORST!!\n");
+//		while (1) int a = 1;
+//	}
+
+
+#ifdef DCT_CENTER
+		//! Add baricenter
+		for (unsigned j = 0, k = 0; j < sPC; j++)
+			for (unsigned i = 0; i < p_nSimP; i++, k++)
+				io_groupNoisy[k] += i_mat.baricenter[j];
+#endif
+	}
+	else
+		//! r = 0: set all patches as baricenter
+		for (unsigned j = 0, k = 0; j < sPC; j++)
+			for (unsigned i = 0; i < p_nSimP; i++, k++)
+				io_groupNoisy[k] = i_mat.baricenter[j];
+
+
+	// return percentage of captured variance
+	return r_variance / total_variance;
+
+}
+
+/**
+ * @brief Implementation of computeBayesEstimateStep2_LR computing the
+ * principal directions of the a priori covariance matrix. This functions
  * computes the full SVD of the data matrix using LAPACK.
  *
  * See computeBayesEstimateStep2_LR for information about the arguments.
@@ -2438,6 +2839,9 @@ float computeBayesEstimateStep2_LR(
 			io_nInverseFailed, p_size, p_params, p_nSimP);
 #elif defined(USE_SVD_LAPACK)
 		computeBayesEstimateStep2_LR_SVD_LAPACK(io_groupNoisy, i_groupBasic, i_mat,
+			io_nInverseFailed, p_size, p_params, p_nSimP);
+#elif defined(DCT_BASIS)
+		computeBayesEstimateStep2_externalBasis(io_groupNoisy, i_groupBasic, i_mat,
 			io_nInverseFailed, p_size, p_params, p_nSimP);
 #else
 		computeBayesEstimateStep2_LR_EIG_LAPACK(io_groupNoisy, i_groupBasic, i_mat,
