@@ -1577,10 +1577,10 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 
 			//! Z' = X'*U
 			productMatrix(i_mat.groupTranspose,
-							  io_group[c],
-							  i_mat.covEigVecs,
-							  p_nSimP, r, sPC,
-							  false, false);
+			              io_group[c],
+			              i_mat.covEigVecs,
+			              p_nSimP, r, sPC,
+			              false, false);
 
 			//! U * W
 			float *eigVecs = i_mat.covEigVecs.data();
@@ -1590,10 +1590,10 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 
 			//! hX' = Z'*(U*W)'
 			productMatrix(io_group[c],
-							  i_mat.groupTranspose,
-							  i_mat.covEigVecs,
-							  p_nSimP, sPC, r,
-							  false, true);
+			              i_mat.groupTranspose,
+			              i_mat.covEigVecs,
+			              p_nSimP, sPC, r,
+			              false, true);
 
 			//! Add baricenter
 			for (unsigned j = 0, k = 0; j < sPC; j++)
@@ -1664,10 +1664,10 @@ float computeBayesEstimateStep1_externalBasis(
 
 			//! Project over basis: Z' = X'*U
 			productMatrix(i_mat.groupTranspose,
-							  io_group[c],
-							  i_mat.patch_basis,
-							  p_nSimP, sPC, sPC,
-							  false, false);
+			              io_group[c],
+			              i_mat.patch_basis,
+			              p_nSimP, sPC, sPC,
+			              false, false);
 
 			//! Compute variance over each component
 			//  TODO: compute r leading components
@@ -1727,10 +1727,10 @@ float computeBayesEstimateStep1_externalBasis(
 
 			//! hX' = Z'*(U*W)'
 			productMatrix(io_group[c],
-							  i_mat.groupTranspose,
-							  i_mat.covEigVecs,
-							  p_nSimP, sPC, r,
-							  false, true);
+			              i_mat.groupTranspose,
+			              i_mat.covEigVecs,
+			              p_nSimP, sPC, r,
+			              false, true);
 
 //		printMatrix(i_mat.groupTranspose, sPC, p_nSimP, "/tmp/z.asc");
 //		printMatrix(io_group[c]         , sPC, p_nSimP, "/tmp/x_filtered.asc");
@@ -2230,10 +2230,10 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 
 		//! Z' = X'*U
 		productMatrix(i_mat.groupTranspose,
-						  io_groupNoisy,
-						  i_mat.covEigVecs,
-						  p_nSimP, r, sPC,
-						  false, false);
+		              io_groupNoisy,
+		              i_mat.covEigVecs,
+		              p_nSimP, r, sPC,
+		              false, false);
 
 		//! U * W
 		float *eigVecs = i_mat.covEigVecs.data();
@@ -2243,10 +2243,10 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 
 		//! hX' = Z'*(U*W)'
 		productMatrix(io_groupNoisy,
-						  i_mat.groupTranspose,
-						  i_mat.covEigVecs,
-						  p_nSimP, sPC, r,
-						  false, true);
+		              i_mat.groupTranspose,
+		              i_mat.covEigVecs,
+		              p_nSimP, sPC, r,
+		              false, true);
 
 		//! Add baricenter
 		for (unsigned j = 0, k = 0; j < sPC; j++)
@@ -2303,7 +2303,7 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 		for (unsigned c = 0, k = 0; c < chnls; c++)
 		{
 			unsigned kc = c * sPx * sPx * p_nSimP * sPt + 
-				           t * sPx * sPx * p_nSimP;
+			              t * sPx * sPx * p_nSimP;
 
 			for (unsigned hy = 0; hy < sPx; hy++)
 			for (unsigned hx = 0; hx < sPx; hx++)
@@ -2360,10 +2360,10 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 
 			//! Z' = X'*U
 			productMatrix(i_mat.groupTranspose,
-							  frame_groupNoisy,
-							  i_mat.covEigVecs,
-							  p_nSimP, r, sPC,
-							  false, false);
+			              frame_groupNoisy,
+			              i_mat.covEigVecs,
+			              p_nSimP, r, sPC,
+			              false, false);
 
 			//! U * W
 			float *eigVecs = i_mat.covEigVecs.data();
@@ -2373,10 +2373,10 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 
 			//! hX' = Z'*(U*W)'
 			productMatrix(frame_groupNoisy,
-							  i_mat.groupTranspose,
-							  i_mat.covEigVecs,
-							  p_nSimP, sPC, r,
-							  false, true);
+			              i_mat.groupTranspose,
+			              i_mat.covEigVecs,
+			              p_nSimP, sPC, r,
+			              false, true);
 
 			//! Add baricenter
 			for (unsigned j = 0, k = 0; j < sPC; j++)
@@ -2395,7 +2395,7 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 		for (unsigned c = 0, k = 0; c < chnls; c++)
 		{
 			unsigned kc = c * sPx * sPx * p_nSimP * sPt + 
-				           t * sPx * sPx * p_nSimP;
+			              t * sPx * sPx * p_nSimP;
 
 			for (unsigned hy = 0; hy < sPx; hy++)
 			for (unsigned hx = 0; hx < sPx; hx++)
@@ -2481,16 +2481,16 @@ float computeBayesEstimateStep2_externalBasis(
 		//! Project over basis: Z' = X'*U
 #ifndef NOISY_COVARIANCE
 		productMatrix(i_mat.groupTranspose,
-						  i_groupBasic,
-						  i_mat.patch_basis,
-						  p_nSimP, sPC, sPC,
-						  false, false);
+		              i_groupBasic,
+		              i_mat.patch_basis,
+		              p_nSimP, sPC, sPC,
+		              false, false);
 #else
 		productMatrix(i_mat.groupTranspose,
-						  io_groupNoisy,
-						  i_mat.patch_basis,
-						  p_nSimP, sPC, sPC,
-						  false, false);
+		              io_groupNoisy,
+		              i_mat.patch_basis,
+		              p_nSimP, sPC, sPC,
+		              false, false);
 #endif
 
 		//! Compute variance over each component
@@ -2553,10 +2553,10 @@ float computeBayesEstimateStep2_externalBasis(
 
 		//! hX' = Z'*(U*W)'
 		productMatrix(io_groupNoisy,
-						  i_mat.groupTranspose,
-						  i_mat.covEigVecs,
-						  p_nSimP, sPC, r,
-						  false, true);
+		              i_mat.groupTranspose,
+		              i_mat.covEigVecs,
+		              p_nSimP, sPC, r,
+		              false, true);
 
 //	printMatrix(i_mat.groupTranspose, sPC, p_nSimP, "/tmp/z.asc");
 //	printMatrix(io_groupNoisy       , sPC, p_nSimP, "/tmp/x_filtered.asc");
