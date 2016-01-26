@@ -203,7 +203,6 @@ int writingMeasures(
     file << "-PSNR" << p_app << " = " << p_psnr << endl;
     file << "-RMSE" << p_app << " = " << p_rmse << endl;
     file << "-GRPS" << p_app << " = " << p_grps << endl;
-    cout << endl;
 
     //! Close the file
     file.close();

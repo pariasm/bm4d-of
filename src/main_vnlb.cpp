@@ -80,6 +80,8 @@ int main(int argc, char **argv)
 	const int num_patches2  = clo_option("-np2",-1, "> Number of similar patches, step 2");
 	const int rank1         = clo_option("-r1" , 4, "> Rank or covariance matrix, step 1");
 	const int rank2         = clo_option("-r2" , 4, "> Rank or covariance matrix, step 2");
+	const float beta1       = clo_option("-b1" ,-1, "> Correction factor beta for noise variance, step 1");
+	const float beta2       = clo_option("-b2" ,-1, "> Correction factor beta for noise variance, step 2");
 
 	//! Check inputs
 	if (input_path == "")
@@ -153,6 +155,8 @@ int main(int argc, char **argv)
 		if (patch_sizex2  >= 0) VideoNLB::setSizePatch(prms2, tmp, (unsigned)patch_sizex2);;
 		if (num_patches1  >= 0) VideoNLB::setNSimilarPatches(prms1, (unsigned)num_patches1);
 		if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
+		if (beta1         >= 0) prms1.beta = beta1;
+		if (beta2         >= 0) prms2.beta = beta2;
 
 		prms1.rank = rank1;
 		prms2.rank = rank2;
@@ -203,6 +207,8 @@ int main(int argc, char **argv)
 	if (patch_sizex2  >= 0) VideoNLB::setSizePatch(prms2, noisy.sz, (unsigned)patch_sizex2);;
 	if (num_patches1  >= 0) VideoNLB::setNSimilarPatches(prms1, (unsigned)num_patches1);
 	if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
+	if (beta1         >= 0) prms1.beta = beta1;
+	if (beta2         >= 0) prms2.beta = beta2;
 
 	prms1.rank = rank1;
 	prms2.rank = rank2;
@@ -232,7 +238,7 @@ int main(int argc, char **argv)
 	if (prms2.sizePatch) VideoUtils::computeDiff(original, final, diff, sigma);
 
 	//! Save output sequences
-	if (verbose) printf("Saving output sequences\n");
+	if (verbose) printf("\nSaving output sequences\n");
 
 	if (prms2.sizePatch) final.saveVideo(final_path, firstFrame, frameStep);
 	if (prms2.sizePatch) diff .saveVideo( diff_path, firstFrame, frameStep);
