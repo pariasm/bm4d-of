@@ -60,7 +60,7 @@ int main(int argc, char **argv)
 	const unsigned frameStep  = clo_option("-s", 1, "frame step");
 
 	//! General parameters
-	const float sigma = clo_option("-sigma", 0, "Add noise of standard deviation sigma");
+	const float sigma = clo_option("-sigma", 0.f, "Add noise of standard deviation sigma");
 	const bool do_bias  = (bool) clo_option("-compute-bias", false, "> compute bias outputs");
 	const bool verbose  = (bool) clo_option("-verbose"     , true , "> verbose output");
 	const unsigned print_prms = (unsigned) clo_option("-print-prms", 0, "> prints parameters for given channels");
@@ -68,20 +68,20 @@ int main(int argc, char **argv)
 	//! Video NLB parameters
 	const bool flat_area1 = (bool) clo_option("-flat-area1", false , "> use flat area trick, step 1");
 	const bool flat_area2 = (bool) clo_option("-flat-area2", false , "> use flat area trick, step 2");
-	const int time_search1  = clo_option("-wt1", 2, "> Search window temporal radius, step 1");
-	const int time_search2  = clo_option("-wt2", 2, "> Search window temporal radius, step 2");
-	const int space_search1 = clo_option("-wx1",-1, "> Search window spatial radius, step 1");
-	const int space_search2 = clo_option("-wx2",-1, "> Search window spatial radius, step 2");
-	const int patch_sizex1  = clo_option("-px1",-1, "> Spatial patch size, step 1");
-	const int patch_sizex2  = clo_option("-px2",-1, "> Spatial patch size, step 2");
-	const int patch_sizet1  = clo_option("-pt1", 1, "> Temporal patch size, step 1");
-	const int patch_sizet2  = clo_option("-pt2", 1, "> Temporal patch size, step 2");
-	const int num_patches1  = clo_option("-np1",-1, "> Number of similar patches, step 1");
-	const int num_patches2  = clo_option("-np2",-1, "> Number of similar patches, step 2");
-	const int rank1         = clo_option("-r1" , 4, "> Rank or covariance matrix, step 1");
-	const int rank2         = clo_option("-r2" , 4, "> Rank or covariance matrix, step 2");
-	const float beta1       = clo_option("-b1" ,-1, "> Correction factor beta for noise variance, step 1");
-	const float beta2       = clo_option("-b2" ,-1, "> Correction factor beta for noise variance, step 2");
+	const int time_search1  = clo_option("-wt1", 2  , "> Search window temporal radius, step 1");
+	const int time_search2  = clo_option("-wt2", 2  , "> Search window temporal radius, step 2");
+	const int space_search1 = clo_option("-wx1",-1  , "> Search window spatial radius, step 1");
+	const int space_search2 = clo_option("-wx2",-1  , "> Search window spatial radius, step 2");
+	const int patch_sizex1  = clo_option("-px1",-1  , "> Spatial patch size, step 1");
+	const int patch_sizex2  = clo_option("-px2",-1  , "> Spatial patch size, step 2");
+	const int patch_sizet1  = clo_option("-pt1", 1  , "> Temporal patch size, step 1");
+	const int patch_sizet2  = clo_option("-pt2", 1  , "> Temporal patch size, step 2");
+	const int num_patches1  = clo_option("-np1",-1  , "> Number of similar patches, step 1");
+	const int num_patches2  = clo_option("-np2",-1  , "> Number of similar patches, step 2");
+	const int rank1         = clo_option("-r1" , 4  , "> Rank or covariance matrix, step 1");
+	const int rank2         = clo_option("-r2" , 4  , "> Rank or covariance matrix, step 2");
+	const float beta1       = clo_option("-b1" ,-1.f, "> Correction factor beta for noise variance, step 1");
+	const float beta2       = clo_option("-b2" ,-1.f, "> Correction factor beta for noise variance, step 2");
 
 	//! Check inputs
 	if (input_path == "")
