@@ -47,6 +47,7 @@
 /* Use nonlinear coefficient thresholding instead of empirical Wiener filter in
  * Step 1. Parameter beta is used to control the threshold beta*sigma². */
 #define THRESHOLDING1
+//#define SOFT_THRESHOLD1
 
 /* Use a linear coefficient thresholding instead of empirical Wiener filter in
  * Step 1. The thresholding is applied to a certain coefficient based on its 
@@ -453,6 +454,9 @@ std::vector<float> runNlBayes(
 #endif
 #ifdef THRESHOLDING1
 		printf(ANSI_BCYN "THRESHOLDING1 > Coefficient thresholding step 1 instead of Wiener weights\n" ANSI_RST);
+#endif
+#if defined(THRESHOLDING1) && defined(SOFT_THRESHOLD1)
+		printf(ANSI_BCYN "SOFT_THRESHOLD1 > Coefficient thresholding step 1 is soft\n" ANSI_RST);
 #endif
 #if defined(LINEAR_THRESHOLDING1) && !defined(THRESHOLDING1) 
 		printf(ANSI_BCYN "LINEAR_THRESHOLDING1 > Variances thresholding step 1 instead of Wiener weights\n" ANSI_RST);
@@ -1662,10 +1666,11 @@ float computeBayesEstimateStep1_externalBasis(
 ,	const unsigned p_nSimP
 ){
 	//! Parameters initialization
-	const float sigma2 = p_params.beta * p_params.sigma * p_params.sigma;
-	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
-	                    * p_params.sizePatchTime;
-	const unsigned r    = sPC; // p_params.rank; // XXX FIXME TODO
+	const float sigma  = p_params.beta * p_params.sigma;
+	const float sigma2 = sigma * sigma;
+	const unsigned sPC = p_params.sizePatch * p_params.sizePatch
+	                   * p_params.sizePatchTime;
+	const unsigned r   = sPC; // p_params.rank; // XXX FIXME TODO
 
 	//! Variances
 	float  rank_variance = 0.f;
@@ -1744,20 +1749,32 @@ float computeBayesEstimateStep1_externalBasis(
 			for (unsigned i = 0; i < sPC; ++i)
 				*eigVecs++ = *basis++ * i_mat.covEigVals[k];
 
-#else // THRESHOLDING1
-			//! Hard thresholding
-			float *z = i_mat.groupTranspose.data();
-			for (unsigned k = 0; k < r  ; ++k)
-			for (unsigned i = 0; i < p_nSimP; ++i, ++z)
-				*z = (*z * *z) > sigma2 ? *z : 0.f;
-#endif
-
 			//! hX' = Z'*(U*W)'
 			productMatrix(io_group[c],
 			              i_mat.groupTranspose,
 			              i_mat.covEigVecs,
 			              p_nSimP, sPC, r,
 			              false, true);
+
+#else // THRESHOLDING1
+			//! Thresholding
+			float *z = i_mat.groupTranspose.data();
+			for (unsigned k = 0; k < r  ; ++k)
+			for (unsigned i = 0; i < p_nSimP; ++i, ++z)
+ #ifndef SOFT_THRESHOLD1
+				*z = (*z * *z) > sigma2 ? *z : 0.f;
+ #else
+				*z = *z > 0 ? std::max(*z - sigma, 0.f) : std::min(*z + sigma, 0.f);
+ #endif
+
+			//! hX' = Z'*U'
+			productMatrix(io_group[c],
+			              i_mat.groupTranspose,
+			              i_mat.patch_basis,
+			              p_nSimP, sPC, r,
+			              false, true);
+#endif
+
 
 #ifdef DCT_CENTER1
 			//! Add baricenter
