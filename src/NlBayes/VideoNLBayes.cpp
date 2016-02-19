@@ -47,9 +47,9 @@
 
 /* Use nonlinear coefficient thresholding instead of empirical Wiener filter in
  * Step 1. Parameter beta is used to control the threshold beta*sigma². */
-#define THRESHOLDING1
+//#define THRESHOLDING1
 //#define SOFT_THRESHOLD1
-#define SOFT_THRESHOLD1_BAYES 
+//#define SOFT_THRESHOLD1_BAYES 
 
 /* Use nonlinear coefficient thresholding instead of empirical Wiener filter in
  * Step 2. Parameter beta is used to control the threshold beta*sigma². */
@@ -64,6 +64,8 @@
  * threshold. Parameter beta is used to control the threshold beta*sigma².
  * This option is disabled if THRESHOLDING1 is defined. */
 //#define LINEAR_THRESHOLDING1
+#define LINEAR_HARD_THRESHOLDING2
+//#define LINEAR_SOFT_THRESHOLDING2
 
 /* Corrects the 'centering bug' discovered by Nicola. In the second step, basic
  * and noisy patches are centered using the basic baricenter. If left undefined,
@@ -481,8 +483,11 @@ std::vector<float> runNlBayes(
 #if defined(THRESHOLDING2) && defined(SOFT_THRESHOLD2_BAYES)
 		printf(ANSI_BCYN "SOFT_THRESHOLD2_BAYES > Coefficient thresholding step 2 is soft, Bayesian\n" ANSI_RST);
 #endif
-#if defined(LINEAR_THRESHOLDING2) && !defined(THRESHOLDING2) 
-		printf(ANSI_BCYN "LINEAR_THRESHOLDING2 > Variances thresholding step 2 instead of Wiener weights\n" ANSI_RST);
+#if defined(LINEAR_SOFT_THRESHOLDING2) && !defined(THRESHOLDING2) 
+		printf(ANSI_BCYN "LINEAR_SOFT_THRESHOLDING2 > Variances soft thresholding step 2 instead of Wiener weights\n" ANSI_RST);
+#endif
+#if defined(LINEAR_HARD_THRESHOLDING2) && !defined(THRESHOLDING2) 
+		printf(ANSI_BCYN "LINEAR_HARD_THRESHOLDING2 > Variances hard thresholding step 2 instead of Wiener weights\n" ANSI_RST);
 #endif
 #if defined(NOISY_COVARIANCE) && defined(THRESHOLD_WEIGHTS2)
 		printf(ANSI_BCYN "THRESHOLD_WEIGHTS2 > Thresholding step 2 negative Wiener weights\n" ANSI_RST);
@@ -2682,7 +2687,13 @@ float computeBayesEstimateStep2_externalBasis(
 
 			//! Compute eigenvalues-based coefficients of Bayes' filter
 			for (unsigned k = 0; k < r; ++k)
+#if defined(LINEAR_HARD_THRESHOLDING2)
+				i_mat.covEigVals[k] = (i_mat.covEigVals[k] > sigma2) ? 1.f : 0.f;
+#elif defined(LINEAR_SOFT_THRESHOLDING2)
+				i_mat.covEigVals[k] = (i_mat.covEigVals[k] > sigma2) ? 1.f - sigma2/i_mat.covEigVals[k] : 0.f;
+#else
 				i_mat.covEigVals[k] = 1.f / ( 1. + sigma2 / i_mat.covEigVals[k] );
+#endif
 
 			//! U * W
 			i_mat.covEigVecs.resize(sPC*sPC);
@@ -2851,11 +2862,8 @@ float computeBayesEstimateStep2_externalBasisTh(
  #else
 				float tmp = i_mat.covEigVals[i];
  #endif
-				i_mat.covEigVals[i] = (tmp > 1e-6) ? 1.f/sqrt(tmp) : FLT_MAX;
-				rank_variance += tmp;
+				i_mat.covEigVals[i] = (tmp > 1e-6) ? sqrt(2.f) * sigma2 / sqrt(tmp) : FLT_MAX;
 			}
-
-			float th_factor = sqrt(2.f) * sigma2;
 #endif
 
 			//! Thresholding
@@ -2865,8 +2873,8 @@ float computeBayesEstimateStep2_externalBasisTh(
  #if defined(SOFT_THRESHOLD2)
 				*z = *z > 0 ? std::max(*z - sigma, 0.f) : std::min(*z + sigma, 0.f);
  #elif defined(SOFT_THRESHOLD2_BAYES)
-				*z = *z > 0 ? std::max(*z - th_factor * i_mat.covEigVals[k], 0.f)
-				            : std::min(*z + th_factor * i_mat.covEigVals[k], 0.f);
+				*z = *z > 0 ? std::max(*z - i_mat.covEigVals[k], 0.f)
+				            : std::min(*z + i_mat.covEigVals[k], 0.f);
  #else
 				*z = (*z * *z) > sigma2 ? *z : 0.f;
  #endif
