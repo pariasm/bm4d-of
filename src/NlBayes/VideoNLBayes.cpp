@@ -38,6 +38,9 @@
 //#define DCT_DONT_CENTER1
 //#define DCT_DONT_CENTER2
 
+/* Shrinks the mean to 0 with an empirical hyper-Bayesian approach. */
+#define MEAN_HYPERPRIOR
+
 /* Avoid negative weights in the empirical Wiener filter. When the estimated
  * variance of a certain component is lower than the noise variance, the filter
  * coefficient is set to zero. This applies whenever the Gaussian model is
@@ -494,6 +497,9 @@ std::vector<float> runNlBayes(
 #endif
 #ifdef FRAMES_DECOUPLED
 		printf(ANSI_BCYN "FRAMES_DECOUPLED > Assuming Gaussian model with independent frames\n" ANSI_RST);
+#endif
+#ifdef MEAN_HYPERPRIOR
+		printf(ANSI_BCYN "MEAN_HYPERPRIOR > Assuming a prior over the sample mean\n" ANSI_RST);
 #endif
 	}
 
@@ -1831,6 +1837,141 @@ float computeBayesEstimateStep1_externalBasis(
  *
  * See computeBayesEstimateStep1_LR for information about the arguments.
  **/
+float computeBayesEstimateStep1_externalBasisHyper(
+	std::vector<std::vector<float> > &io_group
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+){
+	//! Parameters initialization
+	const float sigma  = p_params.beta * p_params.sigma;
+	const float sigma2 = sigma * sigma;
+	const unsigned sPC = p_params.sizePatch * p_params.sizePatch
+	                   * p_params.sizePatchTime;
+	const unsigned r   = sPC; // p_params.rank; // XXX FIXME TODO
+
+	//! Variances
+	float  rank_variance = 0.f;
+	float total_variance = 0.f;
+
+	for (unsigned c = 0; c < io_group.size(); c++)
+	{
+		/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
+		 * row a patch. Thus, in column-major storage it corresponds to X^T, where
+		 * each column of X contains a centered data point.
+		 *
+		 * We need to compute the noiseless estimage hX as 
+		 * hX = U * W * U' * X
+		 * where U is the matrix with the eigenvectors and W is a diagonal matrix
+		 * with the filter coefficients.
+		 *
+		 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
+		 * we compute 
+		 * hX' = X' * U * (W * U')
+		 */
+
+		//! Project data over basis: Z' = X'*U
+		productMatrix(i_mat.groupTranspose,
+		              io_group[c],
+		              i_mat.patch_basis,
+		              p_nSimP, sPC, sPC,
+		              false, false);
+
+		//! Compute baricenter and center data
+		centerData(i_mat.groupTranspose, i_mat.baricenter, p_nSimP, sPC);
+
+		//! Compute variance over each component
+		i_mat.covEigVals.resize(sPC);
+		for (int k = 0; k < sPC; ++k)
+		{
+			float  comp_k_var = 0.f;
+			float *comp_k = i_mat.groupTranspose.data() + k * p_nSimP;
+
+			for (int i = 0; i < p_nSimP; ++i)
+				comp_k_var += comp_k[i] * comp_k[i];
+
+			i_mat.covEigVals[k] = comp_k_var / (float)p_nSimP;
+			total_variance += i_mat.covEigVals[k];
+		}
+
+		//! Re-center data at baricenter before filtering it
+		for (unsigned j = 0, k = 0; j < sPC; j++)
+			for (unsigned i = 0; i < p_nSimP; i++, k++)
+				i_mat.groupTranspose[k] += i_mat.baricenter[j];
+
+		//! Filter baricenter
+		for (int i = 0; i < sPC; ++i)
+			i_mat.baricenter[i] *= std::max(1 - (sigma2 + i_mat.covEigVals[i]) / 
+			           ((float)p_nSimP*i_mat.baricenter[i]*i_mat.baricenter[i]), 0.f);
+
+		//! Center data with filtered baricenter
+		for (unsigned j = 0, k = 0; j < sPC; j++)
+			for (unsigned i = 0; i < p_nSimP; i++, k++)
+				i_mat.groupTranspose[k] -= i_mat.baricenter[j];
+
+		//! TODO Option: reestimate variances at new baricenter
+		i_mat.covEigVals.resize(sPC);
+		for (int k = 0; k < sPC; ++k)
+		{
+			float  comp_k_var = 0.f;
+			float *comp_k = i_mat.groupTranspose.data() + k * p_nSimP;
+
+			for (int i = 0; i < p_nSimP; ++i)
+				comp_k_var += comp_k[i] * comp_k[i];
+
+			i_mat.covEigVals[k] = comp_k_var / (float)p_nSimP;
+			total_variance += i_mat.covEigVals[k];
+		}
+
+		//! Compute filter coefficients
+		for (int i = 0; i < r; ++i)
+		{
+			float var = i_mat.covEigVals[i] - sigma2;
+#ifdef THRESHOLD_WEIGHTS1
+			var = std::max(0.f, var);
+#endif
+#ifndef LINEAR_THRESHOLDING1
+			i_mat.covEigVals[i] = var / ( var + sigma2 );
+#else
+			i_mat.covEigVals[i] = (var > 0.f) ? 1.f : 0.f;
+#endif
+			rank_variance += var;
+		}
+
+		for (int i = r; i < sPC; ++i)
+			i_mat.covEigVals[i] = 0.f;
+
+		//! Z' * W
+		float *comp = i_mat.groupTranspose.data();
+		for (unsigned k = 0; k < sPC; ++k)
+			for (unsigned i = 0; i < p_nSimP; ++i)
+				*comp++ *= i_mat.covEigVals[k];
+
+
+		//! Add baricenter
+		for (unsigned j = 0, k = 0; j < sPC; j++)
+			for (unsigned i = 0; i < p_nSimP; i++, k++)
+				i_mat.groupTranspose[k] += i_mat.baricenter[j];
+
+		//! hX' = Z'*W*U'
+		productMatrix(io_group[c],
+		              i_mat.groupTranspose,
+		              i_mat.patch_basis,
+		              p_nSimP, sPC, r,
+		              false, true);
+	}
+
+	// return percentage of captured variance
+	return rank_variance / total_variance;
+}
+
+/**
+ * @brief Implementation of computeBayesEstimateStep1_LR using an 
+ * external basis provided by the user in the workspace i_mat.covEigVecs.
+ *
+ * See computeBayesEstimateStep1_LR for information about the arguments.
+ **/
 float computeBayesEstimateStep1_externalBasisTh(
 	std::vector<std::vector<float> > &io_group
 ,	matWorkspace &i_mat
@@ -2229,11 +2370,14 @@ float computeBayesEstimateStep1_LR(
 #elif defined(USE_SVD_LAPACK)
 		computeBayesEstimateStep1_LR_SVD_LAPACK(io_group, i_mat,
 			io_nInverseFailed, p_params, p_nSimP);
-#elif (defined(DCT_BASIS) && !defined(THRESHOLDING1))
+#elif (defined(DCT_BASIS) && !defined(THRESHOLDING1) && !defined(MEAN_HYPERPRIOR))
 		computeBayesEstimateStep1_externalBasis(io_group, i_mat,
 			io_nInverseFailed, p_params, p_nSimP);
 #elif (defined(DCT_BASIS) &&  defined(THRESHOLDING1))
 	 	computeBayesEstimateStep1_externalBasisTh(io_group, i_mat,
+			io_nInverseFailed, p_params, p_nSimP);
+#elif (defined(DCT_BASIS) &&  defined(MEAN_HYPERPRIOR))
+	 	computeBayesEstimateStep1_externalBasisHyper(io_group, i_mat,
 			io_nInverseFailed, p_params, p_nSimP);
 #else
 		computeBayesEstimateStep1_LR_EIG_LAPACK(io_group, i_mat,
