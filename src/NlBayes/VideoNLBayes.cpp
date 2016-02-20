@@ -1610,6 +1610,7 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 			//! Compute leading eigenvectors
 			int info = matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
 
+#if 0
 			//! Substract sigma2 and compute variance captured by the r leading eigenvectors
 			for (int i = 0; i < r; ++i)
 			{
@@ -1624,6 +1625,19 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 			//! Compute eigenvalues-based coefficients of Bayes' filter
 			for (unsigned k = 0; k < r; ++k)
 				i_mat.covEigVals[k] = 1.f / ( 1. + sigma2 / i_mat.covEigVals[k] );
+#else
+			//! Compute eigenvalues-based coefficients of Bayes' filter
+			for (unsigned k = 0; k < r; ++k)
+			{
+#ifdef THRESHOLD_WEIGHTS1
+				i_mat.covEigVals[k] = std::max(i_mat.covEigVals[k] - sigma2, 0.f) / i_mat.covEigVals[k];
+				rank_variance += std::max(i_mat.covEigVals[k] - sigma2, 0.f);
+#else
+				i_mat.covEigVals[k] = ( i_mat.covEigVals[k] - sigma2 ) / i_mat.covEigVals[k];
+				rank_variance += i_mat.covEigVals[k];
+#endif
+			}
+#endif
 
 			/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
 			 * row a patch. Thus, in column-major storage it corresponds to X^T, where
@@ -1766,6 +1780,9 @@ float computeBayesEstimateStep1_externalBasis(
 				i_mat.covEigVals[k] = 1. / ( 1. + sigma2 / i_mat.covEigVals[k] );
 #else
 				i_mat.covEigVals[k] = (i_mat.covEigVals[k] > 0.f) ? 1.f : 0.f;
+				
+				//TODO this formula joins the substraction of sigma2 with the computation of the filter
+//				i_mat.covEigVals[k] = 1. - sigma2 / std::max(i_mat.covEigVals[k],0.00001f*sigma2) ;
 #endif
 
 			//! U * W
