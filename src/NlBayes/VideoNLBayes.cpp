@@ -35,8 +35,8 @@
 #endif
 
 #define DCT_BASIS
-#define DCT_CENTER1
-#define DCT_CENTER2
+//#define DCT_DONT_CENTER1
+//#define DCT_DONT_CENTER2
 
 /* Avoid negative weights in the empirical Wiener filter. When the estimated
  * variance of a certain component is lower than the noise variance, the filter
@@ -64,7 +64,7 @@
  * threshold. Parameter beta is used to control the threshold beta*sigma².
  * This option is disabled if THRESHOLDING1 is defined. */
 //#define LINEAR_THRESHOLDING1
-#define LINEAR_HARD_THRESHOLDING2
+//#define LINEAR_HARD_THRESHOLDING2
 //#define LINEAR_SOFT_THRESHOLDING2
 
 /* Corrects the 'centering bug' discovered by Nicola. In the second step, basic
@@ -441,11 +441,11 @@ std::vector<float> runNlBayes(
 #ifdef DCT_BASIS
 		printf(ANSI_BCYN "DCT_BASIS > Using DCT basis\n" ANSI_RST);
 #endif
-#ifdef DCT_CENTER1
-		printf(ANSI_BCYN "DCT_CENTER1 > Centering DCT step 1\n" ANSI_RST);
+#ifdef DCT_DONT_CENTER1
+		printf(ANSI_BCYN "DCT_DONT_CENTER1 > Centering DCT step 1\n" ANSI_RST);
 #endif
-#ifdef DCT_CENTER2
-		printf(ANSI_BCYN "DCT_CENTER2 > Centering DCT step 2\n" ANSI_RST);
+#ifdef DCT_DONT_CENTER2
+		printf(ANSI_BCYN "DCT_DONT_CENTER2 > Centering DCT step 2\n" ANSI_RST);
 #endif
 #ifdef USE_SVD_IDDIST
 		printf(ANSI_BCYN "USE_SVD_IDDIST > Computing SVD using ID\n" ANSI_RST);
@@ -1706,7 +1706,7 @@ float computeBayesEstimateStep1_externalBasis(
 
 	for (unsigned c = 0; c < io_group.size(); c++)
 	{
-#ifdef DCT_CENTER1
+#ifndef DCT_DONT_CENTER1
 		//! Center 3D group
 		centerData(io_group[c], i_mat.baricenter, p_nSimP, sPC);
 #endif
@@ -1783,7 +1783,7 @@ float computeBayesEstimateStep1_externalBasis(
 			              p_nSimP, sPC, r,
 			              false, true);
 
-#ifdef DCT_CENTER1
+#ifndef DCT_DONT_CENTER1
 			//! Add baricenter
 			for (unsigned j = 0, k = 0; j < sPC; j++)
 				for (unsigned i = 0; i < p_nSimP; i++, k++)
@@ -1792,7 +1792,7 @@ float computeBayesEstimateStep1_externalBasis(
 		}
 		else
 		{
-#ifdef DCT_CENTER1
+#ifndef DCT_DONT_CENTER1
 			//! rank = 0: set as baricenter
 			for (unsigned j = 0, k = 0; j < sPC; j++)
 				for (unsigned i = 0; i < p_nSimP; i++, k++)
@@ -1834,7 +1834,7 @@ float computeBayesEstimateStep1_externalBasisTh(
 
 	for (unsigned c = 0; c < io_group.size(); c++)
 	{
-#ifdef DCT_CENTER1
+#ifndef DCT_DONT_CENTER1
 		//! Center 3D group
 		centerData(io_group[c], i_mat.baricenter, p_nSimP, sPC);
 #endif
@@ -1907,7 +1907,7 @@ float computeBayesEstimateStep1_externalBasisTh(
 			              p_nSimP, sPC, r,
 			              false, true);
 
-#ifdef DCT_CENTER1
+#ifndef DCT_DONT_CENTER1
 			//! Add baricenter
 			for (unsigned j = 0, k = 0; j < sPC; j++)
 				for (unsigned i = 0; i < p_nSimP; i++, k++)
@@ -1916,7 +1916,7 @@ float computeBayesEstimateStep1_externalBasisTh(
 		}
 		else
 		{
-#ifdef DCT_CENTER1
+#ifndef DCT_DONT_CENTER1
 			//! rank = 0: set as baricenter
 			for (unsigned j = 0, k = 0; j < sPC; j++)
 				for (unsigned i = 0; i < p_nSimP; i++, k++)
@@ -2604,7 +2604,7 @@ float computeBayesEstimateStep2_externalBasis(
 		std::vector<float> groupBasic_c( i_groupBasic.begin() + sPC*p_nSimP * c   ,
 		                                 i_groupBasic.begin() + sPC*p_nSimP *(c+1));
 
-#ifdef DCT_CENTER2
+#ifndef DCT_DONT_CENTER2
 		//! Center 3D groups around their baricenter
  #ifdef BARICENTER_BASIC
 
@@ -2621,7 +2621,7 @@ float computeBayesEstimateStep2_externalBasis(
 		centerData(groupBasic_c, i_mat.baricenter, p_nSimP, sPC);
 
  #endif//BARICENTER_BASIC
-#endif//DCT_CENTER2
+#endif//DCT_DONT_CENTER2
 
 		if (r > 0)
 		{
@@ -2730,7 +2730,7 @@ float computeBayesEstimateStep2_externalBasis(
 //	}
 
 
-#ifdef DCT_CENTER2
+#ifndef DCT_DONT_CENTER2
 			//! Add baricenter
 			for (unsigned j = 0, k = 0; j < sPC; j++)
 				for (unsigned i = 0; i < p_nSimP; i++, k++)
@@ -2788,7 +2788,7 @@ float computeBayesEstimateStep2_externalBasisTh(
 		std::vector<float> groupBasic_c( i_groupBasic.begin() + sPC*p_nSimP * c   ,
 		                                 i_groupBasic.begin() + sPC*p_nSimP *(c+1));
 
-#ifdef DCT_CENTER2
+#ifndef DCT_DONT_CENTER2
 		//! Center 3D groups around their baricenter
  #ifdef BARICENTER_BASIC
 
@@ -2805,7 +2805,7 @@ float computeBayesEstimateStep2_externalBasisTh(
 		centerData(groupBasic_c, i_mat.baricenter, p_nSimP, sPC);
 
  #endif//BARICENTER_BASIC
-#endif//DCT_CENTER2
+#endif//DCT_DONT_CENTER2
 
 		if (r > 0)
 		{
@@ -2886,7 +2886,7 @@ float computeBayesEstimateStep2_externalBasisTh(
 			              p_nSimP, sPC, r,
 			              false, true);
 
-#ifdef DCT_CENTER2
+#ifndef DCT_DONT_CENTER2
 			//! Add baricenter
 			for (unsigned j = 0, k = 0; j < sPC; j++)
 				for (unsigned i = 0; i < p_nSimP; i++, k++)
