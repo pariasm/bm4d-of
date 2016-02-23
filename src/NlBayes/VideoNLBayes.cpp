@@ -39,7 +39,7 @@
 //#define DCT_DONT_CENTER2
 
 /* Shrinks the mean to 0 with an empirical hyper-Bayesian approach. */
-#define MEAN_HYPERPRIOR
+//#define MEAN_HYPERPRIOR
 
 /* Avoid negative weights in the empirical Wiener filter. When the estimated
  * variance of a certain component is lower than the noise variance, the filter
@@ -74,6 +74,19 @@
  * and noisy patches are centered using the basic baricenter. If left undefined,
  * each set of patches (noisy and basic) are centered using their own baricenter. */
 #define BARICENTER_BASIC
+
+/* The parameter beta is used as a noise correction factor. It provides a way 
+ * to control the thresholding/filtering strength of the algorithm, by modifying
+ * sigma as beta * sigma. By default, this modifications should only be applied 
+ * to the sigma in the threshold/filter operator. If the following flag is defined,
+ * the modified sigma is also used to estimate the a priori variances in the first
+ * step. This option causes a 0.05dB increase in the results for a particular value
+ * of beta. However, the resultng method seems much more sensitive to beta. 
+ */
+//#define USE_BETA_FOR_VARIANCE
+//TODO The Bayes estimation with non-fixed DCT basis uses by default the modified
+//TODO beta in the variance. We should test if applying it only to the filter is
+//TODO better.
 
 /* Compute the 2nd step covariance matrix from the noisy patches. In this way,
  * the basic estimate is used only in the computation of the patch distances.*/
@@ -1714,8 +1727,9 @@ float computeBayesEstimateStep1_externalBasis(
 ,	const unsigned p_nSimP
 ){
 	//! Parameters initialization
-	const float sigma  = p_params.beta * p_params.sigma;
-	const float sigma2 = sigma * sigma;
+	const float beta_sigma = p_params.beta * p_params.sigma;
+	const float beta_sigma2 = beta_sigma * beta_sigma;
+	const float sigma2 = p_params.sigma * p_params.sigma;
 	const unsigned sPC = p_params.sizePatch * p_params.sizePatch
 	                   * p_params.sizePatchTime;
 	const unsigned r   = sPC; // p_params.rank; // XXX FIXME TODO
@@ -1769,27 +1783,28 @@ float computeBayesEstimateStep1_externalBasis(
 				total_variance += i_mat.covEigVals[k];
 			}
 
-			//! Substract sigma2 and compute variance captured by the r leading eigenvectors
-			for (int i = 0; i < r; ++i)
-			{
-#ifdef THRESHOLD_WEIGHTS1
-				i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
-#else
-				i_mat.covEigVals[i] -= sigma2;
-#endif
-				rank_variance  += i_mat.covEigVals[i];
-			}
-
 			//! Compute eigenvalues-based coefficients of Bayes' filter
 			for (unsigned k = 0; k < r; ++k)
+			{
+#ifndef USE_BETA_FOR_VARIANCE
+				float var = i_mat.covEigVals[k] - sigma2;
+#else
+				float var = i_mat.covEigVals[k] - beta_sigma2;
+#endif
+
+#ifdef THRESHOLD_WEIGHTS1
+				var = std::max(0.f, var);
+#endif
+
 #ifndef LINEAR_THRESHOLDING1
-				i_mat.covEigVals[k] = 1. / ( 1. + sigma2 / i_mat.covEigVals[k] );
+				i_mat.covEigVals[k] = (fabs(var + beta_sigma2) > 1e-8f) ? 
+					                   var / ( var + beta_sigma2 ) : 
+											 0.f;
 #else
 				i_mat.covEigVals[k] = (i_mat.covEigVals[k] > 0.f) ? 1.f : 0.f;
-				
-				//TODO this formula joins the substraction of sigma2 with the computation of the filter
-//				i_mat.covEigVals[k] = 1. - sigma2 / std::max(i_mat.covEigVals[k],0.00001f*sigma2) ;
 #endif
+				rank_variance  += i_mat.covEigVals[k];
+			}
 
 			//! U * W
 			i_mat.covEigVecs.resize(sPC* sPC);
