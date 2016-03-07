@@ -68,8 +68,8 @@ int main(int argc, char **argv)
 	//! Video NLB parameters
 	const bool flat_area1 = (bool) clo_option("-flat-area1", false , "> use flat area trick, step 1");
 	const bool flat_area2 = (bool) clo_option("-flat-area2", false , "> use flat area trick, step 2");
-	const int time_search1  = clo_option("-wt1", 2  , "> Search window temporal radius, step 1");
-	const int time_search2  = clo_option("-wt2", 2  , "> Search window temporal radius, step 2");
+	const int time_search1  = clo_option("-wt1", 0  , "> Search window temporal radius, step 1");
+	const int time_search2  = clo_option("-wt2", 0  , "> Search window temporal radius, step 2");
 	const int space_search1 = clo_option("-wx1",-1  , "> Search window spatial radius, step 1");
 	const int space_search2 = clo_option("-wx2",-1  , "> Search window spatial radius, step 2");
 	const int patch_sizex1  = clo_option("-px1",-1  , "> Spatial patch size, step 1");
@@ -80,8 +80,10 @@ int main(int argc, char **argv)
 	const int num_patches2  = clo_option("-np2",-1  , "> Number of similar patches, step 2");
 	const int rank1         = clo_option("-r1" , 4  , "> Rank or covariance matrix, step 1");
 	const int rank2         = clo_option("-r2" , 4  , "> Rank or covariance matrix, step 2");
-	const float beta1       = clo_option("-b1" ,-1.f, "> Correction factor beta for noise variance, step 1");
-	const float beta2       = clo_option("-b2" ,-1.f, "> Correction factor beta for noise variance, step 2");
+	const float beta1       = clo_option("-b1" ,-1.f, "> Noise correction factor beta, step 1");
+	const float beta2       = clo_option("-b2" ,-1.f, "> Noise correction factor beta, step 2");
+	const float beta_mean1  = clo_option("-bm1",-1.f, "> Noise correction factor beta for mean, step 1");
+	const float beta_mean2  = clo_option("-bm2",-1.f, "> Noise correction factor beta for mean, step 2");
 
 	//! Check inputs
 	if (input_path == "")
@@ -157,6 +159,8 @@ int main(int argc, char **argv)
 		if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
 		if (beta1         >= 0) prms1.beta = beta1;
 		if (beta2         >= 0) prms2.beta = beta2;
+		if (beta_mean1    >= 0) prms1.betaMean = beta_mean1;
+		if (beta_mean2    >= 0) prms2.betaMean = beta_mean2;
 
 		prms1.rank = rank1;
 		prms2.rank = rank2;
@@ -209,6 +213,8 @@ int main(int argc, char **argv)
 	if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
 	if (beta1         >= 0) prms1.beta = beta1;
 	if (beta2         >= 0) prms2.beta = beta2;
+	if (beta_mean1    >= 0) prms1.betaMean = beta_mean1;
+	if (beta_mean2    >= 0) prms2.betaMean = beta_mean2;
 
 	prms1.rank = rank1;
 	prms2.rank = rank2;

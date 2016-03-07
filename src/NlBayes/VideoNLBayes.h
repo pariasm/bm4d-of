@@ -55,7 +55,8 @@ struct nlbParams
 	bool useHomogeneousArea;
 	float gamma;
 	unsigned rank;             // rank of covariance matrix
-	float beta;                // depends on sigma
+	float beta;                // noise correction factor
+	float betaMean;            // noise correction factor for patch barycenter
 	float tau;                 // depends on sizePatch
 	bool isFirstStep;
 	bool doPasteBoost;
