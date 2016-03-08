@@ -491,6 +491,9 @@ std::vector<float> runNlBayes(
 #ifdef THRESHOLDING1
 		printf(ANSI_BCYN "THRESHOLDING1 > Coefficient thresholding step 1 instead of Wiener weights\n" ANSI_RST);
 #endif
+#ifdef USE_BETA_FOR_VARIANCE
+		printf(ANSI_BCYN "USE_BETA_FOR_VARIANCE > Noise correction in step 1 applied both MAP and variances.\n" ANSI_RST);
+#endif
 #if defined(THRESHOLDING1) && defined(SOFT_THRESHOLD1)
 		printf(ANSI_BCYN "SOFT_THRESHOLD1 > Coefficient thresholding step 1 is soft\n" ANSI_RST);
 #endif
@@ -1748,7 +1751,11 @@ float computeBayesEstimateStep1_externalBasis(
 	//! Parameters initialization
 	const float beta_sigma = p_params.beta * p_params.sigma;
 	const float beta_sigma2 = beta_sigma * beta_sigma;
+#ifndef USE_BETA_FOR_VARIANCE
 	const float sigma2 = p_params.sigma * p_params.sigma;
+#else
+	const float sigma2 = beta_sigma2;
+#endif
 	const unsigned sPC = p_params.sizePatch * p_params.sizePatch
 	                   * p_params.sizePatchTime;
 	const unsigned r   = sPC; // p_params.rank; // XXX FIXME TODO
@@ -1805,11 +1812,7 @@ float computeBayesEstimateStep1_externalBasis(
 			//! Compute eigenvalues-based coefficients of Bayes' filter
 			for (unsigned k = 0; k < r; ++k)
 			{
-#ifndef USE_BETA_FOR_VARIANCE
 				float var = i_mat.covEigVals[k] - sigma2;
-#else
-				float var = i_mat.covEigVals[k] - beta_sigma2;
-#endif
 
 #ifdef THRESHOLD_WEIGHTS1
 				var = std::max(0.f, var);
@@ -2058,8 +2061,13 @@ float computeBayesEstimateStep1_externalBasisTh(
 ,	const unsigned p_nSimP
 ){
 	//! Parameters initialization
-	const float sigma  = p_params.beta * p_params.sigma;
-	const float sigma2 = sigma * sigma;
+	const float beta_sigma = p_params.beta * p_params.sigma;
+	const float beta_sigma2 = beta_sigma * beta_sigma;
+#ifndef USE_BETA_FOR_VARIANCE
+	const float sigma2 = p_params.sigma * p_params.sigma;
+#else
+	const float sigma2 = beta_sigma2;
+#endif
 	const unsigned sPC = p_params.sizePatch * p_params.sizePatch
 	                   * p_params.sizePatchTime;
 	const unsigned r   = sPC; // p_params.rank; // XXX FIXME TODO
@@ -2100,7 +2108,6 @@ float computeBayesEstimateStep1_externalBasisTh(
 
 #if defined(SOFT_THRESHOLD1_BAYES)
 			//! Compute variance over each component
-			//  TODO: compute r leading components
 			i_mat.covEigVals.resize(sPC);
 			for (int k = 0; k < sPC; ++k)
 			{
@@ -2118,7 +2125,8 @@ float computeBayesEstimateStep1_externalBasisTh(
 			for (int i = 0; i < r; ++i)
 			{
 				float tmp = std::max(i_mat.covEigVals[i] - sigma2, 0.f);
-				i_mat.covEigVals[i] = (tmp > 1e-6) ? sqrt(2.f) * sigma2 / sqrt(tmp) : FLT_MAX;
+				i_mat.covEigVals[i] = (tmp < 1e-6) ? FLT_MAX
+					                 : sqrt(2.f) * beta_sigma2 / sqrt(tmp);
 				rank_variance += tmp;
 			}
 #endif
@@ -2128,12 +2136,13 @@ float computeBayesEstimateStep1_externalBasisTh(
 			for (unsigned k = 0; k < r  ; ++k)
 			for (unsigned i = 0; i < p_nSimP; ++i, ++z)
 #if defined(SOFT_THRESHOLD1)
-				*z = *z > 0 ? std::max(*z - sigma, 0.f) : std::min(*z + sigma, 0.f);
+				*z = *z > 0 ? std::max(*z - beta_sigma, 0.f)
+				            : std::min(*z + beta_sigma, 0.f);
 #elif defined(SOFT_THRESHOLD1_BAYES)
 				*z = *z > 0 ? std::max(*z - i_mat.covEigVals[k], 0.f)
 				            : std::min(*z + i_mat.covEigVals[k], 0.f);
 #else
-				*z = (*z * *z) > sigma2 ? *z : 0.f;
+				*z = (*z * *z) > beta_sigma2 ? *z : 0.f;
 #endif
 
 			//! hX' = Z'*U'
