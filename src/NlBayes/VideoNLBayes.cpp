@@ -39,17 +39,26 @@
 //#define DCT_DONT_CENTER2
 
 /* Shrinks the mean to 0 with an empirical hyper-Bayesian approach. */
-#define MEAN_HYPERPRIOR1
-#define MEAN_HYPERPRIOR2
-#define MEAN_HYPERPRIOR_BM3D1
-#define MEAN_HYPERPRIOR_BM3D2
+//#define MEAN_HYPERPRIOR1
+//#define MEAN_HYPERPRIOR2
+//#define MEAN_HYPERPRIOR_BM3D1
+//#define MEAN_HYPERPRIOR_BM3D2
 
 /* Avoid negative weights in the empirical Wiener filter. When the estimated
  * variance of a certain component is lower than the noise variance, the filter
  * coefficient is set to zero. This applies whenever the Gaussian model is
  * estimated from the noisy patches: in the first step, or in the second step
- * if NOISY_COVARIANCE option is defined. */
-#define THRESHOLD_WEIGHTS1
+ * if NOISY_COVARIANCE2 option is defined. */
+//#define THRESHOLD_WEIGHTS1
+//#define THRESHOLD_WEIGHTS2
+
+/* Uses an adaptation of Li,Zhand,Dai fixed point iteration to estimate the
+ * signal power in the empirical Wiener filter. It applies whenever the Gaussian
+ * model is learnt from the noisy patches, but currently it is implemented only 
+ * in the second step (it should always be used together with the NOISY_COVARIANCE2
+ * option defined). */
+#define LI_ZHANG_DAI1
+#define LI_ZHANG_DAI2
 
 /* Use nonlinear coefficient thresholding instead of empirical Wiener filter in
  * Step 1. Parameter beta is used to control the threshold beta*sigma². */
@@ -76,7 +85,7 @@
 /* Corrects the 'centering bug' discovered by Nicola. In the second step, basic
  * and noisy patches are centered using the basic baricenter. If left undefined,
  * each set of patches (noisy and basic) are centered using their own baricenter. */
-#define BARICENTER_BASIC
+//#define BARICENTER_BASIC
 
 /* The parameter beta is used as a noise correction factor. It provides a way 
  * to control the thresholding/filtering strength of the algorithm, by modifying
@@ -93,15 +102,7 @@
 
 /* Compute the 2nd step covariance matrix from the noisy patches. In this way,
  * the basic estimate is used only in the computation of the patch distances.*/
-//#define NOISY_COVARIANCE
-//#define THRESHOLD_WEIGHTS2
-
-/* Uses an adaptation of Li,Zhand,Dai fixed point iteration to estimate the
- * signal power in the empirical Wiener filter. It applies whenever the Gaussian
- * model is learnt from the noisy patches, but currently it is implemented only 
- * in the second step (it should always be used together with the NOISY_COVARIANCE
- * option defined). */
-//#define LI_ZHANG_DAI
+#define NOISY_COVARIANCE2
 
 /* Decouple the frames of the 3D patches in the 2nd step. This implies that
  * each frame is considered independent of the others. Thus instead of
@@ -476,11 +477,14 @@ std::vector<float> runNlBayes(
 #ifdef USE_SVD_IDDIST
 		printf(ANSI_BCYN "USE_SVD_IDDIST > Computing SVD using ID\n" ANSI_RST);
 #endif
-#ifdef NOISY_COVARIANCE
-		printf(ANSI_BCYN "NOISY_COVARIANCE > Computing 2nd step cov. matrix from noisy patches.\n" ANSI_RST);
+#ifdef NOISY_COVARIANCE2
+		printf(ANSI_BCYN "NOISY_COVARIANCE2 > Computing 2nd step cov. matrix from noisy patches.\n" ANSI_RST);
 #endif
-#ifdef LI_ZHANG_DAI
-		printf(ANSI_BCYN "LI_ZHANG_DAI > Using Li-Zhang-Dai's empirical Wiener.\n" ANSI_RST);
+#ifdef LI_ZHANG_DAI1
+		printf(ANSI_BCYN "LI_ZHANG_DAI1 > Using Li-Zhang-Dai's empirical Wiener, step 1.\n" ANSI_RST);
+#endif
+#if defined(LI_ZHANG_DAI2) && defined(NOISY_COVARIANCE2)
+		printf(ANSI_BCYN "LI_ZHANG_DAI2 > Using Li-Zhang-Dai's empirical Wiener, step 2.\n" ANSI_RST);
 #endif
 #ifdef BARICENTER_BASIC
 		printf(ANSI_BCYN "BARICENTER_BASIC > Centering noisy patches with basic baricenter.\n" ANSI_RST);
@@ -518,7 +522,7 @@ std::vector<float> runNlBayes(
 #if defined(LINEAR_HARD_THRESHOLDING2) && !defined(THRESHOLDING2) 
 		printf(ANSI_BCYN "LINEAR_HARD_THRESHOLDING2 > Variances hard thresholding step 2 instead of Wiener weights\n" ANSI_RST);
 #endif
-#if defined(NOISY_COVARIANCE) && defined(THRESHOLD_WEIGHTS2)
+#if defined(THRESHOLD_WEIGHTS2) && defined(NOISY_COVARIANCE2)
 		printf(ANSI_BCYN "THRESHOLD_WEIGHTS2 > Thresholding step 2 negative Wiener weights\n" ANSI_RST);
 #endif
 #ifdef FRAMES_DECOUPLED
@@ -1812,10 +1816,15 @@ float computeBayesEstimateStep1_externalBasis(
 			//! Compute eigenvalues-based coefficients of Bayes' filter
 			for (unsigned k = 0; k < r; ++k)
 			{
+				rank_variance  += i_mat.covEigVals[k];
 				float var = i_mat.covEigVals[k] - sigma2;
 
-#ifdef THRESHOLD_WEIGHTS1
+#if defined(THRESHOLD_WEIGHTS1)
 				var = std::max(0.f, var);
+#elif defined(LI_ZHANG_DAI1)
+				var += sigma2; // add back sigma2
+				var = (var < 4.f*sigma2) ? 0.f
+				    : (var - 2.f*sigma2 + sqrtf(var*(var - 4.f*sigma2)))*.5f;
 #endif
 
 #ifndef LINEAR_THRESHOLDING1
@@ -1823,9 +1832,9 @@ float computeBayesEstimateStep1_externalBasis(
 					                   var / ( var + beta_sigma2 ) : 
 											 0.f;
 #else
-				i_mat.covEigVals[k] = (i_mat.covEigVals[k] > 0.f) ? 1.f : 0.f;
+				// this doesn't make sense for Li-Zhang-Dai's variance
+				i_mat.covEigVals[k] = (var > 0.f) ? 1.f : 0.f;
 #endif
-				rank_variance  += i_mat.covEigVals[k];
 			}
 
 			//! U * W
@@ -1886,7 +1895,7 @@ float computeBayesEstimateStep1_externalBasisHyper(
 	const float sigma  = p_params.beta * p_params.sigma;
 	const float sigma2 = sigma * sigma;
 
-	const float sigmaM2 = p_params.sigma * p_params.sigma;
+	const float sigmaM2   = p_params.sigma    * p_params.sigma;
 	const float betaMAPM2 = p_params.betaMean * p_params.betaMean;
 	const float betaVARM2 = 1; //betaMAPM2;
 
@@ -2559,11 +2568,11 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 	const unsigned r    = p_params.rank;
 
 	//! Center 3D groups around their baricenter
-#ifdef NOISY_COVARIANCE
+#ifdef NOISY_COVARIANCE2
 	//! Center noisy patches with their baricenter
 	centerData(io_groupNoisy, i_mat.baricenter, p_nSimP, sPC);
 
-#else //NOISY_COVARIANCE
+#else //NOISY_COVARIANCE2
  #ifdef BARICENTER_BASIC
 	//! Center basic patches with their baricenter
 	centerData( i_groupBasic, i_mat.baricenter, p_nSimP, sPC);
@@ -2581,7 +2590,7 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 	centerData( i_groupBasic, i_mat.baricenter, p_nSimP, sPC);
 
  #endif//BARICENTER_BASIC
-#endif//NOISY_COVARIANCE
+#endif//NOISY_COVARIANCE2
 
 	float r_variance = 0.f;
 	float total_variance = 1.f;
@@ -2589,7 +2598,7 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 	if (r > 0)
 	{
 		//! Compute the covariance matrix of the set of similar patches
-#ifndef NOISY_COVARIANCE
+#ifndef NOISY_COVARIANCE2
 		covarianceMatrix(i_groupBasic, i_mat.covMat, p_nSimP, sPC);
 #else
 		covarianceMatrix(io_groupNoisy, i_mat.covMat, p_nSimP, sPC);
@@ -2603,7 +2612,7 @@ float computeBayesEstimateStep2_LR_EIG_LAPACK(
 		//! Compute leading eigenvectors
 		int info = matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
 
-#ifdef NOISY_COVARIANCE
+#ifdef NOISY_COVARIANCE2
 		//! Substract sigma2 and compute variance captured by the r leading eigenvectors
 		for (int i = 0; i < r; ++i)
 		{
@@ -2836,7 +2845,13 @@ float computeBayesEstimateStep2_externalBasis(
 ,	const unsigned p_nSimP
 ){
 	//! Parameters initialization
-	const float sigma2 = p_params.beta * p_params.sigma * p_params.sigma;
+	const float beta_sigma = p_params.beta * p_params.sigma;
+	const float beta_sigma2 = beta_sigma * beta_sigma;
+#ifndef USE_BETA_FOR_VARIANCE
+	const float sigma2 = p_params.sigma * p_params.sigma;
+#else
+	const float sigma2 = beta_sigma2;
+#endif
 	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
 	                    * p_params.sizePatchTime;
 	const unsigned r    = sPC; // p_params.rank; // XXX FIXME TODO
@@ -2888,7 +2903,7 @@ float computeBayesEstimateStep2_externalBasis(
 			 */
 
 			//! Project basic patches over basis: Z' = X'*U (to compute variances)
-#ifndef NOISY_COVARIANCE
+#ifndef NOISY_COVARIANCE2
 			productMatrix(i_mat.groupTranspose,
 			              groupBasic_c,
 			              i_mat.patch_basis,
@@ -2917,31 +2932,30 @@ float computeBayesEstimateStep2_externalBasis(
 				total_variance += i_mat.covEigVals[k];
 			}
 
-#ifdef NOISY_COVARIANCE
-			//! Substract sigma2 and compute variance captured by the r leading eigenvectors
+			//! Compute eigenvalues-based coefficients of Bayes' filter
 			for (int i = 0; i < r; ++i)
 			{
- #ifdef THRESHOLD_WEIGHTS2
-				i_mat.covEigVals[i] -= std::min(i_mat.covEigVals[i], sigma2);
- #else
-				i_mat.covEigVals[i] -= sigma2;
+				r_variance  += i_mat.covEigVals[i];
+				float var = i_mat.covEigVals[i];
+
+#ifdef NOISY_COVARIANCE2
+ #if defined(THRESHOLD_WEIGHTS2)
+				var -= std::min(var, sigma2);
+ #elif defined(LI_ZHANG_DAI2)
+				var = (var < 4.f*sigma2) ? 0.f
+				    : (var - 2.f*sigma2 + sqrtf(var*(var - 4.f*sigma2)))*.5f;
  #endif
-			}
 #endif
 
-			//! Compute variance captured by the r leading eigenvectors
-			for (int i = 0; i < r; ++i)
-				r_variance += i_mat.covEigVals[i];
-
-			//! Compute eigenvalues-based coefficients of Bayes' filter
-			for (unsigned k = 0; k < r; ++k)
 #if defined(LINEAR_HARD_THRESHOLDING2)
-				i_mat.covEigVals[k] = (i_mat.covEigVals[k] > sigma2) ? 1.f : 0.f;
+				i_mat.covEigVals[i] = var > beta_sigma2 ? 1.f : 0.f;
 #elif defined(LINEAR_SOFT_THRESHOLDING2)
-				i_mat.covEigVals[k] = (i_mat.covEigVals[k] > sigma2) ? 1.f - sigma2/i_mat.covEigVals[k] : 0.f;
+				i_mat.covEigVals[i] = var > beta_sigma2
+				                    ? 1.f - beta_sigma2/var : 0.f;
 #else
-				i_mat.covEigVals[k] = 1.f / ( 1. + sigma2 / i_mat.covEigVals[k] );
+				i_mat.covEigVals[i] = var / ( var + beta_sigma2);
 #endif
+			}
 
 			//! U * W
 			i_mat.covEigVecs.resize(sPC*sPC);
@@ -2952,7 +2966,7 @@ float computeBayesEstimateStep2_externalBasis(
 				*eigVecs++ = *basis++ * i_mat.covEigVals[k];
 
 			//! Project noisy patches over basis: Z' = X'*U
-#ifndef NOISY_COVARIANCE
+#ifndef NOISY_COVARIANCE2
 			productMatrix(i_mat.groupTranspose,
 			              groupNoisy_c,
 			              i_mat.patch_basis,
@@ -3236,7 +3250,7 @@ float computeBayesEstimateStep2_externalBasisTh(
 			 */
 
 			//! Project basic patches over basis: Z' = X'*U (to compute variances)
-#ifndef NOISY_COVARIANCE
+#ifndef NOISY_COVARIANCE2
 			productMatrix(i_mat.groupTranspose,
 			              groupBasic_c,
 			              i_mat.patch_basis,
@@ -3269,7 +3283,7 @@ float computeBayesEstimateStep2_externalBasisTh(
 			//! Substract sigma2 and compute variance captured by the r leading eigenvectors
 			for (int i = 0; i < r; ++i)
 			{
- #ifdef NOISY_COVARIANCE
+ #ifdef NOISY_COVARIANCE2
 				float tmp = std::max(i_mat.covEigVals[i] - sigma2, 0.f);
  #else
 				float tmp = i_mat.covEigVals[i];
