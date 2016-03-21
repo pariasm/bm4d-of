@@ -7,7 +7,8 @@ set(PROJECT_VERSION_MAJOR  3)
 set(PROJECT_VERSION_MINOR  2)
 set(PROJECT_VERSION_PATCH  0)
 
-set(PROJECT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
+set(PROJECT_VERSION
+    "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
     CACHE INTERNAL "The project version.")
 
 ###############################################################################
@@ -44,6 +45,8 @@ endif()
 ###############################################################################
 
 add_subdirectory(lib/id_dist)
+add_subdirectory(lib/iio)
 add_subdirectory(src/NlBayes)
 add_subdirectory(src)
 add_subdirectory(src/unit_tests)
+

@@ -1,18 +1,18 @@
 
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/lib)
 include_directories(${CMAKE_SOURCE_DIR}/src/Utilities)
+include_directories(${IIO_INCLUDE_DIR})
 
 add_library(videoNlBayes SHARED
 	VideoNLBayes.cpp
 	LibMatrix.cpp
-	../Utilities/io_png.c
 	../Utilities/LibImages.cpp
 	../Utilities/LibVideoT.cpp
 	../Utilities/mt19937ar.c
 	../Utilities/Utilities.cpp
 	)
 
-target_link_libraries(videoNlBayes id)
+target_link_libraries(videoNlBayes id iio)
 
 set_target_properties(videoNlBayes PROPERTIES
 	SOVERSION ${PROJECT_VERSION})
