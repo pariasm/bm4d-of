@@ -33,6 +33,9 @@ message(STATUS "Setting CMAKE_PREFIX_PATH as " ${CMAKE_PREFIX_PATH} " for local 
 find_package( CBLAS REQUIRED )
 find_package( LAPACKE REQUIRED )
 
+find_path (FFTW_INCLUDES fftw3.h)
+find_library (FFTWF_LIBRARIES NAMES fftw3f)
+
 ###############################################################################
 
 FIND_PACKAGE( OpenMP REQUIRED)

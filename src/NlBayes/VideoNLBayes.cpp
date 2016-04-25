@@ -38,6 +38,8 @@
 //#define DCT_DONT_CENTER1
 //#define DCT_DONT_CENTER2
 
+#define USE_FFTW
+
 /* Shrinks the mean to 0 with an empirical hyper-Bayesian approach. */
 //#define MEAN_HYPERPRIOR1
 //#define MEAN_HYPERPRIOR2
@@ -57,8 +59,8 @@
  * model is learnt from the noisy patches, but currently it is implemented only 
  * in the second step (it should always be used together with the NOISY_COVARIANCE2
  * option defined). */
-#define LI_ZHANG_DAI1
-#define LI_ZHANG_DAI2
+//#define LI_ZHANG_DAI1
+//#define LI_ZHANG_DAI2
 
 /* Use nonlinear coefficient thresholding instead of empirical Wiener filter in
  * Step 1. Parameter beta is used to control the threshold beta*sigma². */
@@ -85,7 +87,7 @@
 /* Corrects the 'centering bug' discovered by Nicola. In the second step, basic
  * and noisy patches are centered using the basic baricenter. If left undefined,
  * each set of patches (noisy and basic) are centered using their own baricenter. */
-//#define BARICENTER_BASIC
+#define BARICENTER_BASIC
 
 /* The parameter beta is used as a noise correction factor. It provides a way 
  * to control the thresholding/filtering strength of the algorithm, by modifying
@@ -102,7 +104,7 @@
 
 /* Compute the 2nd step covariance matrix from the noisy patches. In this way,
  * the basic estimate is used only in the computation of the patch distances.*/
-#define NOISY_COVARIANCE2
+//#define NOISY_COVARIANCE2
 
 /* Decouple the frames of the 3D patches in the 2nd step. This implies that
  * each frame is considered independent of the others. Thus instead of
@@ -142,6 +144,11 @@
 
 namespace VideoNLB
 {
+
+#ifdef USE_FFTW
+// define global dct thread handler
+DCTThreadsHandler globalDCT;
+#endif
 
 /**
  * @brief Initialize Parameters of the NL-Bayes algorithm.
@@ -485,6 +492,9 @@ std::vector<float> runNlBayes(
 	//! Print compiler options
 	if (p_prms1.verbose)
 	{
+#ifdef USE_FFTW 
+		printf(ANSI_BCYN "USE_FFTW > \n" ANSI_RST);
+#endif
 #ifdef DCT_BASIS
 		printf(ANSI_BCYN "DCT_BASIS > Using DCT basis\n" ANSI_RST);
 #endif
@@ -616,6 +626,15 @@ std::vector<float> runNlBayes(
 		std::vector<VideoUtils::CropPosition > imCrops(nParts);
 		VideoUtils::subDivideTight(imNoisy, imNoisySub, imCrops, p_prms1.boundary, nParts);
 
+#ifdef USE_FFTW
+		//! Initialize DCT algorithms
+		globalDCT.init(p_prms1.sizePatch,
+		               p_prms1.sizePatch,
+		               p_prms1.sizePatchTime,
+		               p_prms1.nSimilarPatches,
+		               nThreads);
+#endif
+
 		//! Process all sub-images
 		std::vector<Video<float> > imBasicSub(nParts);
 		std::vector<Video<float> > imFinalSub(nParts);
@@ -631,6 +650,11 @@ std::vector<float> runNlBayes(
 		for (int n = 0; n < (int)nParts; n++)
 			groupsProcessedSub[n] = 
 				processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms1, imCrops[n]);
+
+#ifdef USE_FFTW
+		//! Destroy DCT algorithms
+		globalDCT.destroy();
+#endif
 
 		//! Get the basic estimate
 		VideoUtils::subBuildTight(imBasicSub, o_imBasic, p_prms1.boundary);
@@ -697,6 +721,14 @@ std::vector<float> runNlBayes(
 		VideoUtils::subDivideTight(  imNoisy, imNoisySub, imCrops, p_prms2.boundary, nParts);
 		VideoUtils::subDivideTight(o_imBasic, imBasicSub, imCrops, p_prms2.boundary, nParts);
 
+#ifdef USE_FFTW
+		//! Initialize DCT algorithms
+		globalDCT.init(p_prms2.sizePatch,
+		               p_prms2.sizePatch,
+		               p_prms2.sizePatchTime,
+		               p_prms2.nSimilarPatches);
+#endif
+
 		//! Process all sub-images
 		std::vector<Video<float> > imFinalSub(nParts);
 		std::vector<float> groupsProcessedSub(nParts);
@@ -711,6 +743,11 @@ std::vector<float> runNlBayes(
 		for (int n = 0; n < (int) nParts; n++)
 			groupsProcessedSub[n] = 
 				processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms2, imCrops[n]);
+
+#ifdef USE_FFTW
+		//! Destroy DCT algorithms
+		globalDCT.destroy();
+#endif
 
 		//! Get the final result
 		VideoUtils::subBuildTight(imFinalSub, o_imFinal, p_prms2.boundary);
@@ -889,16 +926,18 @@ unsigned processNlBayes(
 	vector<unsigned> index(patch_num);
 	matWorkspace mat;
 	mat.groupTranspose.resize(patch_num * patch_dim);
-	mat.tmpMat          .resize(patch_dim * patch_dim);
-	mat.covMat          .resize(patch_dim * patch_dim);
-	mat.covMatTmp       .resize(patch_dim * patch_dim);
-	mat.baricenter      .resize(patch_dim);
+	mat.tmpMat        .resize(patch_dim * patch_dim);
+	mat.covMat        .resize(patch_dim * patch_dim);
+	mat.covMatTmp     .resize(patch_dim * patch_dim);
+	mat.baricenter    .resize(patch_dim);
 
 	//! Store DCT basis
+	const unsigned sPc = 1; // number of channels TODO: obsolete!
 	mat.patch_basis.resize(patch_dim * patch_dim);
+	mat.patch_basis_x.resize(sPx * sPc * sPx * sPc);
+	mat.patch_basis_y.resize(sPx * sPc * sPx * sPc);
+	mat.patch_basis_t.resize(sPt * sPc * sPt * sPc);
 	{
-		// channels in patch
-		const unsigned sPc = 1;
 
 		// 1D DCT basis for signals of length sPx
 		std::vector<float> cosx(sPx * sPx);
@@ -927,6 +966,25 @@ unsigned processNlBayes(
 				mat.patch_basis[i] = (nc == kc) ? cosx[kx * sPx + nx] 
 				                                * cosx[ky * sPx + ny] 
 				                                * cost[kt * sPt + nt] : 0; 
+
+		//! 1D DCT bases
+		for (unsigned kc = 0, i = 0; kc < sPc; kc++)
+		for (unsigned kx = 0       ; kx < sPx; kx++) // basis vectors
+			for (unsigned nc = 0    ; nc < sPc; nc++)
+			for (unsigned nx = 0    ; nx < sPx; nx++, i++) // patch positions 
+				mat.patch_basis_x[i] = (nc == kc) ? cosx[kx * sPx + nx] : 0; 
+
+		for (unsigned kc = 0, i = 0; kc < sPc; kc++)
+		for (unsigned ky = 0       ; ky < sPx; ky++) // basis vectors
+			for (unsigned nc = 0    ; nc < sPc; nc++)
+			for (unsigned ny = 0    ; ny < sPx; ny++, i++) // patch positions 
+				mat.patch_basis_y[i] = (nc == kc) ? cosx[ky * sPx + ny] : 0; 
+
+		for (unsigned kc = 0, i = 0; kc < sPc; kc++)
+		for (unsigned kt = 0       ; kt < sPt; kt++) // basis vectors
+			for (unsigned nc = 0    ; nc < sPc; nc++)
+			for (unsigned nt = 0    ; nt < sPt; nt++, i++) // patch positions 
+				mat.patch_basis_t[i] = (nc == kc) ? cost[kt * sPt + nt] : 0; 
 	
 		/*! Verify
 		for (unsigned kx = 0, i = 0; kx < sPx; kx++)
@@ -1278,12 +1336,21 @@ unsigned estimateSimilarPatchesStep1(
 	const unsigned w   = i_im.sz.width;
 	const unsigned wh  = i_im.sz.wh;
 	const unsigned whc = i_im.sz.whc;
+#ifdef USE_FFTW
+	for (unsigned c  = 0; c < i_im.sz.channels; c++)
+	for (unsigned n  = 0, k = 0; n < nSimP; n++)
+	for (unsigned ht = 0;        ht < sPt; ht++)
+	for (unsigned hy = 0;        hy < sPx; hy++)
+	for (unsigned hx = 0;        hx < sPx; hx++, k++)
+		o_group[c][k] = i_im(c * wh + o_index[n] + ht * whc + hy * w + hx);
+#else
 	for (unsigned c  = 0; c < i_im.sz.channels; c++)
 	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
 	for (unsigned hy = 0;        hy < sPx; hy++)
 	for (unsigned hx = 0;        hx < sPx; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
 		o_group[c][k] = i_im(c * wh + o_index[n] + ht * whc + hy * w + hx);
+#endif
 
 	/* 000  pixels from all patches
 	 * 001  pixels from all patches
@@ -1760,6 +1827,134 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 	// return percentage of captured variance
 	return rank_variance / total_variance;
 }
+
+#ifdef USE_FFTW
+/**
+ * @brief Implementation of computeBayesEstimateStep1_LR using an 
+ * external basis provided by the user in the workspace i_mat.covEigVecs.
+ *
+ * See computeBayesEstimateStep1_LR for information about the arguments.
+ **/
+float computeBayesEstimateStep1_externalBasisFFTW(
+	std::vector<std::vector<float> > &io_group
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+){
+	//! Parameters initialization
+	const float beta_sigma = p_params.beta * p_params.sigma;
+	const float beta_sigma2 = beta_sigma * beta_sigma;
+#ifndef USE_BETA_FOR_VARIANCE
+	const float sigma2 = p_params.sigma * p_params.sigma;
+#else
+	const float sigma2 = beta_sigma2;
+#endif
+	const unsigned sPC = p_params.sizePatch * p_params.sizePatch
+	                   * p_params.sizePatchTime;
+	const unsigned r   = sPC; // p_params.rank; // XXX FIXME TODO
+
+	const float inSimP = 1.f/(float)p_nSimP;
+
+	//! Variances
+	float  rank_variance = 0.f;
+	float total_variance = 0.f;
+
+	for (unsigned c = 0; c < io_group.size(); c++)
+	{
+#ifndef DCT_DONT_CENTER1
+		//! Center 3D group
+		i_mat.baricenter.assign(sPC, 0.f);
+		for (int i = 0; i < p_nSimP; ++i)
+		for (int k = 0; k < sPC; ++k)
+			i_mat.baricenter[k] += io_group[c][i*sPC + k] * inSimP;
+
+		for (int i = 0; i < p_nSimP; ++i)
+		for (int k = 0; k < sPC; ++k)
+			io_group[c][i*sPC + k] -= i_mat.baricenter[k];
+#endif
+
+		if (r > 0)
+		{
+			//! Forward DCT
+//			printMatrix(io_group[c], p_nSimP, sPC, "g.asc");
+			globalDCT.forward(io_group[c]);
+
+//			printMatrix(io_group[c], p_nSimP, sPC, "dctg.asc");
+
+//	while (1) int a;
+
+			//! Compute variance over each component
+			i_mat.covEigVals.assign(sPC, 0.f);
+			for (int i = 0; i < p_nSimP; ++i)
+			for (int k = 0; k < sPC; ++k)
+				i_mat.covEigVals[k] += io_group[c][i*sPC + k]
+				                     * io_group[c][i*sPC + k];
+
+			for (int k = 0; k < sPC; ++k)
+			{
+				i_mat.covEigVals[k] *= inSimP;
+				total_variance += i_mat.covEigVals[k];
+			}
+
+			//! Compute eigenvalues-based coefficients of Bayes' filter
+			for (unsigned k = 0; k < r; ++k)
+			{
+				rank_variance += i_mat.covEigVals[k];
+				float var = i_mat.covEigVals[k] - sigma2;
+
+#if defined(THRESHOLD_WEIGHTS1)
+				var = std::max(0.f, var);
+#elif defined(LI_ZHANG_DAI1)
+				var += sigma2; // add back sigma2
+				var = (var < 4.f*sigma2) ? 0.f
+				    : (var - 2.f*sigma2 + sqrtf(var*(var - 4.f*sigma2)))*.5f;
+#endif
+
+#ifndef LINEAR_THRESHOLDING1
+				i_mat.covEigVals[k] = (fabs(var + beta_sigma2) > 1e-8f) ? 
+					                   var / ( var + beta_sigma2 ) : 
+											 0.f;
+#else
+				// this doesn't make sense for Li-Zhang-Dai's variance
+				i_mat.covEigVals[k] = (var > 0.f) ? 1.f : 0.f;
+#endif
+			}
+
+			//! W*Z
+			for (int i = 0; i < p_nSimP; ++i)
+			for (int k = 0; k < sPC; ++k)
+				io_group[c][i*sPC + k] *= i_mat.covEigVals[k];
+
+			//! Inverse DCT
+			globalDCT.inverse(io_group[c]);
+
+#ifndef DCT_DONT_CENTER1
+			//! Add baricenter
+			for (int i = 0; i < p_nSimP; ++i)
+			for (int k = 0; k < sPC; ++k)
+				io_group[c][i*sPC + k] += i_mat.baricenter[k];
+#endif
+		}
+		else
+		{
+#ifndef DCT_DONT_CENTER1
+			//! rank = 0: set as baricenter
+			for (int i = 0; i < p_nSimP; ++i)
+			for (int k = 0; k < sPC; ++k)
+				io_group[c][i*sPC + k] = i_mat.baricenter[k];
+#endif
+
+			//! Avoid 0/0 in return statement
+			total_variance = 1.f;
+		}
+	}
+
+	// return percentage of captured variance
+	return rank_variance / total_variance;
+}
+#endif
+
 
 /**
  * @brief Implementation of computeBayesEstimateStep1_LR using an 
@@ -2489,7 +2684,11 @@ float computeBayesEstimateStep1_LR(
 		computeBayesEstimateStep1_LR_SVD_LAPACK(io_group, i_mat,
 			io_nInverseFailed, p_params, p_nSimP);
 #elif (defined(DCT_BASIS) && !defined(THRESHOLDING1) && !defined(MEAN_HYPERPRIOR1))
+  #ifdef USE_FFTW
+		computeBayesEstimateStep1_externalBasisFFTW(io_group, i_mat,
+  #else
 		computeBayesEstimateStep1_externalBasis(io_group, i_mat,
+  #endif
 			io_nInverseFailed, p_params, p_nSimP);
 #elif (defined(DCT_BASIS) &&  defined(THRESHOLDING1))
 		computeBayesEstimateStep1_externalBasisTh(io_group, i_mat,
@@ -3704,6 +3903,7 @@ int computeAggregationStep1(
 	const unsigned h   = io_im.sz.height;
 	const unsigned wh  = io_im.sz.wh;
 	const unsigned whc = io_im.sz.whc;
+	const unsigned sPC = sPx*sPx*sPt;
 
 	int masked = 0;
 
@@ -3720,8 +3920,13 @@ int computeAggregationStep1(
 			for (unsigned c = 0; c < chnls; c++)
 			{
 				const unsigned ij = ind  + c * wh;
+#ifdef USE_FFTW
+				io_im(ij + pt * whc + py * w + px) += 
+					i_group[c][n*sPC + pt*sPx*sPx + py*sPx + px];
+#else
 				io_im(ij + pt * whc + py * w + px) += 
 					i_group[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
+#endif
 			}
 			io_weight(ind1 + pt * wh + py * w + px)++;
 		}

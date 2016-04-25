@@ -15,6 +15,7 @@
 
 #include "../Utilities/LibVideoT.hpp"
 #include "../Utilities/Utilities.h"
+#include "LibDCT.h"
 
 namespace VideoNLB
 {
@@ -105,6 +106,11 @@ struct matWorkspace
 
 	// store a fixed patch basis (eg. DCT)
 	std::vector<float> patch_basis;
+
+	// store a sepparable fixed patch basis (eg. DCT)
+	std::vector<float> patch_basis_x;
+	std::vector<float> patch_basis_y;
+	std::vector<float> patch_basis_t;
 };
 
 /**
@@ -134,7 +140,6 @@ void initializeNlbParameters(
 ,	const unsigned rank = 4
 );
 
-
 /**
  * @brief Sets size of spatial search window. It sets the border width accordingly,
  * and also ensures that the number of similar patches is not larger that the 
@@ -150,7 +155,6 @@ void setSizeSearchWindow(
 ,	unsigned sizeSearchWindow
 );
 
-
 /**
  * @brief Sets size of the patch. It sets the pixel offset as half the patch
  * size (this is BM3D speed-up).
@@ -165,7 +169,6 @@ void setSizePatch(
 ,	const VideoSize &p_size
 ,	unsigned sizePatch
 );
-
 
 /**
  * @brief Sets number of similar patches, ensuring that the number of similar
