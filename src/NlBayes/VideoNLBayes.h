@@ -178,9 +178,22 @@ void setSizePatch(
  **/
 void setNSimilarPatches(
 	nlbParams& prms
-, unsigned nSimilarPatches
+,	unsigned nSimilarPatches
 );
 
+/**
+ * @brief Sets the distance threshold relative to the patch size.
+ *
+ * @param prms : nlbParams for first or second step of the algorithm;
+ * @param tau  : distance threshold;
+ *
+ * @return none.
+ **/
+void setTau(
+	nlbParams& prms
+,	const VideoSize &p_size
+,	float tau
+);
 
 /**
  * @brief Display parameters of the NL-Bayes algorithm.

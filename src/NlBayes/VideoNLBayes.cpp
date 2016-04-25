@@ -324,6 +324,7 @@ void setSizeSearchWindow(nlbParams& prms, unsigned sizeSearchWindow)
  **/
 void setSizePatch(nlbParams& prms, const VideoSize &size, unsigned sizePatch)
 {
+	int sizePatch_old = prms.sizePatch;
 	prms.sizePatch = sizePatch;
 	prms.boundary = 2*(prms.sizeSearchWindow/2) + (prms.sizePatch - 1);
 	prms.offSet = sizePatch/2;
@@ -334,6 +335,10 @@ void setSizePatch(nlbParams& prms, const VideoSize &size, unsigned sizePatch)
 		prms.nSimilarPatches = prms.sizePatch * prms.sizePatch * 3 * 
 		                      (prms.sizeSearchTimeRangeFwd + 
 		                       prms.sizeSearchTimeRangeBwd + 1);
+
+	if (!prms.isFirstStep)
+		prms.tau *= (float)(prms.sizePatch * prms.sizePatch) 
+		          / (float)( sizePatch_old *  sizePatch_old);
 }
 
 /**
@@ -352,6 +357,21 @@ void setNSimilarPatches(nlbParams& prms, unsigned nSimilarPatches)
 	                                                 prms.sizeSearchWindow *
 	                                                (prms.sizeSearchTimeRangeFwd +
 	                                                 prms.sizeSearchTimeRangeBwd + 1));
+}
+
+/**
+ * @brief Sets the distance threshold relative to the patch size.
+ *
+ * @param prms : nlbParams for first or second step of the algorithm;
+ * @param tau  : distance threshold;
+ *
+ * @return none.
+ **/
+void setTau(nlbParams& prms, const VideoSize &size, float tau)
+{
+	prms.tau = (!prms.isFirstStep) 
+	         ? tau * tau * prms.sizePatch * prms.sizePatch * size.channels
+	         : 0.f;
 }
 
 /**
@@ -939,6 +959,7 @@ unsigned processNlBayes(
 		}*/
 	}
 
+
 	//! Variance captured by the principal components
 	Video<float> variance(mask.sz);
 
@@ -1375,10 +1396,8 @@ unsigned estimateSimilarPatchesStep2(
 		                  distance.end(), comparaisonFirst);
 
 		if (nSimP <  p_params.nSimilarPatches)
-		{
 			printf("SR2 [%d,%d,%d] ~ [%d-%d, %d-%d, %d-%d] - nsim = %d\n", 
 					px,py,pt,rangex[0], rangex[1], rangey[0], rangey[1], ranget[0], ranget[1], nSimP);
-		}
 
 		//! Save index of similar patches
 		const float threshold = (p_params.tau > distance[nSimP - 1].first ?
@@ -1389,6 +1408,9 @@ unsigned estimateSimilarPatchesStep2(
 		for (unsigned n = 0; n < distance.size(); n++)
 			if (distance[n].first < threshold)
 				o_index[nSimP++] = distance[n].second;
+
+		if (nSimP > p_params.nSimilarPatches)
+			printf("SR2 [%d,%d,%d] ~ nsim = %d\n", px,py,pt, nSimP);
 	}
 	else // nSimilarPatches == 1
 		o_index[0] = pidx;

@@ -61,8 +61,9 @@ int main(int argc, char **argv)
 
 	//! General parameters
 	const float sigma = clo_option("-sigma", 0.f, "Add noise of standard deviation sigma");
-	const bool do_bias  = (bool) clo_option("-compute-bias", false, "> compute bias outputs");
-	const bool verbose  = (bool) clo_option("-verbose"     , true , "> verbose output");
+	const bool has_noise = (bool) clo_option("-has-noise"   , false, "> input image already has noise");
+	const bool do_bias   = (bool) clo_option("-compute-bias", false, "> compute bias outputs");
+	const bool verbose   = (bool) clo_option("-verbose"     , true , "> verbose output");
 	const unsigned print_prms = (unsigned) clo_option("-print-prms", 0, "> prints parameters for given channels");
 
 	//! Video NLB parameters
@@ -84,6 +85,7 @@ int main(int argc, char **argv)
 	const float beta2       = clo_option("-b2" ,-1.f, "> Noise correction factor beta, step 2");
 	const float beta_mean1  = clo_option("-bm1",-1.f, "> Noise correction factor beta for mean, step 1");
 	const float beta_mean2  = clo_option("-bm2",-1.f, "> Noise correction factor beta for mean, step 2");
+	const float tau2        = clo_option("-t2" ,-1.f, "> Step 2 distance threshold");
 
 	//! Check inputs
 	if (input_path == "")
@@ -161,10 +163,11 @@ int main(int argc, char **argv)
 		if (beta2         >= 0) prms2.beta = beta2;
 		if (beta_mean1    >= 0) prms1.betaMean = beta_mean1;
 		if (beta_mean2    >= 0) prms2.betaMean = beta_mean2;
+		if (tau2          >= 0) VideoNLB::setTau(prms2, tmp, tau2);
 
 		prms1.rank = rank1;
 		prms2.rank = rank2;
-
+ 
 		VideoNLB::printNlbParameters(prms1);
 		VideoNLB::printNlbParameters(prms2);
 
@@ -180,20 +183,33 @@ int main(int argc, char **argv)
 	if (mode == DENO_ONLY) basic   .loadVideo(inbsc_path, firstFrame, lastFrame, frameStep);
 
 	//! Add noise
-	if (sigma)
+	if (has_noise)
+	{
+		if (verbose) printf("Input video has noise of sigma = %f\n", sigma);
+		noisy = original;
+	}
+	else if (sigma)
 		VideoUtils::addNoise(original, noisy, sigma, verbose);
 
+	//! Save noisy video
 	if (mode == NISY_ONLY)
 	{
-		float noisy_psnr = -1, noisy_rmse = -1;
-		VideoUtils::computePSNR(original, noisy, noisy_psnr, noisy_rmse);
-		writingMeasures("measures.txt", sigma, noisy_psnr, noisy_rmse, 0, true, "_noisy");
+		if (!has_noise && sigma)
+		{
+			float noisy_psnr = -1, noisy_rmse = -1;
+			VideoUtils::computePSNR(original, noisy, noisy_psnr, noisy_rmse);
+			writingMeasures("measures.txt", sigma, noisy_psnr, noisy_rmse, 0, true, "_noisy");
 
-		//! Save noisy video
-		if (verbose) printf("Saving noisy video\n");
-		noisy.saveVideo(noisy_path, firstFrame, frameStep);
+			if (verbose) printf("Saving noisy video\n");
+			noisy.saveVideo(noisy_path, firstFrame, frameStep);
 
-		return EXIT_SUCCESS;
+			return EXIT_SUCCESS;
+		}
+		else
+		{
+			fprintf(stderr, "Noisy video not saved since is equal to original input.\n");
+			return EXIT_FAILURE;
+		}
 	}
 
 	//! Denoising
@@ -215,6 +231,7 @@ int main(int argc, char **argv)
 	if (beta2         >= 0) prms2.beta = beta2;
 	if (beta_mean1    >= 0) prms1.betaMean = beta_mean1;
 	if (beta_mean2    >= 0) prms2.betaMean = beta_mean2;
+	if (tau2          >= 0) VideoNLB::setTau(prms2, noisy.sz, tau2);
 
 	prms1.rank = rank1;
 	prms2.rank = rank2;
