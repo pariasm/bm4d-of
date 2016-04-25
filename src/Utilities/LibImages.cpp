@@ -117,7 +117,7 @@ int saveImage(
 
     //! Check for boundary problems
     for (unsigned k = 0; k < p_imSize.whc; k++) {
-        imTmp[k] = clip(i_im[k], p_min, p_max);
+        imTmp[k] = i_im[k];
     }
 
     iio_save_image_float_split(p_name, imTmp,
