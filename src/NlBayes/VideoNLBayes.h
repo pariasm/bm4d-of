@@ -59,6 +59,7 @@ struct nlbParams
 	float beta;                // noise correction factor
 	float betaMean;            // noise correction factor for patch barycenter
 	float tau;                 // depends on sizePatch
+	float aggreGamma;          // control aggregation weights decay
 	bool isFirstStep;
 	bool doPasteBoost;
 	bool verbose;
@@ -380,6 +381,7 @@ int computeHomogeneousAreaStep2(
  * @param io_nInverseFailed: update the number of failed matrix inversion;
  * @param p_params: see processStep1 for more explanation.
  * @param p_nSimP: number of similar patches.
+ * @param aggreWeights: output aggregation weights.
  *
  * @return none.
  **/
@@ -389,6 +391,7 @@ float computeBayesEstimateStep1_FR(
 ,	unsigned &io_nInverseFailed
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
+,	std::vector<std::vector<float> > &aggreWeights 
 );
 
 /**
@@ -404,6 +407,7 @@ float computeBayesEstimateStep1_FR(
  * @param io_nInverseFailed: update the number of failed matrix inversion;
  * @param p_params: see processStep1 for more explanation.
  * @param p_nSimP: number of similar patches.
+ * @param aggreWeights: output aggregation weights.
  *
  * @return none.
  **/
@@ -413,6 +417,7 @@ float computeBayesEstimateStep1_LR(
 ,	unsigned &io_nInverseFailed
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
+,	std::vector<std::vector<float> > &aggreWeights 
 );
 
 /**
@@ -431,6 +436,7 @@ float computeBayesEstimateStep1_LR(
  * @param p_imSize: size of the video;
  * @param p_params: see processStep2 for more explanations;
  * @param p_nSimP: number of similar patches.
+ * @param aggreWeights: output aggregation weights.
  *
  * @return none.
  **/
@@ -442,6 +448,7 @@ float computeBayesEstimateStep2_FR(
 ,	const VideoSize &p_imSize
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
+,	std::vector<float> &aggreWeights 
 );
 
 /**
@@ -460,6 +467,7 @@ float computeBayesEstimateStep2_FR(
  * @param p_imSize: size of the image;
  * @param p_params: see processStep2 for more explanations;
  * @param p_nSimP: number of similar patches.
+ * @param aggreWeights: output aggregation weights.
  *
  * @return none.
  **/
@@ -471,6 +479,7 @@ float computeBayesEstimateStep2_LR(
 ,	const VideoSize &p_imSize
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
+,	std::vector<float> &aggreWeights 
 );
 
 /**
@@ -480,6 +489,7 @@ float computeBayesEstimateStep2_LR(
  * @param io_weight: update corresponding weight, used later in the weighted aggregation;
  * @param io_mask: update values of mask: set to true the index of an used patch;
  * @param i_group: contains estimated values of all similar patches in the 3D group;
+ * @param aggreWeights: input aggregation weights.
  * @param i_index: contains index of all similar patches contained in i_group;
  * @param p_params: see processStep1 for more explanation.
  * @param p_nSimP: number of similar patches.
@@ -491,6 +501,7 @@ int computeAggregationStep1(
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
 ,	std::vector<std::vector<float> > const& i_group
+,	std::vector<std::vector<float> > const& aggreWeights
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams& p_params
 ,	const unsigned p_nSimP
@@ -503,6 +514,7 @@ int computeAggregationStep1(
  * @param io_weight: update corresponding weight, used later in the weighted aggregation;
  * @param io_mask: update values of mask: set to true the index of an used patch;
  * @param i_group: contains estimated values of all similar patches in the 3D group;
+ * @param aggreWeights: input aggregation weights.
  * @param i_index: contains index of all similar patches contained in i_group;
  * @param p_params: see processStep2 for more explanation;
  * @param p_nSimP: number of similar patches.
@@ -515,6 +527,7 @@ int computeAggregationStep2(
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
 ,	std::vector<float> const& i_group
+,	std::vector<float> const& aggreWeights
 ,	Video<float> &variance
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams& p_params

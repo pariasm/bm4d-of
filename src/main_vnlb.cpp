@@ -86,6 +86,8 @@ int main(int argc, char **argv)
 	const float beta_mean1  = clo_option("-bm1",-1.f, "> Noise correction factor beta for mean, step 1");
 	const float beta_mean2  = clo_option("-bm2",-1.f, "> Noise correction factor beta for mean, step 2");
 	const float tau2        = clo_option("-t2" ,-1.f, "> Step 2 distance threshold");
+	const float aggre1      = clo_option("-ag1", 0.f, "> Decay of aggregation weights, step 1");
+	const float aggre2      = clo_option("-ag2", 0.f, "> Decay of aggregation weights, step 2");
 
 	//! Check inputs
 	if (input_path == "")
@@ -167,6 +169,9 @@ int main(int argc, char **argv)
 
 		prms1.rank = rank1;
 		prms2.rank = rank2;
+
+		prms1.aggreGamma = aggre1;
+		prms2.aggreGamma = aggre2;
  
 		VideoNLB::printNlbParameters(prms1);
 		VideoNLB::printNlbParameters(prms2);
@@ -235,6 +240,9 @@ int main(int argc, char **argv)
 
 	prms1.rank = rank1;
 	prms2.rank = rank2;
+
+	prms1.aggreGamma = aggre1;
+	prms2.aggreGamma = aggre2;
 
 	//! Percentage or processed groups of patches over total number of pixels
 	std::vector<float> groupsRatio;

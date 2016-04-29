@@ -51,7 +51,7 @@
  * coefficient is set to zero. This applies whenever the Gaussian model is
  * estimated from the noisy patches: in the first step, or in the second step
  * if NOISY_COVARIANCE2 option is defined. */
-//#define THRESHOLD_WEIGHTS1
+#define THRESHOLD_WEIGHTS1
 //#define THRESHOLD_WEIGHTS2
 
 /* Uses an adaptation of Li,Zhand,Dai fixed point iteration to estimate the
@@ -251,8 +251,11 @@ void initializeNlbParameters(
 	//! Noise correction factor in case of filtering the group baricenter
 	o_params.betaMean = 1.f;
 
-	// maximum rank of covariance matrix
+	//! Maximum rank of covariance matrix
 	o_params.rank = rank;
+
+	//! Decay of aggregation weights
+	o_params.aggreGamma = 0.f;
 
 	//! Parameter used to determine similar patches
 	//  Differs from manuscript (tau = 4) because (1) this threshold is to be used 
@@ -275,7 +278,6 @@ void initializeNlbParameters(
 #else
 	o_params.colorSpace = YUV;
 #endif
-	
 }
 
 /*	depend on sigma:
@@ -408,6 +410,7 @@ void printNlbParameters(
 	printf("\tGroup filtering:\n");
 	printf("\t\tBeta                        = %g\n"       , i_prms.beta);
 	printf("\t\tRank                        = %d\n"       , i_prms.rank);
+	printf("\t\tAggregation weights decay   = %g\n"       , i_prms.aggreGamma);
 #if defined(MEAN_HYPERPRIOR1) || defined(MEAN_HYPERPRIOR2)
 	printf("\t\tBeta (mean)                 = %g\n"       , i_prms.betaMean);
 #endif
@@ -483,6 +486,10 @@ std::vector<float> runNlBayes(
 ,	const nlbParams p_prms1
 ,	const nlbParams p_prms2
 ){
+	printf("Noisy video: %dx%dx%d channels %d\n", i_imNoisy.sz.width,
+	                                              i_imNoisy.sz.height,
+	                                              i_imNoisy.sz.frames,
+	                                              i_imNoisy.sz.channels);
 	//! Only 1, 3 or 4-channels images can be processed.
 	const unsigned chnls = i_imNoisy.sz.channels;
 	if (! (chnls == 1 || chnls == 3 || chnls == 4))
@@ -1031,6 +1038,7 @@ unsigned processNlBayes(
 
 		//! Matrices used for Bayes' estimate
 		vector<vector<float> > group(sz.channels, vector<float>(patch_num * patch_dim));
+		vector<vector<float> > aggreWeights(sz.channels, vector<float>(patch_num, 1.f));
 
 		int remaining_groups = n_groups;
 		for (unsigned pt = 0; pt < sz.frames; pt++)
@@ -1073,14 +1081,14 @@ unsigned processNlBayes(
 				if (doBayesEstimate)
 					float variance = 200.f * (p_params.rank < patch_dim)
 						? computeBayesEstimateStep1_LR(group, mat, nInverseFailed,
-								p_params, nSimP)
+								p_params, nSimP, aggreWeights)
 						: computeBayesEstimateStep1_FR(group, mat, nInverseFailed,
-								p_params, nSimP);
+								p_params, nSimP, aggreWeights);
 
 				//! Aggregation
 				remaining_groups -=
-					computeAggregationStep1(io_imBasic, weight, mask, group, index,
-						p_params, nSimP);
+					computeAggregationStep1(io_imBasic, weight, mask, group, aggreWeights, 
+							index, p_params, nSimP);
 			}
 
 		//! Weighted aggregation
@@ -1110,6 +1118,7 @@ unsigned processNlBayes(
 		//! Matrices used for Bayes' estimate
 		vector<float> groupNoisy(patch_num * patch_dim);
 		vector<float> groupBasic(patch_num * patch_dim);
+		vector<float> aggreWeights(patch_num, 1.f);
 
 		int remaining_groups = n_groups;
 		for (unsigned pt = 0; pt < sz.frames; pt++)
@@ -1152,14 +1161,14 @@ unsigned processNlBayes(
 				if (doBayesEstimate)
 					variance(ij) = 200.f * (p_params.rank < patch_dim)
 						? computeBayesEstimateStep2_LR(groupNoisy, groupBasic, mat,
-								nInverseFailed, sz, p_params, nSimP)
+								nInverseFailed, sz, p_params, nSimP, aggreWeights)
 						: computeBayesEstimateStep2_FR(groupNoisy, groupBasic, mat,
-								nInverseFailed, sz, p_params, nSimP);
+								nInverseFailed, sz, p_params, nSimP, aggreWeights);
 
 				//! Aggregation
 				remaining_groups -=
 					computeAggregationStep2(o_imFinal, weight, mask, groupNoisy,
-						variance, index, p_params, nSimP);
+						aggreWeights, variance, index, p_params, nSimP);
 			}
 
 		//! Weighted aggregation
@@ -1462,9 +1471,9 @@ unsigned estimateSimilarPatchesStep2(
 		std::partial_sort(distance.begin(), distance.begin() + nSimP,
 		                  distance.end(), comparaisonFirst);
 
-		if (nSimP <  p_params.nSimilarPatches)
+/*		if (nSimP <  p_params.nSimilarPatches)
 			printf("SR2 [%d,%d,%d] ~ [%d-%d, %d-%d, %d-%d] - nsim = %d\n", 
-					px,py,pt,rangex[0], rangex[1], rangey[0], rangey[1], ranget[0], ranget[1], nSimP);
+					px,py,pt,rangex[0], rangex[1], rangey[0], rangey[1], ranget[0], ranget[1], nSimP);*/
 
 		//! Save index of similar patches
 		const float threshold = (p_params.tau > distance[nSimP - 1].first ?
@@ -1476,8 +1485,8 @@ unsigned estimateSimilarPatchesStep2(
 			if (distance[n].first < threshold)
 				o_index[nSimP++] = distance[n].second;
 
-		if (nSimP > p_params.nSimilarPatches)
-			printf("SR2 [%d,%d,%d] ~ nsim = %d\n", px,py,pt, nSimP);
+/*		if (nSimP > p_params.nSimilarPatches)
+			printf("SR2 [%d,%d,%d] ~ nsim = %d\n", px,py,pt, nSimP);*/
 	}
 	else // nSimilarPatches == 1
 		o_index[0] = pidx;
@@ -1607,6 +1616,7 @@ int computeHomogeneousAreaStep2(
  * @param io_nInverseFailed: update the number of failed matrix inversion;
  * @param p_params: see processStep1 for more explanation.
  * @param p_nSimP: number of similar patches.
+ * @param aggreWeights: output aggregation weights.
  *
  * @return none.
  **/
@@ -1616,6 +1626,7 @@ float computeBayesEstimateStep1_FR(
 ,	unsigned &io_nInverseFailed
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
+,	std::vector<std::vector<float> > &aggreWeights 
 ){
 	//! Parameters
 	const unsigned chnls = io_group.size();
@@ -1641,6 +1652,14 @@ float computeBayesEstimateStep1_FR(
 								  sP2, sP2, p_nSimP);
 				for (unsigned k = 0; k < sP2 * p_nSimP; k++)
 					io_group[c][k] -= valDiag * i_mat.groupTranspose[k];
+
+				// Compute the weights for the aggregation step
+				productMatrix(aggreWeights[c], i_mat.groupTranspose, io_group[c],
+								  sP2, sP2, p_nSimP, true, false);
+
+				float igamma = 1.f/2.f/p_params.aggreGamma;
+				for(int n = 0; n < p_nSimP; ++n)
+					aggreWeights[c][n] = std::exp(-igamma * aggreWeights[c][n]);
 			}
 			else io_nInverseFailed++;
 
@@ -1716,6 +1735,7 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 ,	unsigned &io_nInverseFailed
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
+,	std::vector<std::vector<float> > &aggreWeights 
 ){
 	//! Parameters initialization
 	const float sigma2 = p_params.beta * p_params.sigma * p_params.sigma;
@@ -1743,6 +1763,67 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 
 			//! Compute leading eigenvectors
 			int info = matrixEigs(i_mat.covMat, sPC, r, i_mat.covEigVals, i_mat.covEigVecs);
+
+			/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
+			 * row a patch. Thus, in column-major storage it corresponds to X^T, where
+			 * each column of X contains a centered data point.
+			 *
+			 * We need to compute the noiseless estimage hX as 
+			 * hX = U * W * U' * X
+			 * where U is the matrix with the eigenvectors and W is a diagonal matrix
+			 * with the filter coefficients.
+			 *
+			 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
+			 * we compute 
+			 * hX' = X' * U * (W * U')
+			 */
+
+			//! Project over principal directions: Z' = X'*U
+			productMatrix(i_mat.groupTranspose,
+			              io_group[c],
+			              i_mat.covEigVecs,
+			              p_nSimP, r, sPC,
+			              false, false);
+
+			//! Compute aggregation weights
+			if (p_params.aggreGamma)
+			{
+				aggreWeights[c].assign(p_nSimP, 0.f);
+
+				//! Mahalanobis distance in the r principal directions
+				float tmp;
+				for (int i = 0; i < r; ++i)
+				{
+					const float iEigVal = 1.f/std::max(i_mat.covEigVals[i],sigma2);
+					for (int n = 0; n < p_nSimP; ++n)
+						aggreWeights[c][n] += (tmp = i_mat.groupTranspose[i*p_nSimP + n])
+						                   *  tmp * iEigVal ;
+				}
+
+
+				//! Mahalanobis distance orthogonal to the  r principal directions
+
+				//! Projection over r prin. dir. Xr' = Z'*U'
+				i_mat.tmpMat.resize(sPC*p_nSimP);
+				productMatrix(i_mat.tmpMat,
+								  i_mat.groupTranspose,
+								  i_mat.covEigVecs,
+								  p_nSimP, sPC, r,
+								  false, true);
+
+				//! Squared L2 distance to r principal space
+				const float isigma2 = 1.f/sigma2;
+				for (int i = 0; i < sPC    ; ++i)
+				for (int n = 0; n < p_nSimP; ++n)
+					aggreWeights[c][n] += isigma2 * (tmp = io_group[c][i*p_nSimP + n] -
+					                                      i_mat.tmpMat[i*p_nSimP + n]) * tmp;
+
+				//! Exponentiate
+				float igamma = 1.f/2.f/p_params.aggreGamma;
+				for(int n = 0; n < p_nSimP; ++n)
+					aggreWeights[c][n] = std::exp(-igamma * aggreWeights[c][n]);
+			}
+
 
 #if 0
 			//! Substract sigma2 and compute variance captured by the r leading eigenvectors
@@ -1773,26 +1854,6 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 			}
 #endif
 
-			/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
-			 * row a patch. Thus, in column-major storage it corresponds to X^T, where
-			 * each column of X contains a centered data point.
-			 *
-			 * We need to compute the noiseless estimage hX as 
-			 * hX = U * W * U' * X
-			 * where U is the matrix with the eigenvectors and W is a diagonal matrix
-			 * with the filter coefficients.
-			 *
-			 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
-			 * we compute 
-			 * hX' = X' * U * (W * U')
-			 */
-
-			//! Z' = X'*U
-			productMatrix(i_mat.groupTranspose,
-			              io_group[c],
-			              i_mat.covEigVecs,
-			              p_nSimP, r, sPC,
-			              false, false);
 
 			//! U * W
 			float *eigVecs = i_mat.covEigVecs.data();
@@ -1841,6 +1902,7 @@ float computeBayesEstimateStep1_externalBasisFFTW(
 ,	unsigned &io_nInverseFailed
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
+,	std::vector<std::vector<float> > &aggreWeights 
 ){
 	//! Parameters initialization
 	const float beta_sigma = p_params.beta * p_params.sigma;
@@ -1882,8 +1944,6 @@ float computeBayesEstimateStep1_externalBasisFFTW(
 
 //			printMatrix(io_group[c], p_nSimP, sPC, "dctg.asc");
 
-//	while (1) int a;
-
 			//! Compute variance over each component
 			i_mat.covEigVals.assign(sPC, 0.f);
 			for (int i = 0; i < p_nSimP; ++i)
@@ -1895,6 +1955,24 @@ float computeBayesEstimateStep1_externalBasisFFTW(
 			{
 				i_mat.covEigVals[k] *= inSimP;
 				total_variance += i_mat.covEigVals[k];
+			}
+
+			//! Compute aggregation weights
+			if (p_params.aggreGamma)
+			{
+				aggreWeights[c].assign(p_nSimP, 0.f);
+
+				//! Mahalanobis distance
+				float tmp;
+				for (int n = 0; n < p_nSimP; ++n)
+				for (int i = 0; i < sPC    ; ++i)
+						aggreWeights[c][n] += (tmp = io_group[c][n*sPC + i])
+						                    *  tmp / std::max(i_mat.covEigVals[i],sigma2);
+
+				//! Exponentiate
+				float igamma = 1.f/2.f/p_params.aggreGamma;
+				for(int n = 0; n < p_nSimP; ++n)
+					aggreWeights[c][n] = std::exp(-igamma * aggreWeights[c][n]);
 			}
 
 			//! Compute eigenvalues-based coefficients of Bayes' filter
@@ -1968,6 +2046,7 @@ float computeBayesEstimateStep1_externalBasis(
 ,	unsigned &io_nInverseFailed
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
+,	std::vector<std::vector<float> > &aggreWeights
 ){
 	//! Parameters initialization
 	const float beta_sigma = p_params.beta * p_params.sigma;
@@ -2028,6 +2107,27 @@ float computeBayesEstimateStep1_externalBasis(
 
 				i_mat.covEigVals[k] = comp_k_var / (float)p_nSimP;
 				total_variance += i_mat.covEigVals[k];
+			}
+
+			//! Compute aggregation weights
+			if (p_params.aggreGamma)
+			{
+				aggreWeights[c].assign(p_nSimP, 0.f);
+
+				//! Mahalanobis distance
+				float tmp;
+				for (int i = 0; i < sPC; ++i)
+				{
+					const float iEigVal = 1.f/std::max(i_mat.covEigVals[i],sigma2);
+					for (int n = 0; n < p_nSimP; ++n)
+						aggreWeights[c][n] += (tmp = i_mat.groupTranspose[i*p_nSimP + n])
+						                   *  tmp * iEigVal ;
+				}
+
+				//! Exponentiate
+				float igamma = 1.f/2.f/p_params.aggreGamma;
+				for(int n = 0; n < p_nSimP; ++n)
+					aggreWeights[c][n] = std::exp(-igamma * aggreWeights[c][n]);
 			}
 
 			//! Compute eigenvalues-based coefficients of Bayes' filter
@@ -2666,6 +2766,7 @@ float computeBayesEstimateStep1_LR_SVD_IDDIST(
  * @param io_nInverseFailed: update the number of failed matrix inversion;
  * @param p_params: see processStep1 for more explanation.
  * @param p_nSimP: number of similar patches.
+ * @param aggreWeights: output aggregation weights.
  *
  * @return none.
  **/
@@ -2675,6 +2776,7 @@ float computeBayesEstimateStep1_LR(
 ,	unsigned &io_nInverseFailed
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
+,	std::vector<std::vector<float> > &aggreWeights 
 ){
 	return
 #if defined(USE_SVD_IDDIST)
@@ -2689,7 +2791,7 @@ float computeBayesEstimateStep1_LR(
   #else
 		computeBayesEstimateStep1_externalBasis(io_group, i_mat,
   #endif
-			io_nInverseFailed, p_params, p_nSimP);
+			io_nInverseFailed, p_params, p_nSimP, aggreWeights);
 #elif (defined(DCT_BASIS) &&  defined(THRESHOLDING1))
 		computeBayesEstimateStep1_externalBasisTh(io_group, i_mat,
 			io_nInverseFailed, p_params, p_nSimP);
@@ -2698,7 +2800,7 @@ float computeBayesEstimateStep1_LR(
 			io_nInverseFailed, p_params, p_nSimP);
 #else
 		computeBayesEstimateStep1_LR_EIG_LAPACK(io_group, i_mat,
-			io_nInverseFailed, p_params, p_nSimP);
+			io_nInverseFailed, p_params, p_nSimP, aggreWeights);
 #endif
 
 }
@@ -2719,6 +2821,7 @@ float computeBayesEstimateStep1_LR(
  * @param p_imSize: size of the image;
  * @param p_params: see processStep2 for more explanations;
  * @param p_nSimP: number of similar patches.
+ * @param aggreWeights: output aggregation weights.
  *
  * @return none.
  **/
@@ -2730,6 +2833,7 @@ float computeBayesEstimateStep2_FR(
 ,	const VideoSize &p_imSize
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
+,	std::vector<float> &aggreWeights 
 ){
 	//! Parameters initialization
 	const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
@@ -3064,6 +3168,7 @@ float computeBayesEstimateStep2_externalBasis(
 ,	const VideoSize &p_imSize
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
+,	std::vector<float>  &aggreWeights
 ){
 	//! Parameters initialization
 	const float beta_sigma = p_params.beta * p_params.sigma;
@@ -3151,6 +3256,27 @@ float computeBayesEstimateStep2_externalBasis(
 
 				i_mat.covEigVals[k] = comp_k_var / (float)p_nSimP;
 				total_variance += i_mat.covEigVals[k];
+			}
+
+			//! Compute aggregation weights
+			if (p_params.aggreGamma)
+			{
+				aggreWeights.assign(p_nSimP, 0.f);
+
+				//! Mahalanobis distance
+				float tmp;
+				for (int i = 0; i < sPC; ++i)
+				{
+					const float iEigVal = 1.f/i_mat.covEigVals[i];
+					for (int n = 0; n < p_nSimP; ++n)
+						aggreWeights[n] += (tmp = i_mat.groupTranspose[i*p_nSimP + n])
+						                 *  tmp * iEigVal ;
+				}
+
+				//! Exponentiate
+				float igamma = 1.f/2.f/p_params.aggreGamma;
+				for(int n = 0; n < p_nSimP; ++n)
+					aggreWeights[n] = std::exp(-igamma * aggreWeights[n]);
 			}
 
 			//! Compute eigenvalues-based coefficients of Bayes' filter
@@ -3816,6 +3942,7 @@ float computeBayesEstimateStep2_LR_SVD_IDDIST(
  * @param p_imSize: size of the image;
  * @param p_params: see processStep2 for more explanations;
  * @param p_nSimP: number of similar patches.
+ * @param aggreWeights: output aggregation weights.
  *
  * @return estimate of kept variance.
  **/
@@ -3827,6 +3954,7 @@ float computeBayesEstimateStep2_LR(
 ,	const VideoSize &p_size
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
+,	std::vector<float> &aggreWeights 
 ){
 	return
 #if defined(USE_SVD_IDDIST)
@@ -3837,7 +3965,7 @@ float computeBayesEstimateStep2_LR(
 			io_nInverseFailed, p_size, p_params, p_nSimP);
 #elif (defined(DCT_BASIS) && !defined(THRESHOLDING2) && !defined(MEAN_HYPERPRIOR2))
 		computeBayesEstimateStep2_externalBasis(io_groupNoisy, i_groupBasic, i_mat,
-			io_nInverseFailed, p_size, p_params, p_nSimP);
+			io_nInverseFailed, p_size, p_params, p_nSimP, aggreWeights);
 #elif (defined(DCT_BASIS) &&  defined(THRESHOLDING2))
 		computeBayesEstimateStep2_externalBasisTh(io_groupNoisy, i_groupBasic,
 			i_mat, io_nInverseFailed, p_size, p_params, p_nSimP);
@@ -3878,6 +4006,7 @@ float computeBayesEstimateStep2_LR(
  * @param io_weight: update corresponding weight, used later in the weighted aggregation;
  * @param io_mask: update values of mask: set to true the index of an used patch;
  * @param i_group: contains estimated values of all similar patches in the 3D group;
+ * @param aggreWeights: input aggregation weights.
  * @param i_index: contains index of all similar patches contained in i_group;
  * @param p_imSize: size of io_im;
  * @param p_params: see processStep1 for more explanation.
@@ -3890,6 +4019,7 @@ int computeAggregationStep1(
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
 ,	std::vector<std::vector<float> > const& i_group
+,	std::vector<std::vector<float> > const& aggreWeights 
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
 ,	const unsigned p_nSimP
@@ -3920,21 +4050,24 @@ int computeAggregationStep1(
 			for (unsigned c = 0; c < chnls; c++)
 			{
 				const unsigned ij = ind  + c * wh;
+				// XXX NOTE: we only use aggregWeights[0] to avoid color artifacts XXX
 #ifdef USE_FFTW
 				io_im(ij + pt * whc + py * w + px) += 
-					i_group[c][n*sPC + pt*sPx*sPx + py*sPx + px];
+					aggreWeights[0][n] * i_group[c][n*sPC + pt*sPx*sPx + py*sPx + px];
 #else
 				io_im(ij + pt * whc + py * w + px) += 
-					i_group[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
+					aggreWeights[0][n] * i_group[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
 #endif
 			}
-			io_weight(ind1 + pt * wh + py * w + px)++;
+			io_weight(ind1 + pt * wh + py * w + px) += aggreWeights[0][n];
 		}
 
 		//! Use Paste Trick
 		unsigned px, py, pt;
 		io_mask.sz.coords(ind1, px, py, pt);
 
+		// TODO Modify this part so that if the weight are small enough, the
+		//      patch is not deactivated
 		if (io_mask(ind1)) masked++;
 		io_mask(ind1) = false;
 
@@ -3964,9 +4097,9 @@ int computeAggregationStep1(
 			{
 				const unsigned ij = ind  + c * wh;
 				io_im(ij + pt * whc + py * w + px) += 
-					i_group[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
+					aggreWeights[c][n] * i_group[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
 			}
-			io_weight(ind1 + pt * wh + py * w + px)++;
+			io_weight(ind1 + pt * wh + py * w + px) += aggreWeights[c][n];
 		}
 	}
 
@@ -4007,6 +4140,7 @@ int computeAggregationStep1(
  * @param io_weight: update corresponding weight, used later in the weighted aggregation;
  * @param io_mask: update values of mask: set to true the index of an used patch;
  * @param i_group: contains estimated values of all similar patches in the 3D group;
+ * @param aggreWeights: input aggregation weights.
  * @param i_index: contains index of all similar patches contained in i_group;
  * @param p_imSize: size of io_im;
  * @param p_params: see processStep2 for more explanation;
@@ -4019,6 +4153,7 @@ int computeAggregationStep2(
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
 ,	std::vector<float> const& i_group
+,	std::vector<float> const& aggreWeights 
 ,	Video<float> &variance
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
@@ -4046,19 +4181,21 @@ int computeAggregationStep2(
 			for (unsigned py = 0; py < sPx; py++)
 			for (unsigned px = 0; px < sPx; px++, k++)
 				io_im(ij + pt * whc + py * w + px) +=
-					i_group[k * p_nSimP + n];
+					aggreWeights[n] * i_group[k * p_nSimP + n];
 		}
 
 		const unsigned ind1 = (ind / whc) * wh + ind % wh;
 		for (unsigned pt = 0; pt < sPt; pt++)
 		for (unsigned py = 0; py < sPx; py++)
 		for (unsigned px = 0; px < sPx; px++)
-			io_weight(ind1 + pt * wh + py * w + px)++;
+			io_weight(ind1 + pt * wh + py * w + px) += aggreWeights[n];
 
 		//! Apply Paste Trick
 		unsigned px, py, pt;
 		io_mask.sz.coords(ind1, px, py, pt);
 
+		// TODO Modify this part so that if the weight are small enough, the
+		//      patch is not deactivated
 		if (io_mask(ind1)) masked++;
 		io_mask(ind1) = false;
 

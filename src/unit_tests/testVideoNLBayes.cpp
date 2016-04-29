@@ -642,6 +642,7 @@ int main(int argc, char **argv)
 			vector<unsigned> index(patch_num);
 			vector<float> group_nsy(patch_num * patch_dim);
 			vector<float> group_bsc(patch_num * patch_dim);
+			vector<float> agg_weights(patch_num);
 	
 			//! Indices of the point of analysis in a color and scalar video
 			const unsigned ij  = sz.index(px,py,pt);
@@ -657,7 +658,7 @@ int main(int argc, char **argv)
 			unsigned failed_inv = 0;
 			const float var_id = computeBayesEstimateStep2_LRSVD_id(group_nsy, group_bsc, mat, failed_inv, sz, prms2, nSimP);
 			printf("\tid done\n");
-			const float var_fl = computeBayesEstimateStep2_FR      (group_nsy, group_bsc, mat, failed_inv, sz, prms2, nSimP);
+			const float var_fl = computeBayesEstimateStep2_FR      (group_nsy, group_bsc, mat, failed_inv, sz, prms2, nSimP, agg_weights);
 			printf("\tfull rank done\n");
 
 			printf("\tVariances of group at p = [%d,%d,%d]\n",px, py, pt);

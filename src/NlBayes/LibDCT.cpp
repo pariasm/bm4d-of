@@ -54,8 +54,8 @@ void DCTThreadsHandler::init(
 
 	// define method based on patch size
 //	method = (width * height * frames < 32) ? MATPROD : FFTW;
-//	method = FFTW;
-	method = MATPROD;
+	method = FFTW;
+//	method = MATPROD;
 
 //	fprintf(stderr, "init DCT for %d thread - %d x %d x %d ~ %d\n",nthreads, width, height, frames, nsignals);
 
@@ -63,7 +63,7 @@ void DCTThreadsHandler::init(
 	{
 		case FFTW:
 
-			fprintf(stderr, "init fftw for large patches\n");
+//			fprintf(stderr, "init fftw for large patches\n");
 
 			for (int i = 0; i < nthreads; i++)
 			{
@@ -92,7 +92,7 @@ void DCTThreadsHandler::init(
 			
 		case MATPROD:
 
-			fprintf(stderr, "init matprod dct for small patches\n");
+//			fprintf(stderr, "init matprod dct for small patches\n");
 
 			for (int i = 0; i < nthreads; i++)
 			{
