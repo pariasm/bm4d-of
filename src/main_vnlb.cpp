@@ -84,8 +84,10 @@ int main(int argc, char **argv)
 	const float beta_mean1  = clo_option("-bm1",-1.f, "> Noise correction factor beta for mean, step 1");
 	const float beta_mean2  = clo_option("-bm2",-1.f, "> Noise correction factor beta for mean, step 2");
 	const float tau2        = clo_option("-t2" ,-1.f, "> Step 2 distance threshold");
-	const float aggre1      = clo_option("-ag1", 0.f, "> Decay of aggregation weights, step 1");
-	const float aggre2      = clo_option("-ag2", 0.f, "> Decay of aggregation weights, step 2");
+	const float p_aggre1    = clo_option("-pag1", 0.f, "> Decay of per-patch aggregation weights, step 1");
+	const float p_aggre2    = clo_option("-pag2", 0.f, "> Decay of per-patch aggregation weights, step 2");
+	const float g_aggre1    = clo_option("-gag1", 0.f, "> Decay of per-group aggregation weights, step 1");
+	const float g_aggre2    = clo_option("-gag2", 0.f, "> Decay of per-group aggregation weights, step 2");
 	const bool flat_area1 = (bool) clo_option("-flat-area1", false , "> use flat area trick, step 1");
 	const bool flat_area2 = (bool) clo_option("-flat-area2", false , "> use flat area trick, step 2");
 	const bool no_paste1  = (bool) clo_option("-no-paste1", false , "> disable paste trick, step 1");
@@ -174,8 +176,10 @@ int main(int argc, char **argv)
 		prms1.rank = rank1;
 		prms2.rank = rank2;
 
-		prms1.aggreGamma = aggre1;
-		prms2.aggreGamma = aggre2;
+		prms1.aggreGammaPatch = p_aggre1;
+		prms2.aggreGammaPatch = p_aggre2;
+		prms1.aggreGammaGroup = g_aggre1;
+		prms2.aggreGammaGroup = g_aggre2;
 
 		if (no_paste1) prms1.doPasteBoost = false;
 		if (no_paste2) prms2.doPasteBoost = false;
@@ -250,8 +254,10 @@ int main(int argc, char **argv)
 	prms1.rank = rank1;
 	prms2.rank = rank2;
 
-	prms1.aggreGamma = aggre1;
-	prms2.aggreGamma = aggre2;
+	prms1.aggreGammaPatch = p_aggre1;
+	prms2.aggreGammaPatch = p_aggre2;
+	prms1.aggreGammaGroup = g_aggre1;
+	prms2.aggreGammaGroup = g_aggre2;
 
 	if (no_paste1) prms1.doPasteBoost = false;
 	if (no_paste2) prms2.doPasteBoost = false;

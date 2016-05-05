@@ -113,6 +113,11 @@
  * computation time, but also the quality.*/
 //#define FRAMES_DECOUPLED
 
+/* Use Gaussian (of the group variance) decay for the group aggregation weights.
+ * The default is a logistic threshold. */
+#define GAUSSIAN_GROUP_AGGREGATION_WEIGHTS
+
+
 /* Choose implementation for low-rank Bayes estimate in both steps. If both
  * options are commented, the spectral decomposition of the covariance matrix
  * is computed using LAPACK's low-rank eigs */
@@ -252,8 +257,11 @@ void initializeNlbParameters(
 	//! Maximum rank of covariance matrix
 	o_params.rank = rank;
 
-	//! Decay of aggregation weights
-	o_params.aggreGamma = 0.f;
+	//! Decay of per-patch aggregation weights
+	o_params.aggreGammaPatch = 0.f;
+
+	//! Decay of per-group aggregation weights
+	o_params.aggreGammaGroup = 0.f;
 
 	//! Parameter used to determine similar patches
 	//  Differs from manuscript (tau = 4) because (1) this threshold is to be used 
@@ -408,7 +416,8 @@ void printNlbParameters(
 	printf("\tGroup filtering:\n");
 	printf("\t\tBeta                        = %g\n"       , i_prms.beta);
 	printf("\t\tRank                        = %d\n"       , i_prms.rank);
-	printf("\t\tAggregation weights decay   = %g\n"       , i_prms.aggreGamma);
+	printf("\t\tPatch aggre. weights decay  = %g\n"       , i_prms.aggreGammaPatch);
+	printf("\t\tGroup aggre. weights decay  = %g\n"       , i_prms.aggreGammaGroup);
 #if defined(MEAN_HYPERPRIOR1) || defined(MEAN_HYPERPRIOR2)
 	printf("\t\tBeta (mean)                 = %g\n"       , i_prms.betaMean);
 #endif
@@ -1861,7 +1870,7 @@ float computeBayesEstimateStep1_FR(
 				productMatrix(aggreWeights[c], i_mat.groupTranspose, io_group[c],
 								  sP2, sP2, p_nSimP, true, false);
 
-				float igamma = 1.f/2.f/p_params.aggreGamma;
+				float igamma = 1.f/2.f/p_params.aggreGammaPatch;
 				for(int n = 0; n < p_nSimP; ++n)
 					aggreWeights[c][n] = std::exp(-igamma * aggreWeights[c][n]);
 			}
@@ -1990,7 +1999,7 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 			              false, false);
 
 			//! Compute aggregation weights
-			if (p_params.aggreGamma)
+			if (p_params.aggreGammaPatch)
 			{
 				aggreWeights[c].assign(p_nSimP, 0.f);
 
@@ -2023,7 +2032,7 @@ float computeBayesEstimateStep1_LR_EIG_LAPACK(
 					                                      i_mat.tmpMat[i*p_nSimP + n]) * tmp;
 
 				//! Exponentiate
-				float igamma = 1.f/2.f/p_params.aggreGamma;
+				float igamma = 1.f/2.f/p_params.aggreGammaPatch;
 				for(int n = 0; n < p_nSimP; ++n)
 					aggreWeights[c][n] = std::exp(-igamma * aggreWeights[c][n]);
 			}
@@ -2126,6 +2135,9 @@ float computeBayesEstimateStep1_externalBasisFFTW(
 	float  rank_variance = 0.f;
 	float total_variance = 0.f;
 
+//	float entropy = 0;
+//	float total_weights = 0;
+
 	for (unsigned c = 0; c < io_group.size(); c++)
 	{
 #ifndef DCT_DONT_CENTER1
@@ -2143,10 +2155,7 @@ float computeBayesEstimateStep1_externalBasisFFTW(
 		if (r > 0)
 		{
 			//! Forward DCT
-//			printMatrix(io_group[c], p_nSimP, sPC, "g.asc");
 			globalDCT.forward(io_group[c]);
-
-//			printMatrix(io_group[c], p_nSimP, sPC, "dctg.asc");
 
 			//! Compute variance over each component
 			i_mat.covEigVals.assign(sPC, 0.f);
@@ -2158,11 +2167,21 @@ float computeBayesEstimateStep1_externalBasisFFTW(
 			for (int k = 0; k < sPC; ++k)
 			{
 				i_mat.covEigVals[k] *= inSimP;
-				total_variance += i_mat.covEigVals[k];
+				total_variance += i_mat.covEigVals[k]/(float)sPC/(float)io_group.size();
 			}
 
+//			// XXX DEBUG - compute entropy of variances
+//			{ 
+//				float normalization = 0;
+//				for (int k = 0; k < sPC; ++k)
+//					normalization += i_mat.covEigVals[k];
+//
+//				for (int k = 0; k < sPC; ++k)
+//					entropy -= (i_mat.covEigVals[k]/normalization) * log(i_mat.covEigVals[k]/normalization);
+//			}
+
 			//! Compute aggregation weights
-			if (p_params.aggreGamma)
+			if (p_params.aggreGammaPatch)
 			{
 				aggreWeights[c].assign(p_nSimP, 0.f);
 
@@ -2174,10 +2193,12 @@ float computeBayesEstimateStep1_externalBasisFFTW(
 						                    *  tmp / std::max(i_mat.covEigVals[i],sigma2);
 
 				//! Exponentiate
-				float igamma = 1.f/2.f/p_params.aggreGamma;
+				float igamma = 1.f/2.f/p_params.aggreGammaPatch;
 				for(int n = 0; n < p_nSimP; ++n)
 					aggreWeights[c][n] = std::exp(-igamma * aggreWeights[c][n]);
 			}
+			else
+				aggreWeights[c].assign(p_nSimP, 1.f);
 
 			//! Compute eigenvalues-based coefficients of Bayes' filter
 			for (unsigned k = 0; k < r; ++k)
@@ -2202,6 +2223,10 @@ float computeBayesEstimateStep1_externalBasisFFTW(
 				i_mat.covEigVals[k] = (var > 0.f) ? 1.f : 0.f;
 #endif
 			}
+
+//			// XXX DEBUG compute total weights
+//			for (int k = 0; k < sPC; ++k)
+//				total_weights += i_mat.covEigVals[k]/(float)sPC/(float)io_group.size();
 
 			//! W*Z
 			for (int i = 0; i < p_nSimP; ++i)
@@ -2232,8 +2257,37 @@ float computeBayesEstimateStep1_externalBasisFFTW(
 		}
 	}
 
+	// compute group aggregation weights
+	if (p_params.aggreGammaGroup)
+	{
+		const float aggreSigma = p_params.aggreGammaGroup*p_params.sigma;
+
+#ifdef GAUSSIAN_GROUP_AGGREGATION_WEIGHTS
+		// Gaussian decay
+		float tmp;
+		const float group_weight = std::exp(-total_variance/2.f/aggreSigma/aggreSigma);
+#else
+		// logistic decay
+		float total_stddev = sqrtf(total_variance);
+		const float group_weight = 1.f - 1.f/(1.f + std::exp(-(total_stddev - aggreSigma)));
+#endif
+
+		for (int c = 0; c < io_group.size(); ++c)
+		for (int n = 0; n < sPC; ++n)
+			aggreWeights[c][n] *= group_weight;
+
+		// XXX this is for visualization
+		total_variance = group_weight;
+	}
+
+
+
 	// return percentage of captured variance
-	return rank_variance / total_variance;
+//	return rank_variance / total_variance;
+//	return entropy;
+//	return total_weights;
+//	return sqrtf(total_variance);
+	return total_variance;
 }
 #endif
 
@@ -2314,7 +2368,7 @@ float computeBayesEstimateStep1_externalBasis(
 			}
 
 			//! Compute aggregation weights
-			if (p_params.aggreGamma)
+			if (p_params.aggreGammaPatch)
 			{
 				aggreWeights[c].assign(p_nSimP, 0.f);
 
@@ -2329,7 +2383,7 @@ float computeBayesEstimateStep1_externalBasis(
 				}
 
 				//! Exponentiate
-				float igamma = 1.f/2.f/p_params.aggreGamma;
+				float igamma = 1.f/2.f/p_params.aggreGammaPatch;
 				for(int n = 0; n < p_nSimP; ++n)
 					aggreWeights[c][n] = std::exp(-igamma * aggreWeights[c][n]);
 			}
@@ -3388,6 +3442,7 @@ float computeBayesEstimateStep2_externalBasis(
 
 	float r_variance = 0.f;
 	float total_variance = 1.f;
+//	float total_weights = 0.f;
 
 	for (unsigned c = 0; c < p_imSize.channels; c++)
 	{
@@ -3459,11 +3514,11 @@ float computeBayesEstimateStep2_externalBasis(
 					comp_k_var += comp_k[i] * comp_k[i];
 
 				i_mat.covEigVals[k] = comp_k_var / (float)p_nSimP;
-				total_variance += i_mat.covEigVals[k];
+				total_variance += i_mat.covEigVals[k]/(float)sPC/(float)p_imSize.channels;
 			}
 
 			//! Compute aggregation weights
-			if (p_params.aggreGamma)
+			if (p_params.aggreGammaPatch)
 			{
 				aggreWeights.assign(p_nSimP, 0.f);
 
@@ -3478,10 +3533,12 @@ float computeBayesEstimateStep2_externalBasis(
 				}
 
 				//! Exponentiate
-				float igamma = 1.f/2.f/p_params.aggreGamma;
+				float igamma = 1.f/2.f/p_params.aggreGammaPatch;
 				for(int n = 0; n < p_nSimP; ++n)
 					aggreWeights[n] = std::exp(-igamma * aggreWeights[n]);
 			}
+			else
+				aggreWeights.assign(p_nSimP, 1.f);
 
 			//! Compute eigenvalues-based coefficients of Bayes' filter
 			for (int i = 0; i < r; ++i)
@@ -3507,6 +3564,9 @@ float computeBayesEstimateStep2_externalBasis(
 				i_mat.covEigVals[i] = var / ( var + beta_sigma2);
 #endif
 			}
+
+//			for (int k = 0; k < sPC; ++k)
+//				total_weights += i_mat.covEigVals[k]/(float)sPC/(float)p_imSize.channels;
 
 			//! U * W
 			i_mat.covEigVecs.resize(sPC*sPC);
@@ -3562,10 +3622,33 @@ float computeBayesEstimateStep2_externalBasis(
 
 	}
 
+	// compute group aggregation weights
+	if (p_params.aggreGammaGroup)
+	{
+		const float aggreSigma = p_params.aggreGammaGroup*p_params.sigma;
+
+#ifdef GAUSSIAN_GROUP_AGGREGATION_WEIGHTS
+		// Gaussian decay
+		float tmp;
+		const float group_weight = std::exp(-total_variance/2.f/aggreSigma/aggreSigma);
+#else
+		// logistic decay
+		float total_stddev = sqrtf(total_variance);
+		const float group_weight = 1.f - 1.f/(1.f + std::exp(-(total_stddev - aggreSigma)));
+#endif
+
+		for (int n = 0; n < sPC; ++n)
+			aggreWeights[n] *= group_weight;
+
+		// XXX this is for visualization
+		total_variance = group_weight;
+	}
 
 	// return percentage of captured variance
-	return r_variance / total_variance;
-
+//	return r_variance / total_variance;
+//	return total_weights;
+//	return sqrtf(total_variance);
+	return total_variance;
 }
 
 /**

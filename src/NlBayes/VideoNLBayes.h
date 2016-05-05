@@ -63,7 +63,8 @@ struct nlbParams
 	float beta;                // noise correction factor
 	float betaMean;            // noise correction factor for patch barycenter
 	float tau;                 // depends on sizePatch
-	float aggreGamma;          // control aggregation weights decay
+	float aggreGammaPatch;     // decay of per-patch aggregation weights
+	float aggreGammaGroup;     // decay of per-group aggregation weights
 	bool isFirstStep;
 	bool doPasteBoost;
 	bool verbose;
