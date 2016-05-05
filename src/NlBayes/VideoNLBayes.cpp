@@ -2273,7 +2273,7 @@ float computeBayesEstimateStep1_externalBasisFFTW(
 #endif
 
 		for (int c = 0; c < io_group.size(); ++c)
-		for (int n = 0; n < sPC; ++n)
+		for (int n = 0; n < p_nSimP; ++n)
 			aggreWeights[c][n] *= group_weight;
 
 		// XXX this is for visualization
@@ -3637,7 +3637,7 @@ float computeBayesEstimateStep2_externalBasis(
 		const float group_weight = 1.f - 1.f/(1.f + std::exp(-(total_stddev - aggreSigma)));
 #endif
 
-		for (int n = 0; n < sPC; ++n)
+		for (int n = 0; n < p_nSimP; ++n)
 			aggreWeights[n] *= group_weight;
 
 		// XXX this is for visualization
