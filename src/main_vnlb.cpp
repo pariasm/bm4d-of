@@ -67,8 +67,6 @@ int main(int argc, char **argv)
 	const unsigned print_prms = (unsigned) clo_option("-print-prms", 0, "> prints parameters for given channels");
 
 	//! Video NLB parameters
-	const bool flat_area1 = (bool) clo_option("-flat-area1", false , "> use flat area trick, step 1");
-	const bool flat_area2 = (bool) clo_option("-flat-area2", false , "> use flat area trick, step 2");
 	const int time_search1  = clo_option("-wt1", 0  , "> Search window temporal radius, step 1");
 	const int time_search2  = clo_option("-wt2", 0  , "> Search window temporal radius, step 2");
 	const int space_search1 = clo_option("-wx1",-1  , "> Search window spatial radius, step 1");
@@ -88,6 +86,12 @@ int main(int argc, char **argv)
 	const float tau2        = clo_option("-t2" ,-1.f, "> Step 2 distance threshold");
 	const float aggre1      = clo_option("-ag1", 0.f, "> Decay of aggregation weights, step 1");
 	const float aggre2      = clo_option("-ag2", 0.f, "> Decay of aggregation weights, step 2");
+	const bool flat_area1 = (bool) clo_option("-flat-area1", false , "> use flat area trick, step 1");
+	const bool flat_area2 = (bool) clo_option("-flat-area2", false , "> use flat area trick, step 2");
+	const bool no_paste1  = (bool) clo_option("-no-paste1", false , "> disable paste trick, step 1");
+	const bool no_paste2  = (bool) clo_option("-no-paste2", false , "> disable paste trick, step 2");
+	const bool no_step1   = (bool) clo_option("-no-step1" , false , "> disable patch skipping, step 1");
+	const bool no_step2   = (bool) clo_option("-no-step2" , false , "> disable patch skipping, step 2");
 
 	//! Check inputs
 	if (input_path == "")
@@ -172,6 +176,11 @@ int main(int argc, char **argv)
 
 		prms1.aggreGamma = aggre1;
 		prms2.aggreGamma = aggre2;
+
+		if (no_paste1) prms1.doPasteBoost = false;
+		if (no_paste2) prms2.doPasteBoost = false;
+		if (no_step1)  prms1.offSet = 1;
+		if (no_step2)  prms2.offSet = 1;
  
 		VideoNLB::printNlbParameters(prms1);
 		VideoNLB::printNlbParameters(prms2);
@@ -244,11 +253,20 @@ int main(int argc, char **argv)
 	prms1.aggreGamma = aggre1;
 	prms2.aggreGamma = aggre2;
 
+	if (no_paste1) prms1.doPasteBoost = false;
+	if (no_paste2) prms2.doPasteBoost = false;
+	if (no_step1)  prms1.offSet = 1;
+	if (no_step2)  prms2.offSet = 1;
+
 	//! Percentage or processed groups of patches over total number of pixels
 	std::vector<float> groupsRatio;
 
 	//! Run denoising algorithm
+#ifndef DEBUG_COMPUTE_GROUP_ERROR
 	groupsRatio = VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2);
+#else
+	groupsRatio = VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2, original);
+#endif
 
 	//! Compute PSNR and RMSE
 	float final_psnr = -1, final_rmse = -1, basic_psnr = -1, basic_rmse = -1;

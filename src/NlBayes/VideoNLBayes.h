@@ -17,6 +17,10 @@
 #include "../Utilities/Utilities.h"
 #include "LibDCT.h"
 
+#define DEBUG_SHOW_WEIGHT
+#define DEBUG_COMPUTE_GROUP_ERROR
+//#define DEBUG_SHOW_PATCH_GROUPS
+
 namespace VideoNLB
 {
 
@@ -231,6 +235,9 @@ std::vector<float> runNlBayes(
 ,	const bool p_useArea2
 ,	const float p_sigma
 ,	const bool p_verbose
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+,	Video<float> & i_imClean
+#endif
 );
 
 /**
@@ -252,6 +259,9 @@ std::vector<float> runNlBayes(
 ,	Video<float> &o_imFinal
 ,	const nlbParams p_params1
 ,	const nlbParams p_params2
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+,	Video<float> & i_imClean
+#endif
 );
 
 /**
@@ -279,6 +289,9 @@ unsigned processNlBayes(
 	Video<float> const& i_imNoisy
 ,	Video<float> &io_imBasic
 ,	Video<float> &o_imFinal
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+,	Video<float> const& i_imClean
+#endif
 ,	nlbParams const& p_params
 ,	VideoUtils::CropPosition p_crop = VideoUtils::CropPosition()
 );
@@ -300,6 +313,10 @@ unsigned estimateSimilarPatchesStep1(
 ,	std::vector<unsigned> &o_index
 ,	const unsigned p_ij
 ,	const nlbParams &p_params
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+,	Video<float> const& i_imClean
+,	std::vector<std::vector<float> > & o_groupClean
+#endif
 );
 
 /**
@@ -323,6 +340,10 @@ unsigned estimateSimilarPatchesStep2(
 ,	std::vector<unsigned> &o_index
 ,	const unsigned p_ij
 ,	const nlbParams &p_params
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+,	Video<float> const& i_imClean
+,	std::vector<float> & o_groupClean
+#endif
 );
 
 /**

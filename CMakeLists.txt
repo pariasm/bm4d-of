@@ -51,5 +51,5 @@ add_subdirectory(lib/id_dist)
 add_subdirectory(lib/iio)
 add_subdirectory(src/NlBayes)
 add_subdirectory(src)
-add_subdirectory(src/unit_tests)
+#add_subdirectory(src/unit_tests)
 

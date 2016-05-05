@@ -119,8 +119,6 @@
 //#define USE_SVD_LAPACK
 //#define USE_SVD_IDDIST
 
-//#define DEBUG_SHOW_WEIGHT
-//#define DEBUG_SHOW_PATCH_GROUPS
 //#define CENTRED_SEARCH
 
 // colors
@@ -450,6 +448,9 @@ std::vector<float> runNlBayes(
 ,	const bool p_useArea2
 ,	const float p_sigma
 ,	const bool p_verbose
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+,	Video<float> & i_imClean
+#endif
 ){
 	//! Video size
 	VideoSize size = i_noisy.sz;
@@ -460,7 +461,11 @@ std::vector<float> runNlBayes(
 	initializeNlbParameters(p_prms2, 2, p_sigma, size, p_useArea2, p_verbose);
 
 	//! NL-Bayes
+#ifndef DEBUG_COMPUTE_GROUP_ERROR
 	return runNlBayes(i_noisy, o_basic, o_final, p_prms1, p_prms2);
+#else
+	return runNlBayes(i_noisy, o_basic, o_final, p_prms1, p_prms2, i_imClean);
+#endif
 }
 
 /**
@@ -485,6 +490,9 @@ std::vector<float> runNlBayes(
 ,	Video<float> &o_imFinal
 ,	const nlbParams p_prms1
 ,	const nlbParams p_prms2
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+,	Video<float> & i_imClean
+#endif
 ){
 	printf("Noisy video: %dx%dx%d channels %d\n", i_imNoisy.sz.width,
 	                                              i_imNoisy.sz.height,
@@ -633,6 +641,13 @@ std::vector<float> runNlBayes(
 		std::vector<VideoUtils::CropPosition > imCrops(nParts);
 		VideoUtils::subDivideTight(imNoisy, imNoisySub, imCrops, p_prms1.boundary, nParts);
 
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+		if (p_prms1.colorSpace == YUV)
+			VideoUtils::transformColorSpace(i_imClean, true);
+		std::vector<Video<float> > imCleanSub(nParts);
+		VideoUtils::subDivideTight(i_imClean, imCleanSub, imCrops, p_prms1.boundary, nParts);
+#endif
+
 #ifdef USE_FFTW
 		//! Initialize DCT algorithms
 		globalDCT.init(p_prms1.sizePatch,
@@ -656,7 +671,11 @@ std::vector<float> runNlBayes(
 #endif
 		for (int n = 0; n < (int)nParts; n++)
 			groupsProcessedSub[n] = 
+#ifndef DEBUG_COMPUTE_GROUP_ERROR
 				processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms1, imCrops[n]);
+#else
+				processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], imCleanSub[n], p_prms1, imCrops[n]);
+#endif
 
 #ifdef USE_FFTW
 		//! Destroy DCT algorithms
@@ -669,6 +688,11 @@ std::vector<float> runNlBayes(
 		//! YUV to RGB
 		if (p_prms1.colorSpace == YUV)
 			VideoUtils::transformColorSpace(o_imBasic, false);
+
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+		if (p_prms1.colorSpace == YUV)
+			VideoUtils::transformColorSpace(i_imClean, false);
+#endif
 
 		for (int n = 0; n < (int)nParts; n++)
 			groupsRatio[0] += 100.f * (float)groupsProcessedSub[n]/(float)imSize.whf;
@@ -685,7 +709,7 @@ std::vector<float> runNlBayes(
 				int part_y = imCrops[n].tile_y;
 				int part_t = imCrops[n].tile_t;
 				char name[1024];
-				sprintf(name, "dump/weight_step1_%d.%d.%d_%%03d.png", part_x, part_y, part_t);
+				sprintf(name, "dump/weight_step1_%d.%d.%d_%%03d.tif", part_x, part_y, part_t);
 
 				int part_frames = imCrops[n].ending_t - part_t;
 				subWeights[n].loadVideo(name, 1, part_frames, 1);
@@ -696,8 +720,58 @@ std::vector<float> runNlBayes(
 			VideoUtils::subBuildTight(subWeights, weight, p_prms1.boundary);
 
 			// Write to disk
-			weight.saveVideo("wei1_%03d.png", 1);
+			weight.saveVideo("wei1_%03d.tif", 1);
 		}
+		{
+			std::vector<Video<float> > subVars(nParts);
+
+			// First load all weight sequences
+			for (int n = 0; n < (int)nParts; n++)
+			{
+				// Build file name
+				int part_x = imCrops[n].tile_x;
+				int part_y = imCrops[n].tile_y;
+				int part_t = imCrops[n].tile_t;
+				char name[1024];
+				sprintf(name, "dump/var_step1_%d.%d.%d_%%03d.tif", part_x, part_y, part_t);
+
+				int part_frames = imCrops[n].ending_t - part_t;
+				subVars[n].loadVideo(name, 1, part_frames, 1);
+			}
+
+			// Call set build
+			Video<float> variance(imSize.width, imSize.height, imSize.frames);
+			VideoUtils::subBuildTight(subVars, variance, p_prms1.boundary);
+
+			// Write to disk
+			variance.saveVideo("var1_%03d.tif", 1);
+		}
+ #ifdef DEBUG_COMPUTE_GROUP_ERROR
+		{
+			std::vector<Video<float> > subVars(nParts);
+
+			// First load all weight sequences
+			for (int n = 0; n < (int)nParts; n++)
+			{
+				// Build file name
+				int part_x = imCrops[n].tile_x;
+				int part_y = imCrops[n].tile_y;
+				int part_t = imCrops[n].tile_t;
+				char name[1024];
+				sprintf(name, "dump/pge_step1_%d.%d.%d_%%03d.tif", part_x, part_y, part_t);
+
+				int part_frames = imCrops[n].ending_t - part_t;
+				subVars[n].loadVideo(name, 1, part_frames, 1);
+			}
+
+			// Call set build
+			Video<float> variance(imSize.width, imSize.height, imSize.frames);
+			VideoUtils::subBuildTight(subVars, variance, p_prms1.boundary);
+
+			// Write to disk
+			variance.saveVideo("pge1_%03d.tif", 1);
+		}
+ #endif
 #endif
 
 	}
@@ -728,6 +802,13 @@ std::vector<float> runNlBayes(
 		VideoUtils::subDivideTight(  imNoisy, imNoisySub, imCrops, p_prms2.boundary, nParts);
 		VideoUtils::subDivideTight(o_imBasic, imBasicSub, imCrops, p_prms2.boundary, nParts);
 
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+		if (p_prms2.colorSpace == YUV)
+			VideoUtils::transformColorSpace(i_imClean, true);
+		std::vector<Video<float> > imCleanSub(nParts);
+		VideoUtils::subDivideTight(i_imClean, imCleanSub, imCrops, p_prms2.boundary, nParts);
+#endif
+
 #ifdef USE_FFTW
 		//! Initialize DCT algorithms
 		globalDCT.init(p_prms2.sizePatch,
@@ -748,8 +829,14 @@ std::vector<float> runNlBayes(
 		firstprivate (prms2)
 #endif
 		for (int n = 0; n < (int) nParts; n++)
+		{
 			groupsProcessedSub[n] = 
+#ifndef DEBUG_COMPUTE_GROUP_ERROR
 				processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms2, imCrops[n]);
+#else
+				processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], imCleanSub[n], p_prms2, imCrops[n]);
+#endif
+		}
 
 #ifdef USE_FFTW
 		//! Destroy DCT algorithms
@@ -766,6 +853,11 @@ std::vector<float> runNlBayes(
 			VideoUtils::transformColorSpace(o_imFinal, false);
 		}
 
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+		if (p_prms2.colorSpace == YUV)
+			VideoUtils::transformColorSpace(i_imClean, false);
+#endif
+
 		for (int n = 0; n < (int)nParts; n++)
 			groupsRatio[1] += 100.f * (float)groupsProcessedSub[n]/(float)imSize.whf;
 
@@ -781,7 +873,7 @@ std::vector<float> runNlBayes(
 				int part_y = imCrops[n].tile_y;
 				int part_t = imCrops[n].tile_t;
 				char name[1024];
-				sprintf(name, "dump/weight_step2_%d.%d.%d_%%03d.png", part_x, part_y, part_t);
+				sprintf(name, "dump/weight_step2_%d.%d.%d_%%03d.tif", part_x, part_y, part_t);
 
 				int part_frames = imCrops[n].ending_t - part_t;
 				subWeights[n].loadVideo(name, 1, part_frames, 1);
@@ -792,7 +884,7 @@ std::vector<float> runNlBayes(
 			VideoUtils::subBuildTight(subWeights, weight, p_prms2.boundary);
 
 			// Write to disk
-			weight.saveVideo("wei2_%03d.png", 1);
+			weight.saveVideo("wei2_%03d.tif", 1);
 		}
 		{
 			std::vector<Video<float> > subVars(nParts);
@@ -805,7 +897,7 @@ std::vector<float> runNlBayes(
 				int part_y = imCrops[n].tile_y;
 				int part_t = imCrops[n].tile_t;
 				char name[1024];
-				sprintf(name, "dump/var_step2_%d.%d.%d_%%03d.png", part_x, part_y, part_t);
+				sprintf(name, "dump/var_step2_%d.%d.%d_%%03d.tif", part_x, part_y, part_t);
 
 				int part_frames = imCrops[n].ending_t - part_t;
 				subVars[n].loadVideo(name, 1, part_frames, 1);
@@ -816,9 +908,34 @@ std::vector<float> runNlBayes(
 			VideoUtils::subBuildTight(subVars, variance, p_prms2.boundary);
 
 			// Write to disk
-			variance.saveVideo("var2_%03d.png", 1);
-			variance.saveVideoAscii("var2", 1);
+			variance.saveVideo("var2_%03d.tif", 1);
 		}
+ #ifdef DEBUG_COMPUTE_GROUP_ERROR
+		{
+			std::vector<Video<float> > subVars(nParts);
+
+			// First load all weight sequences
+			for (int n = 0; n < (int)nParts; n++)
+			{
+				// Build file name
+				int part_x = imCrops[n].tile_x;
+				int part_y = imCrops[n].tile_y;
+				int part_t = imCrops[n].tile_t;
+				char name[1024];
+				sprintf(name, "dump/pge_step2_%d.%d.%d_%%03d.tif", part_x, part_y, part_t);
+
+				int part_frames = imCrops[n].ending_t - part_t;
+				subVars[n].loadVideo(name, 1, part_frames, 1);
+			}
+
+			// Call set build
+			Video<float> variance(imSize.width, imSize.height, imSize.frames);
+			VideoUtils::subBuildTight(subVars, variance, p_prms2.boundary);
+
+			// Write to disk
+			variance.saveVideo("pge2_%03d.tif", 1);
+		}
+ #endif
 #endif
 		if (p_prms2.verbose) printf("\n");
 	}
@@ -840,6 +957,9 @@ unsigned processNlBayes(
 	Video<float> const& i_imNoisy
 ,	Video<float> &io_imBasic
 ,	Video<float> &o_imFinal
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+,	Video<float> const& i_imClean
+#endif
 ,	nlbParams const& p_params
 ,	VideoUtils::CropPosition p_crop
 ){
@@ -1027,6 +1147,10 @@ unsigned processNlBayes(
 
 	//! Variance captured by the principal components
 	Video<float> variance(mask.sz);
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+	Video<float> group_error(mask.sz);
+#endif
+
 
 	//! Total number of groups of similar patches processed
 	unsigned group_counter = 0;
@@ -1039,6 +1163,9 @@ unsigned processNlBayes(
 		//! Matrices used for Bayes' estimate
 		vector<vector<float> > group(sz.channels, vector<float>(patch_num * patch_dim));
 		vector<vector<float> > aggreWeights(sz.channels, vector<float>(patch_num, 1.f));
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+		vector<vector<float> > groupClean(sz.channels, vector<float>(patch_num * patch_dim));
+#endif
 
 		int remaining_groups = n_groups;
 		for (unsigned pt = 0; pt < sz.frames; pt++)
@@ -1068,8 +1195,13 @@ unsigned processNlBayes(
 				}
 
 				//! Search for similar patches around the reference one
+#ifndef DEBUG_COMPUTE_GROUP_ERROR
 				unsigned nSimP = estimateSimilarPatchesStep1(i_imNoisy, group,
 						index, ij3, p_params);
+#else
+				unsigned nSimP = estimateSimilarPatchesStep1(i_imNoisy, group,
+						index, ij3, p_params, i_imClean, groupClean);
+#endif
 
 				//! If we use the homogeneous area trick
 				bool doBayesEstimate = true;
@@ -1079,11 +1211,23 @@ unsigned processNlBayes(
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
-					float variance = 200.f * (p_params.rank < patch_dim)
+					variance(ij) = (p_params.rank < patch_dim)
 						? computeBayesEstimateStep1_LR(group, mat, nInverseFailed,
 								p_params, nSimP, aggreWeights)
 						: computeBayesEstimateStep1_FR(group, mat, nInverseFailed,
 								p_params, nSimP, aggreWeights);
+
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+				{
+					float groupError = 0, tmp;
+					for (int c = 0; c < sz.channels; ++c)
+					for (int i = 0; i < nSimP * patch_dim; ++i)
+						groupError += (tmp = group[c][i] - groupClean[c][i])*tmp;
+
+					groupError /= (float)(sz.channels*nSimP*patch_dim);
+					group_error(ij) = sqrtf(groupError);
+				}
+#endif
 
 				//! Aggregation
 				remaining_groups -=
@@ -1119,6 +1263,9 @@ unsigned processNlBayes(
 		vector<float> groupNoisy(patch_num * patch_dim);
 		vector<float> groupBasic(patch_num * patch_dim);
 		vector<float> aggreWeights(patch_num, 1.f);
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+		vector<float> groupClean(patch_num * patch_dim);
+#endif
 
 		int remaining_groups = n_groups;
 		for (unsigned pt = 0; pt < sz.frames; pt++)
@@ -1148,8 +1295,13 @@ unsigned processNlBayes(
 				}
 
 				//! Search for similar patches around the reference one
+#ifndef DEBUG_COMPUTE_GROUP_ERROR
 				unsigned nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic,
 						groupNoisy, groupBasic, index, ij3, p_params);
+#else
+				unsigned nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic,
+						groupNoisy, groupBasic, index, ij3, p_params, i_imClean, groupClean);
+#endif
 
 				//! If we use the homogeneous area trick
 				bool doBayesEstimate = true;
@@ -1159,11 +1311,22 @@ unsigned processNlBayes(
 
 				//! Else, use Bayes' estimate
 				if (doBayesEstimate)
-					variance(ij) = 200.f * (p_params.rank < patch_dim)
+					variance(ij) = (p_params.rank < patch_dim)
 						? computeBayesEstimateStep2_LR(groupNoisy, groupBasic, mat,
 								nInverseFailed, sz, p_params, nSimP, aggreWeights)
 						: computeBayesEstimateStep2_FR(groupNoisy, groupBasic, mat,
 								nInverseFailed, sz, p_params, nSimP, aggreWeights);
+
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+				{
+					float groupError = 0, tmp;
+					for (int i = 0; i < nSimP * patch_dim; ++i)
+						groupError += (tmp = groupNoisy[i] - groupClean[i])*tmp;
+
+					groupError /= (float)(nSimP*patch_dim);
+					group_error(ij) = sqrtf(groupError);
+				}
+#endif
 
 				//! Aggregation
 				remaining_groups -=
@@ -1199,7 +1362,7 @@ unsigned processNlBayes(
 		int part_y = p_crop.tile_y;
 		int part_t = p_crop.tile_t;
 		char name[1024];
-		sprintf(name, "dump/weight_step%d_%d.%d.%d_%%03d.png",
+		sprintf(name, "dump/weight_step%d_%d.%d.%d_%%03d.tif",
 				step1 ? 1 : 2, part_x, part_y, part_t);
 		weight.saveVideo(name, 1, 1);
 	}
@@ -1208,10 +1371,21 @@ unsigned processNlBayes(
 		int part_y = p_crop.tile_y;
 		int part_t = p_crop.tile_t;
 		char name[1024];
-		sprintf(name, "dump/var_step%d_%d.%d.%d_%%03d.png",
+		sprintf(name, "dump/var_step%d_%d.%d.%d_%%03d.tif",
 				step1 ? 1 : 2, part_x, part_y, part_t);
 		variance.saveVideo(name, 1, 1);
 	}
+ #ifdef DEBUG_COMPUTE_GROUP_ERROR
+	{
+		int part_x = p_crop.tile_x;
+		int part_y = p_crop.tile_y;
+		int part_t = p_crop.tile_t;
+		char name[1024];
+		sprintf(name, "dump/pge_step%d_%d.%d.%d_%%03d.tif",
+				step1 ? 1 : 2, part_x, part_y, part_t);
+		group_error.saveVideo(name, 1, 1);
+	}
+ #endif
 #endif
 
 	return group_counter;
@@ -1234,6 +1408,10 @@ unsigned estimateSimilarPatchesStep1(
 ,	std::vector<unsigned> &o_index
 ,	const unsigned pidx
 ,	const nlbParams &p_params
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+,	Video<float> const& i_imClean
+,	std::vector<std::vector<float> > & o_groupClean
+#endif
 ){
 	const int sPx   = p_params.sizePatch;
 	const int sPt   = p_params.sizePatchTime;
@@ -1367,6 +1545,24 @@ unsigned estimateSimilarPatchesStep1(
 	 * spt,spx,spx pixels from all patches
 	 */
 
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+#ifdef USE_FFTW
+	for (unsigned c  = 0; c < i_im.sz.channels; c++)
+	for (unsigned n  = 0, k = 0; n < nSimP; n++)
+	for (unsigned ht = 0;        ht < sPt; ht++)
+	for (unsigned hy = 0;        hy < sPx; hy++)
+	for (unsigned hx = 0;        hx < sPx; hx++, k++)
+		o_groupClean[c][k] = i_imClean(c * wh + o_index[n] + ht * whc + hy * w + hx);
+#else
+	for (unsigned c  = 0; c < i_im.sz.channels; c++)
+	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
+	for (unsigned hy = 0;        hy < sPx; hy++)
+	for (unsigned hx = 0;        hx < sPx; hx++)
+	for (unsigned n  = 0; n < nSimP; n++, k++)
+		o_groupClean[c][k] = i_imClean(c * wh + o_index[n] + ht * whc + hy * w + hx);
+#endif
+#endif
+
 	return nSimP;
 }
 
@@ -1392,6 +1588,10 @@ unsigned estimateSimilarPatchesStep2(
 ,	std::vector<unsigned> &o_index
 ,	const unsigned pidx
 ,	const nlbParams &p_params
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+,	Video<float> const& i_imClean
+,	std::vector<float> & o_groupClean
+#endif
 ){
 	const int sPx   = p_params.sizePatch;
 	const int sPt   = p_params.sizePatchTime;
@@ -1503,7 +1703,11 @@ unsigned estimateSimilarPatchesStep2(
 	{
 		o_groupNoisy[k] = i_imNoisy(c * wh + o_index[n] + ht * whc + hy * w + hx);
 		o_groupBasic[k] = i_imBasic(c * wh + o_index[n] + ht * whc + hy * w + hx);
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+		o_groupClean[k] = i_imClean(c * wh + o_index[n] + ht * whc + hy * w + hx);
+#endif
 	}
+
 
 	return nSimP;
 }
@@ -4068,11 +4272,11 @@ int computeAggregationStep1(
 
 		// TODO Modify this part so that if the weight are small enough, the
 		//      patch is not deactivated
-		if (io_mask(ind1)) masked++;
-		io_mask(ind1) = false;
-
 		if (p_params.doPasteBoost)
 		{
+			if (io_mask(ind1)) masked++;
+			io_mask(ind1) = false;
+
 			if ((py >     2*sPx) && io_mask(ind1 - w)) masked++;
 			if ((py < h - 2*sPx) && io_mask(ind1 + w)) masked++;
 			if ((px >     2*sPx) && io_mask(ind1 - 1)) masked++;
@@ -4112,11 +4316,11 @@ int computeAggregationStep1(
 		unsigned px, py, pt;
 		io_mask.sz.coords(ind1, px, py, pt);
 
-		if (io_mask(ind1)) masked++;
-		io_mask(ind1) = false;
-
 		if (p_params.doPasteBoost)
 		{
+			if (io_mask(ind1)) masked++;
+			io_mask(ind1) = false;
+
 			if ((py >     2*sPx) && io_mask(ind1 - w)) masked++;
 			if ((py < h - 2*sPx) && io_mask(ind1 + w)) masked++;
 			if ((px >     2*sPx) && io_mask(ind1 - 1)) masked++;
@@ -4129,6 +4333,12 @@ int computeAggregationStep1(
 		}
 	}
 #endif
+
+	if (!p_params.doPasteBoost) 
+	{
+		masked++;
+		io_mask(i_index[0]) = false;
+	}
 
 	return masked;
 }
@@ -4196,11 +4406,11 @@ int computeAggregationStep2(
 
 		// TODO Modify this part so that if the weight are small enough, the
 		//      patch is not deactivated
-		if (io_mask(ind1)) masked++;
-		io_mask(ind1) = false;
-
 		if (p_params.doPasteBoost)
 		{
+			if (io_mask(ind1)) masked++;
+			io_mask(ind1) = false;
+
 			if ((py >     2*sPx) && io_mask(ind1 - w)) masked++;
 			if ((py < h - 2*sPx) && io_mask(ind1 + w)) masked++;
 			if ((px >     2*sPx) && io_mask(ind1 - 1)) masked++;
@@ -4218,6 +4428,12 @@ int computeAggregationStep2(
 			if (px < w - 2*sPx) variance(ind1 + 1) = variance(ind1);
 #endif
 		}
+	}
+
+	if (!p_params.doPasteBoost) 
+	{
+		masked++;
+		io_mask(i_index[0]) = false;
 	}
 
 	return masked;
