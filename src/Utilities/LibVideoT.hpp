@@ -521,12 +521,12 @@ namespace VideoUtils
 		if (i_vid1.sz != i_vid2.sz)
 			throw std::runtime_error("VideoUtils::computePSNR: videos have different sizes");
 
-		float sum = 0.f;
+		double sum = 0.f;
 		for (unsigned k = 0; k < i_vid1.sz.whcf; k++)
-			sum += ((float)i_vid1(k) - (float)i_vid2(k)) *
-			       ((float)i_vid1(k) - (float)i_vid2(k));
+			sum += ((double)i_vid1(k) - (double)i_vid2(k)) *
+			       ((double)i_vid1(k) - (double)i_vid2(k));
 
-		o_rmse = sqrtf(sum / (float) i_vid1.sz.whcf);
+		o_rmse = sqrtf(sum / (double) i_vid1.sz.whcf);
 		o_psnr = 20.f * log10f(255.f / o_rmse);
 
 		return;

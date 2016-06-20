@@ -51,7 +51,7 @@
  * coefficient is set to zero. This applies whenever the Gaussian model is
  * estimated from the noisy patches: in the first step, or in the second step
  * if NOISY_COVARIANCE2 option is defined. */
-#define THRESHOLD_WEIGHTS1
+//#define THRESHOLD_WEIGHTS1
 //#define THRESHOLD_WEIGHTS2
 
 /* Uses an adaptation of Li,Zhand,Dai fixed point iteration to estimate the
@@ -115,7 +115,7 @@
 
 /* Use Gaussian (of the group variance) decay for the group aggregation weights.
  * The default is a logistic threshold. */
-#define GAUSSIAN_GROUP_AGGREGATION_WEIGHTS
+//#define GAUSSIAN_GROUP_AGGREGATION_WEIGHTS
 
 
 /* Choose implementation for low-rank Bayes estimate in both steps. If both
@@ -2203,6 +2203,8 @@ float computeBayesEstimateStep1_externalBasisFFTW(
 			//! Compute eigenvalues-based coefficients of Bayes' filter
 			for (unsigned k = 0; k < r; ++k)
 			{
+				if (i_mat.covEigVals[k] == 0) continue;
+
 				rank_variance += i_mat.covEigVals[k];
 				float var = i_mat.covEigVals[k] - sigma2;
 
@@ -2269,7 +2271,7 @@ float computeBayesEstimateStep1_externalBasisFFTW(
 #else
 		// logistic decay
 		float total_stddev = sqrtf(total_variance);
-		const float group_weight = 1.f - 1.f/(1.f + std::exp(-(total_stddev - aggreSigma)));
+		const float group_weight = 1.f - 1.f/(1.f + 1e-4f + std::exp(-(total_stddev - aggreSigma)));
 #endif
 
 		for (int c = 0; c < io_group.size(); ++c)
