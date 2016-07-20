@@ -18,7 +18,6 @@
  **/
 
 #include "LibImages.h"
-#include "io_png.h"
 #include "Utilities.h"
 #include "mt19937ar.h"
 
@@ -28,6 +27,10 @@
 #include <stdlib.h>
 #include <math.h>
 #include <omp.h>
+
+extern "C" {
+#include "iio.h"
+}
 
 using namespace std;
 
@@ -51,8 +54,8 @@ int loadImage(
 	if (p_verbose) cout << endl << "Read input image...";
 
 	float *imTmp = NULL;
-	size_t w, h, c;
-	imTmp = read_png_f32(p_name, &w, &h, &c);
+	int w, h, c;
+	imTmp = iio_read_image_float_split(p_name, &w, &h, &c);
 	if (!imTmp) {
 		cout << "error :: " << p_name << " not found or not a correct png image" << endl;
 		return EXIT_FAILURE;
@@ -114,13 +117,13 @@ int saveImage(
 
     //! Check for boundary problems
     for (unsigned k = 0; k < p_imSize.whc; k++) {
-        imTmp[k] = clip(i_im[k], p_min, p_max);
+        imTmp[k] = i_im[k];
     }
 
-    if (write_png_f32(p_name, imTmp, p_imSize.width, p_imSize.height, p_imSize.nChannels) != 0) {
-        cout << "... failed to save png image " << p_name << endl;
-        return EXIT_FAILURE;
-    }
+    iio_save_image_float_split(p_name, imTmp,
+                               p_imSize.width,
+                               p_imSize.height,
+                               p_imSize.nChannels);
 
     //! Free Memory
     delete[] imTmp;

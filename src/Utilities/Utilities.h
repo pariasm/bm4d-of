@@ -93,6 +93,7 @@ void determineFactor(
  * @param p_sigma: value of the noise;
  * @param p_psnr: value of the PSNR of the denoised image;
  * @param p_rmse: value of the RMSE of the denoised image;
+ * @param p_grps: percentage of processed groups of similar patches;
  * @param p_truncateFile: if true, erase the file when open it. Otherwise
  *        write at the end of the file;
  * @param p_app: in order to specify the image.
@@ -104,6 +105,7 @@ int writingMeasures(
 ,   const float p_sigma
 ,   const float p_psnr
 ,   const float p_rmse
+,   const float p_grps
 ,   const bool  p_truncateFile
 ,   const char* p_app
 );

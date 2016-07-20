@@ -47,7 +47,7 @@ struct VideoSize
 	unsigned whcf;
 	unsigned whf;
 
-	//! Constuctros
+	//! Constuctors
 	VideoSize(void)
 		: width(0), height(0), frames(0), channels(0)
 	{
@@ -400,6 +400,74 @@ inline T Video<T>::getPixelSymmetric(
 namespace VideoUtils
 {
 	/**
+	 * @brief Structure to store the position of a rectangular crop. It also has
+	 * data to describe the position of the crop when it corresponds to a rectangular 
+	 * tiling (potentially with an added border) of a video. The tiles in the tiling
+	 * do not overlap, but the crop can correspond to a tile with an added border.
+	 * origin and ending encode the crop coordinates where as tile_origin and
+	 * tile_ending correspond to the tile coordinates (tile coordinates are
+	 * contained in the crop).
+	 *
+	 * @param origin_x  : x coordinate of top-left-front corner of crop
+	 * @param origin_y  : y coordinate of top-left-front corner of crop
+	 * @param origin_t  : t coordinate of top-left-front corner of crop
+	 *
+	 * @param ending_x  : x coordinate of bottom-right-back corner of crop
+	 * @param ending_y  : y coordinate of bottom-right-back corner of crop
+	 * @param ending_t  : t coordinate of bottom-right-back corner of crop
+	 *
+	 * @param source_sz : size of source video
+	 *
+	 * @params tile_x   : x index of tile (0 <= tile_x < ntiles_x)
+	 * @params tile_y   : y index of tile (0 <= tile_y < ntiles_y)
+	 * @params tile_t   : t index of tile (0 <= tile_t < ntiles_t)
+
+	 * @params ntiles_x : total number of tiles in x direction
+	 * @params ntiles_y : total number of tiles in y direction
+	 * @params ntiles_t : total number of tiles in t direction
+
+	 * @params tile_origin_x : x coordinate of top-left-front corner of tile
+	 * @params tile_origin_y : y coordinate of top-left-front corner of tile
+	 * @params tile_origin_t : t coordinate of top-left-front corner of tile
+
+	 * @params tile_ending_x : x coordinate of bottom-right-back corner of tile
+	 * @params tile_ending_y : y coordinate of bottom-right-back corner of tile
+	 * @params tile_ending_t : t coordinate of bottom-right-back corner of tile
+	 * 
+	 *
+	 **/
+	struct CropPosition
+	{
+		int origin_x;
+		int origin_y;
+		int origin_t;
+
+		int ending_x;
+		int ending_y;
+		int ending_t;
+
+		VideoSize source_sz;
+
+		int tile_x;
+		int tile_y;
+		int tile_t;
+
+		int ntiles_x;
+		int ntiles_y;
+		int ntiles_t;
+
+		int tile_origin_x;
+		int tile_origin_y;
+		int tile_origin_t;
+
+		int tile_ending_x;
+		int tile_ending_y;
+		int tile_ending_t;
+	};
+
+
+
+	/**
 	 * @brief add noise to video.
 	 *
 	 * @param i_vid : original noise-free image;
@@ -415,13 +483,13 @@ namespace VideoUtils
 	,   const float p_sigma
 	,   const bool p_verbose = false
 	){
-		if (p_verbose) printf("Add noise [sigma = %f] ... ", p_sigma);
+		if (p_verbose) printf("Add noise with sigma = %g\n", p_sigma);
 
 		//! Initialization
 		o_vidNoisy = i_vid;
 //		mt_init_genrand((unsigned long int) time (NULL) +
 //		                (unsigned long int) getpid());
-		mt_init_genrand(0); printf("Warning: random generator seed is 0 ");
+		mt_init_genrand(0); printf("\x1b[33;1mWarning:\x1b[0m random generator seed is 0\n");
 
 		//! Add noise
 		for (unsigned k = 0; k < i_vid.sz.whcf; k++)
@@ -431,8 +499,6 @@ namespace VideoUtils
 			o_vidNoisy(k) += (T) (p_sigma *
 				sqrtl(-2.0l * log(a)) * cos(2.0l * M_PI * b));
 		}
-
-		if (p_verbose) printf("done.\n");
 	}
 	
 	/**
@@ -455,12 +521,12 @@ namespace VideoUtils
 		if (i_vid1.sz != i_vid2.sz)
 			throw std::runtime_error("VideoUtils::computePSNR: videos have different sizes");
 
-		float sum = 0.f;
+		double sum = 0.f;
 		for (unsigned k = 0; k < i_vid1.sz.whcf; k++)
-			sum += ((float)i_vid1(k) - (float)i_vid2(k)) *
-			       ((float)i_vid1(k) - (float)i_vid2(k));
+			sum += ((double)i_vid1(k) - (double)i_vid2(k)) *
+			       ((double)i_vid1(k) - (double)i_vid2(k));
 
-		o_rmse = sqrtf(sum / (float) i_vid1.sz.whcf);
+		o_rmse = sqrtf(sum / (double) i_vid1.sz.whcf);
 		o_psnr = 20.f * log10f(255.f / o_rmse);
 
 		return;
@@ -552,6 +618,36 @@ namespace VideoUtils
 	,	const int * const p_origin
 	){
 		crop(i_vid1, o_vid2, p_origin[2], p_origin[0], p_origin[1]);
+	}
+
+	/**
+	 * @brief 'Generalized' croping of a video (cropped video may be larger than original).
+	 *
+	 * @param i_vid1 : original video;
+	 * @param o_vid2 : output video, already allocated to desired size;
+	 * @param i_origin2 : vid1 coordinates of vid2 origin. Origin coordinates
+	 * larger than corresponding vid1 dimension are redefined to center the crop
+	 * in that dimension.
+	 *
+	 * @return none.
+	 **/
+	template <class T>
+	void crop(
+		Video<T> const &i_vid1
+	,	Video<T> &o_vid2
+	,	CropPosition const &p_crop
+	){
+		//! Resize output video
+		VideoSize cropSize;
+		cropSize.width    = p_crop.ending_x - p_crop.origin_x;
+		cropSize.height   = p_crop.ending_y - p_crop.origin_y;
+		cropSize.frames   = p_crop.ending_t - p_crop.origin_t;
+		cropSize.channels = i_vid1.sz.channels;
+		cropSize.update_fields();
+
+		o_vid2.resize(cropSize);
+
+		crop(i_vid1, o_vid2, p_crop.origin_t, p_crop.origin_x, p_crop.origin_y);
 	}
 	
 	
@@ -708,7 +804,171 @@ namespace VideoUtils
 				}
 			}
 	}
+
+	/**
+	 * @brief Subdivide a video into small sub-videos. This version
+	 * does not add a border to the video, resulting in parts which
+	 * might have different sizes.
+	 *
+	 * @param i_video : image to subdivide;
+	 * @param o_videoSub : will contain all sub-videos;
+	 * @param o_crops : will store position of the crops;
+	 * @param p_N : boundary around sub-videos;
+	 * @param p_nb : number of sub-videos wanted. Need to be a power of 2.
+	 *
+	 * @return none.
+	 **/
+	template <class T>
+	void subDivideTight(
+		Video<T> const& i_vid
+	,	std::vector<Video<T> > &o_vidSub
+	,  std::vector<CropPosition> &o_crops
+	,	const int p_N
+	,	const int p_nb
+	){
+		/* FIXME current version splits the video only spatially.
+		 *       The reason is to mantain consistency with Marc's
+		 *       code. For its proper extension to video, we need
+		 *       to determine how to split the video in space and
+		 *       time. */
+
+		//! Determine number of sub-images
+		unsigned u_nW, u_nH; // FIXME problem with unsigned and int
+		determineFactor((unsigned)p_nb, u_nW, u_nH);
+		int nW = (int)u_nW;
+		int nH = (int)u_nH;
+
+		const int wTmp = ceil(float(i_vid.sz.width ) / float(nW)); // sizes w/out 
+		const int hTmp = ceil(float(i_vid.sz.height) / float(nH)); //     borders
+
+		o_crops.resize(p_nb);
+		o_vidSub.resize(p_nb);
+		for (int p = 0, n = 0; p < nH; p++)
+		for (int q = 0;        q < nW; q++, n++)
+		{
+			//! Set crop information 
+			o_crops[n].source_sz = i_vid.sz;
+
+			//! The origin is shifted -p_N to account for the subimage border
+			o_crops[n].origin_x = std::max(0, q * wTmp - p_N);
+			o_crops[n].origin_y = std::max(0, p * hTmp - p_N);
+			o_crops[n].origin_t = 0;
+
+			//! The origin is shifted p_N to account for the subimage border
+			o_crops[n].ending_x = std::min((int)i_vid.sz.width , (q+1) * wTmp + p_N);
+			o_crops[n].ending_y = std::min((int)i_vid.sz.height, (p+1) * hTmp + p_N);
+			o_crops[n].ending_t = i_vid.sz.frames;
+
+			//! Crop using symmetric boundary conditions
+			VideoUtils::crop(i_vid, o_vidSub[n], o_crops[n]);
+
+			//! Add information about the tiling
+			o_crops[n].tile_x = q;
+			o_crops[n].tile_y = p;
+			o_crops[n].tile_t = 0;
+
+			o_crops[n].ntiles_x = nW;
+			o_crops[n].ntiles_y = nH;
+			o_crops[n].ntiles_t =  1;
+
+			o_crops[n].tile_origin_x = q * wTmp;
+			o_crops[n].tile_origin_y = p * wTmp;
+			o_crops[n].tile_origin_t = 0;
+
+			o_crops[n].tile_ending_x = std::min((int)i_vid.sz.width , (q+1) * wTmp);
+			o_crops[n].tile_ending_y = std::min((int)i_vid.sz.height, (p+1) * hTmp);
+			o_crops[n].tile_ending_t = i_vid.sz.frames;
+		}
+
+		return;
+	}
 	
+	/**
+	 * @brief Subdivide a video into small sub-videos
+	 *
+	 * @param i_video : image to subdivide;
+	 * @param o_videoSub : will contain all sub-videos;
+	 * @param o_crops : will store position of the crops;
+	 * @param p_N : boundary around sub-videos;
+	 * @param p_nb : number of sub-videos wanted. Need to be a power of 2.
+	 *
+	 * @return none.
+	 **/
+	template <class T>
+	void subDivide(
+		Video<T> const& i_vid
+	,	std::vector<Video<T> > &o_vidSub
+	,	std::vector<CropPosition> &o_crops
+	,	const unsigned p_N
+	,	const unsigned p_nb
+	){
+		/* FIXME current version splits the video only spatially. 
+		 *       The reason is to mantain consistency with Marc's
+		 *       code. For its proper extension to video, we need
+		 *       to determine how to split the video in space and
+		 *       time. */
+		
+		//! Determine number of sub-images
+		unsigned u_nW, u_nH; // FIXME problem with unsigned and int
+		determineFactor((unsigned)p_nb, u_nW, u_nH);
+		int nW = (int)u_nW;
+		int nH = (int)u_nH;
+
+		const int wTmp = ceil(float(i_vid.sz.width ) / float(nW)); // sizes w/out 
+		const int hTmp = ceil(float(i_vid.sz.height) / float(nH)); //     borders
+
+		//! Obtain sub-images
+		VideoSize imSubSize;
+		imSubSize.width    = wTmp + 2 * p_N; // each sub-image has border
+		imSubSize.height   = hTmp + 2 * p_N;
+		imSubSize.frames   = i_vid.sz.frames; // NOTE: same frames as original
+		imSubSize.channels = i_vid.sz.channels;
+		imSubSize.update_fields();
+
+		o_crops.resize(p_nb);
+		o_vidSub.resize(p_nb);
+		for (int p = 0, n = 0; p < nH; p++)
+		for (int q = 0;        q < nW; q++, n++)
+		{
+			o_vidSub[n].resize(imSubSize);
+
+			//! The origin is shifted -p_N to account for the subimage border
+			int origin[3] = {q * wTmp - p_N, p * hTmp - p_N, 0};
+
+			//! Crop using symmetric boundary conditions
+			VideoUtils::crop(i_vid, o_vidSub[n], origin);
+
+			//! Set crop information
+			o_crops[n].source_sz = i_vid.sz;
+			o_crops[n].origin_x  = origin[0];
+			o_crops[n].origin_y  = origin[1];
+			o_crops[n].origin_t  = origin[2];
+
+			o_crops[n].ending_x  = origin[0] + o_vidSub[n].sz.width ;
+			o_crops[n].ending_y  = origin[1] + o_vidSub[n].sz.height;
+			o_crops[n].ending_t  = origin[2] + o_vidSub[n].sz.frames;
+
+			//! Add information about the tiling
+			o_crops[n].tile_x = q;
+			o_crops[n].tile_y = p;
+			o_crops[n].tile_t = 0;
+
+			o_crops[n].ntiles_x = nW;
+			o_crops[n].ntiles_y = nH;
+			o_crops[n].ntiles_t =  1;
+
+			o_crops[n].tile_origin_x = q * wTmp;
+			o_crops[n].tile_origin_y = p * wTmp;
+			o_crops[n].tile_origin_t = 0;
+
+			o_crops[n].tile_ending_x = std::min((int)i_vid.sz.width , (q+1) * wTmp);
+			o_crops[n].tile_ending_y = std::min((int)i_vid.sz.height, (p+1) * hTmp);
+			o_crops[n].tile_ending_t = i_vid.sz.frames;
+		}
+
+		return;
+	}
+
 	/**
 	 * @brief Subdivide a video into small sub-videos
 	 *
@@ -726,39 +986,8 @@ namespace VideoUtils
 	,	const unsigned p_N
 	,	const unsigned p_nb
 	){
-		/* FIXME current version splits the video only spatially. 
-		 *       The reason is to mantain consistency with Marc's
-		 *       code. For its proper extension to video, we need
-		 *       to determine how to split the video in space and
-		 *       time. */
-		
-		//! Determine number of sub-images
-		unsigned nW, nH;
-		determineFactor(p_nb, nW, nH);
-		const unsigned wTmp = ceil(float(i_vid.sz.width ) / float(nW)); // sizes w/out 
-		const unsigned hTmp = ceil(float(i_vid.sz.height) / float(nH)); //     borders
-
-		//! Obtain sub-images
-		VideoSize imSubSize;
-		imSubSize.width    = wTmp + 2 * p_N; // each sub-image has border
-		imSubSize.height   = hTmp + 2 * p_N;
-		imSubSize.frames   = i_vid.sz.frames; // NOTE: same frames as original
-		imSubSize.channels = i_vid.sz.channels;
-		imSubSize.update_fields();
-
-		o_vidSub.resize(p_nb);
-		for (unsigned p = 0, n = 0; p < nH; p++)
-		for (unsigned q = 0;        q < nW; q++, n++)
-		{
-			o_vidSub[n].resize(imSubSize);
-
-			// The origin is shifted -p_N to account for the subimage border
-			int origin[3] = {q * wTmp - p_N, p * hTmp - p_N, 0};
-
-			// Crop using symmetric boundary conditions
-			VideoUtils::crop(i_vid, o_vidSub[n], origin);
-		}
-
+		std::vector<CropPosition> tmpCrops;
+		subDivide(i_vid, o_vidSub, tmpCrops, p_N, p_nb);
 		return;
 	}
 	
@@ -773,12 +1002,12 @@ namespace VideoUtils
 	 **/
 	template <class T>
 	void subBuild(
-	 	std::vector<Video<T> > const& i_vidSub
+		std::vector<Video<T> > const& i_vidSub
 	,	Video<T> &o_vid
 	,	const unsigned p_N
 	){
 		/* FIXME current version builds a video that has been split
-		 *       only spatially by subDivide. 
+		 *       only spatially by subDivide.
 		 *       The reason is to mantain consistency with Marc's
 		 *       code. For its proper extension to video, we need
 		 *       to determine how to split the video in space and
@@ -822,6 +1051,79 @@ namespace VideoUtils
 			for (unsigned c = 0; c < o_vid.sz.channels; c++)
 			for (unsigned sy = p_N, qy = py; sy < hmax; sy++, qy++)
 			for (unsigned sx = p_N, qx = px; sx < wmax; sx++, qx++)
+				o_vid(qx, qy, f, c) = i_vidSub[n](sx, sy, f, c);
+		}
+
+		return;
+	}
+
+	/**
+	 * @brief Reconstruct an video from its small sub-videos
+	 *
+	 * @param o_vid : image to reconstruct;
+	 * @param i_vidSub : will contain all sub-images;
+	 * @param p_N : boundary around sub-videos.
+	 *
+	 * @return none.
+	 **/
+	template <class T>
+	void subBuildTight(
+	 	std::vector<Video<T> > const& i_vidSub
+	,	Video<T> &o_vid
+	,	const int p_N
+	){
+		/* FIXME current version builds a video that has been split
+		 *       only spatially by subDivide. 
+		 *       The reason is to mantain consistency with Marc's
+		 *       code. For its proper extension to video, we need
+		 *       to determine how to split the video in space and
+		 *       time. */
+
+		assert(i_vidSub.size());
+		assert(i_vidSub[0].sz.whcf);
+		assert(o_vid.sz.whcf);
+		assert(o_vid.sz.frames   == i_vidSub[0].sz.frames  );
+		assert(o_vid.sz.channels == i_vidSub[0].sz.channels);
+
+		//! Determine width and height composition
+		unsigned nW, nH;
+		determineFactor(i_vidSub.size(), nW, nH);
+		const int wTmp = ceil(float(o_vid.sz.width ) / float(nW)); // sizes w/out 
+		const int hTmp = ceil(float(o_vid.sz.height) / float(nH)); //     borders
+
+		//! Obtain inner image (containing boundaries)
+		// TODO pending decision for video
+		for (int p = 0, n = 0; p < nH; p++)
+		for (int q = 0;        q < nW; q++, n++)
+		{
+			//! top-left-front corner of crop
+			int crop_ori_x = std::max(0, q * wTmp - p_N);
+			int crop_ori_y = std::max(0, p * hTmp - p_N);
+			int crop_ori_t = 0;
+
+			//! start of inner crop, removing the boundary
+			int ori_x = q * wTmp;
+			int ori_y = p * hTmp;
+			int ori_t = 0       ;
+
+			//! end of inner crop
+			int end_x = std::min((q+1) * wTmp, (int)o_vid.sz.width );
+			int end_y = std::min((p+1) * hTmp, (int)o_vid.sz.height);
+			int end_t = 0       ;
+
+			//! start of inner crop, with inner coordinates
+			int in_ori_x = ori_x - crop_ori_x;
+			int in_ori_y = ori_y - crop_ori_y;
+			int in_ori_t = ori_t - crop_ori_t;
+
+//			int  in_end_x = (q+1) * wTmp - out_ori_x;
+//			int  in_end_y = (p+1) * hTmp - out_ori_y;
+//			int  in_end_t = i_vid.sz.frames;
+
+			for (unsigned f = 0; f < o_vid.sz.frames  ; f++)
+			for (unsigned c = 0; c < o_vid.sz.channels; c++)
+			for (unsigned sy = in_ori_y, qy = ori_y; qy < end_y; sy++, qy++)
+			for (unsigned sx = in_ori_x, qx = ori_x; qx < end_x; sx++, qx++)
 				o_vid(qx, qy, f, c) = i_vidSub[n](sx, sy, f, c);
 		}
 

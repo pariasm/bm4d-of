@@ -1,0 +1,298 @@
+\documentclass[a4paper,10pt]{article}
+
+\usepackage[english,activeacute]{babel}
+\usepackage[english]{layout}
+\usepackage{amsfonts,amsmath,amssymb,amsthm}
+\usepackage[dvips]{graphicx}
+\usepackage{color}
+\usepackage{subfig}
+\usepackage{colonequals}
+\usepackage[latin1]{inputenc}
+\usepackage{url}
+\usepackage{epsfig}
+%\usepackage{dsfont}
+
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{setspace}
+\usepackage{afterpage}
+%\usepackage{showkeys}
+% \usepackage{mathptmx}      % use Times fonts if available on your TeX system
+% \usepackage{latexsym}
+
+\usepackage[left=1.2in,right=1.2in]{geometry}
+
+% \graphicspath{{../iccv09/}}
+
+% NOTE: COMMENT !!
+\newcommand{\mathds}[1]{\mathbb{#1}}
+
+\newcommand{\ma}[1]{\boldsymbol{#1}}
+\newcommand{\tras}[1]{#1^{\mathrm{T}}}
+\newcommand{\herm}[1]{#1^{\mathrm{H}}}
+\newcommand{\con}[1]{#1^{\mathrm{*}}}
+\newcommand{\E}{\mathds{E}}
+\newcommand{\tech}[1]{\overline{#1}}
+\newcommand{\nspace}{\!\!\!\!}
+\newcommand{\nmbr}[1]{\oldstylenums{#1}}
+
+\newcommand{\eg}{\emph{e.g}. } \newcommand{\Eg}{\emph{E.g}. }
+\newcommand{\ie}{\emph{i.e}. } \newcommand{\Ie}{\emph{I.e}. }
+\newcommand{\cf}{\emph{c.f}. } \newcommand{\Cf}{\emph{C.f}. }
+\newcommand{\etc}{\emph{etc}. } \newcommand{\vs}{\emph{vs}. }
+\newcommand{\wrt}{w.r.t\onedot } \newcommand{\dof}{d.o.f. }
+\newcommand{\etal}{\emph{et al}. }
+
+\newcommand{\R}{\mathds{R}}
+\newcommand{\sign}{\mathrm{sign}}
+\newcommand{\eps}{\varepsilon}
+\newcommand{\To}{\longrightarrow}
+% \newcommand{\II}{1{\hskip -2.5 pt}\hbox{I}}
+
+% c++ code
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{textcomp}
+\definecolor{listinggray}{gray}{0.9}
+\definecolor{lbcolor}{rgb}{0.9,0.9,0.9}
+\lstset{
+	backgroundcolor=\color{lbcolor},
+	tabsize=4,    
+%  rulecolor=,
+	language=Matlab,
+	basicstyle=\scriptsize\ttfamily,
+	upquote=true,
+	aboveskip={1.5\baselineskip},
+	columns=fixed,
+	showstringspaces=false,
+	extendedchars=false,
+	breaklines=true,
+	prebreak = \raisebox{0ex}[0ex][0ex]{\ensuremath{\hookleftarrow}},
+	frame=single,
+	numbers=left,
+	showtabs=false,
+	showspaces=false,
+	showstringspaces=false,
+	identifierstyle=\ttfamily,
+	keywordstyle=\color[rgb]{0,0,1}\ttfamily,
+	commentstyle=\color[rgb]{0,0.5,0}\ttfamily,
+	stringstyle=\color[rgb]{0.627,0.126,0.941}\ttfamily,
+	numberstyle=\color[rgb]{0.5, 0.5, 0.5}\ttfamily,
+%  \lstdefinestyle{C++}{language=C++,style=numbers}’.
+}
+%\lstset{
+%	backgroundcolor=\color{lbcolor},
+%	tabsize=4,
+%	language=C++,
+%	captionpos=b,
+%	tabsize=3,
+%	frame=lines,
+%	numbers=left,
+%	numberstyle=\tiny,
+%	numbersep=5pt,
+%	breaklines=true,
+%	showstringspaces=false,
+%	basicstyle=\footnotesize,
+%	identifierstyle=\color{magenta},
+%	keywordstyle=\color[rgb]{0,0,1},
+%	commentstyle=\color{green},
+%	stringstyle=\color{red}
+%}
+	
+	
+	
+
+
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+\newcommand{\nota}[1]{\textcolor{blue}{\textbf{#1}}}
+\newcommand{\suggest}[1]{\textcolor{yellow}{#1}}
+\newcommand{\add}[1]{\textcolor{green}{#1}}
+\newcommand{\remove}[1]{\textcolor{red}{#1}}
+\newcommand{\dosdv}[1] {#1}
+\newcommand{\uncite}[1] {}
+% \newcommand{\tachar}[1]{
+% \setbox4=\hbox{\ } \setbox3=\hbox{#1} \hbox{#1} \kern -\wd3 \kern
+% -\wd4 \raise 0.3\ht3 \hbox{ \vrule width \wd3 height 0.5pt} }
+
+% \theoremstyle{plain}\newtheorem{theorem}{Theorem}[chapter]
+% \theoremstyle{plain}\newtheorem{proposition}{Proposition}[chapter]
+% \theoremstyle{plain}\newtheorem{lemma}{Lemma}[chapter]
+% \theoremstyle{definition}\newtheorem{definition}{Definition}[chapter]
+
+% New definition of square root:
+% it renames \sqrt as \oldsqrt
+\let\oldsqrt\sqrt
+% it defines the new \sqrt in terms of the old one
+\def\sqrt{\mathpalette\DHLhksqrt}
+\def\DHLhksqrt#1#2{%
+\setbox0=\hbox{$#1\oldsqrt{#2\,}$}\dimen0=\ht0
+\advance\dimen0-0.2\ht0
+\setbox2=\hbox{\vrule height\ht0 depth -\dimen0}%
+{\box0\lower0.4pt\box2}}
+
+\title{Video denoising with non-local means}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+\abstract{Brief description of an extension of the non-local
+means algorithm to video denoising.}
+
+\section*{Overview}
+
+This implementation of non-local means comes from modifying the non-local Bayes
+algorithm. The only difference is that groups patches are denoised via averages
+weighted by similarity, instead of the empirical Bayes estimate of non-local Bayes.
+
+The code in Listing \ref{src:main-overview} shows an overview of the the
+algorithm. The first step computes an initial basic estimate which is used as an
+oracle for the second step. In the second step, the basic estimate is used
+to compute patch distances and similarity weights. We now provide some details
+about both steps:
+
+\section*{Step 1: basic estimate}
+
+\paragraph{Patch distances:} The video is converted to YUV colorspace, and only
+the Y component is used for the computation of distances and similarity
+weights.
+
+\paragraph{Search for similar patches:} We search for similar patches of size
+$s_1\times s_1$ in a spatio-temporal window of size $W_{x,1}\times W_{x,1}\times
+W_{t,1}$ centered around the current pixel $x = (x_0, x_1, t)$. From all
+patches in the search window, we keep only
+the $N_{\text{sim},1}$ most similar. This set of patches is the output of the
+patch search stage. We denoted it by $\mathcal G_x$, and call it \verb+group+
+in the pseudo-code.
+
+\paragraph{Non-local means estimate:} The group of $N_{\text{sim},1}$ patches
+is denoised via similarity weighted averages. Consider a noisy patch $\hat p_y\in \mathcal
+G_x$. Then its non-local means estimate is given by
+\[p_y^{\text{NLM},1} = \frac1{C(\hat p_y; \mathcal G_x)}\sum_{\hat p_z\in\mathcal G_x} w(\hat p_y, \hat p_z)\hat p_z,\]
+where $w(\hat p_y, \hat p_z)$ is the similarity weight between patches $\hat
+p_y$ and $\hat p_z$ and $C(\hat p_y; \mathcal G_x)$ is a normalization
+constant, and the similarity is computed following BUADESIPOL:
+\[w(\hat p_y, \hat p_z) = \exp\left(-\frac1{h_1^2}\max(\|\hat p_y - \hat p_z\|_Y^2, 2\sigma^2/3)\right),\]
+where $\|\,\cdot\,\|_Y$ is the Euclidean norm of the Y component. The factor
+$1/3$ in the above formula is because we are working with the $Y$
+component.
+
+\paragraph{Aggregation:} The estimated pathes of $\mathcal G_x$
+are aggregated into their original positions. The result of this aggregation is
+the output of the first step: the \emph{basic estimate}. The positions of these
+patches are labeled as processed. Optionally to reduce computations, we can label
+their 4 spatial neighbors as being also processed, as in NL-Bayes.
+
+\section*{Step 2: final estimate}
+
+\paragraph{Search for similar patches:} Patches are of size
+$s_2\times s_2$, and the search is performed in a spatio-temporal window of
+size $W_{x,2}\times W_{x,2}\times W_{t,2}$ centered around the current pixel $x
+= (x_0, x_1, t)$. In the second stage, the distance between patches is computed
+using the RGB components of the basic estimate. Two sets of patches are built,
+taking patches from the basic estimate in $\mathcal G^b_x$ and their noisy versions
+in $\mathcal G_x^n$.
+
+The number of similar patches kept is adaptive. Let $d_{N_{\text{sim},2}}$
+be the distance between the reference patch and its $N_{\text{sim},2}$ most similar patch.
+All patches with a distance
+to the reference patch smaller than $\max(\tau_2, d_{N_{\text{sim},2}})$ are kept.
+Thus, $N_{\text{sim},2}$ is a lower bound on the number of similar patches.
+
+\paragraph{Non-local means estimate:} As in step 1, the group $\mathcal G_x^n$ of patches
+is denoised via similarity weighted averages. The similarity weight is computed
+from the corresponding patches in $\mathcal G_x^b$. Thus, for a noisy patch
+$\hat p_y\in \mathcal
+G_x^n$, we have:
+\[p_y^{\text{NLM},2} = \frac1{C(p^b_y; \mathcal G^b_x)}\sum_{\hat p_z\in\mathcal G^n_x} w(p^b_y, p^b_z)\hat p_z.\]
+The similarity $w(\hat p_y, \hat p_z)$ is computed as in step 1, but using the
+RGB components:
+\[w(p^b_y, p^b_z) = \exp\left(-\frac1{h_2^2}\max(\|p^b_y - p^b_z\|_{\text{RGB}}^2, 2\sigma^2)\right).\]
+
+\paragraph{Aggregation:} As in step 1.
+
+
+\begin{lstlisting}[%
+	float=h,
+	caption={Overview of main function},
+	label=src:main-overview,
+	xleftmargin=.9cm,
+	xrightmargin=.9cm]
+function final_vid = videoNLMeans(noisy_vid, params1, params2)
+
+%%%%%%%%
+% step 1
+%%%%%%%%
+
+% convert to YUV colorspace
+noisy_vid = convertRGBtoYUV(noisy_vid);
+
+% label all pixels as non-processed
+processed = Video(width, height, nframes, false);
+
+% initialize basic estimate as zero
+basic_vid = Video(width, height, nframes, channels, 0);
+
+% process video
+for x = 1:noisy_vid.nPixels,
+	if processed(x) == false,
+		% search for similar patches around the reference one
+		group = getSimilarPatchesStep1(noisy_vid, x, params1);
+
+		% denoise patches in group via similarity-weighted averages
+		group = nlMeansEstimateStep1(group, params1);
+
+		% aggregate group over basic estimate. update processed pixels
+		[basic_vid, processed] = aggregateStep1(basic_vid, processed, group, params1);
+	end
+end
+
+% convert back to RGB colorspace
+noisy_vid = convertYUVtoRGB(noisy_vid);
+basic_vid = convertYUVtoRGB(basic_vid);
+
+%%%%%%%%
+% step 2
+%%%%%%%%
+
+% label all pixels as non-processed
+processed = Video(width, height, nframes, false);
+
+% initialize final estimate as zero
+final_vid = Video(width, height, nframes, channels, 0);
+
+% process video
+for x = 1:noisy_vid.nPixels,
+	if processed(x) == false,
+		% search for similar patches around the reference one
+		[group_noisy, group_basic] = getSimilarPatchesStep2(noisy_vid, basic_vid, x, params2);
+
+		% denoise patches in group via similarity-weighted averages
+		group_basic = nlMeansEstimateStep2(group_noisy, group_basic, params2);
+
+		% aggregate group estimate, and update mask of processed pixels
+		[final_vid, processed] = aggregateStep2(final_vid, processed, group, params2);
+	end
+end
+\end{lstlisting}
+
+
+\section*{Parameters}
+
+Parameters used in the patch search: $W_{x,i}, W_{t,i}, N_{\text{sim},i}$ and
+$\tau_2$, are computed as a function of $\sigma$, following the empirical rules
+provided in LEBRUNIPOL. 
+
+Parameters $s_1$ and $h_1$ are computed as a function of $\sigma/\sqrt{3}$ following 
+the empirical rules provided in BUADESIPOL for color images. In principle,
+the parameters for grayscale images of BUADESIPOL should be better since weights are
+computed based on the Y component, but performed worse on the Middleburry
+sequences.
+
+Parameters $s_2$ and $h_2$ were set by trial and error.
+
+
+\end{document}

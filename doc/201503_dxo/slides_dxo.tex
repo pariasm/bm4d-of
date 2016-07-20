@@ -1,0 +1,604 @@
+% \documentclass{beamer}
+\documentclass[mathserif]{beamer}
+
+\mode<presentation> {
+% \usetheme{Madrid}
+%\usetheme{default}
+\usetheme{Boadilla}
+% \usecolortheme{beaver}
+% \usecolortheme{rose}
+}
+% removes navigation symbols
+\setbeamertemplate{navigation symbols}{}
+
+\usepackage[english,activeacute]{babel}
+\usepackage[english]{layout}
+\usepackage{amsfonts,amsmath,amssymb,amsthm}
+\usepackage{pgf}
+%\usepackage{movie15}
+\usepackage{graphicx}
+\usepackage{rotating}
+\usepackage{color}
+\usepackage[utf8]{inputenc}
+\usepackage[multidot]{grffile}
+\usepackage{ucs}
+% \usepackage[T1]{fontenc}
+%\usepackage{subfigure}
+
+% from rida's preamble
+\usepackage{epsfig,xspace}
+\usepackage{setspace}
+\usepackage{threeparttable}
+\usepackage{subfloat}
+\usepackage{pstricks,pst-node}
+\usepackage[normal,tight,center]{subfigure}
+\usepackage{pifont}
+\usepackage{multimedia}
+%\usepackage{media9}
+%\usepackage{enumitem}
+\usepackage{animate}
+\usepackage{caption}
+\usepackage{multirow}
+
+
+% the following is used to bind frames with the same frame number
+\usepackage{etoolbox}
+
+\newcounter{multipleslide}
+
+\makeatletter%
+\newcommand{\multipleframe}{%
+\setcounter{multipleslide}{\value{framenumber}}
+\stepcounter{multipleslide}
+\patchcmd{\beamer@@tmpl@footline}% <cmd>
+	{\insertframenumber}% <search>
+	{\themultipleslide}% <replace>
+	{}% <success>
+	{}% <failure>
+}
+\newcommand{\restoreframe}{%
+\patchcmd{\beamer@@tmpl@footline}% <cmd>
+	{\themultipleslide}% <search>
+	{\insertframenumber}% <replace>
+	{}% <success>
+	{}% <failure>
+\setcounter{framenumber}{\value{multipleslide}}%
+}
+\makeatother%
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Running 'pdflatex --shell-escape...' will automatically recognize
+% the eps files in the includegraphics and convert them to pdf.
+% No file rename nor change to the document is needed.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{ifpdf}
+\ifpdf
+\DeclareGraphicsRule{.eps}{pdf}{.pdf}{`epstopdf #1}
+\usepackage{epstopdf}
+\epstopdfsetup{suffix=-\SourceExt-converted-to}
+\pdfcompresslevel=0   %\pdfcompresslevel=9
+\pdfcompresslevel0
+\fi
+
+
+% para poder incluir figuras .pdftex del xfig
+\DeclareGraphicsRule{.pdftex}{pdf}{.pdftex}{}
+
+\newcommand{\nada}[1]   {}
+
+\newcommand{\ma}[1]{\boldsymbol{#1}}
+\newcommand{\ie}{\textit{i.e.} }
+\newcommand{\eg}{\textit{e.g.} }
+\newcommand{\etal}{\textit{et al}. }
+\newcommand{\tras}[1]{#1^{\mathrm{T}}}
+\newcommand{\herm}[1]{#1^{\mathrm{H}}}
+\newcommand{\con}[1]{#1^{\mathrm{*}}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\tech}[1]{\overline{#1}}
+\newcommand{\nspace}{\!\!\!\!}
+\newcommand{\nmbr}[1]{\oldstylenums{#1}}
+
+\newcommand{\eps}{\varepsilon}
+\newcommand{\R}{{\mathbb R}}
+\newcommand{\Q}{{\mathbb Q}}
+\newcommand{\N}{{\mathbb N}}
+\newcommand{\Z}{{\mathbb Z}}
+\newcommand{\C}{{\mathcal C}}
+\renewcommand{\H}{{\mathcal H}}
+\newcommand{\F}{{\mathcal F}}
+
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\median}{median}
+
+
+
+\definecolor{MyOrange}  {cmyk}{0,0.73,1.0,0}
+\definecolor{MyGreen}   {cmyk}{1,0,1,0.0}
+
+% Rida's colors and commands
+\definecolor{Red}{rgb}{0.9,0.0,0.1}
+\definecolor{Brown}{rgb}{0.55,0.27,0.1}
+\definecolor{Brownie}{rgb}{0.75,0.27,0.1}
+\definecolor{Yellow}{rgb}{1,1,0}
+\definecolor{White}{rgb}{1,1,1}
+\definecolor{formule}{rgb}{0.75,0.27,0.1}
+\definecolor{formule}{rgb}{.7,1,0}
+\definecolor{violet}{rgb}{0.7,0,.9}
+\definecolor{darkgreen}{rgb}{0,.7,0}
+
+%\newcommand{\reference}[1] {{\scriptsize \color{gray}  #1 }} 
+\newcommand{\reference}[1] {{\color{gray}  #1 }} 
+\newcommand{\rmk}[1]{{\color{Red} #1}}
+
+%\theoremstyle{plain}\newtheorem{theorem}{Theorem}[chapter]
+%\theoremstyle{plain}\newtheorem{proposition}{Proposition}[chapter]
+%\theoremstyle{plain}\newtheorem{lemma}{Lemma}[chapter]
+%\theoremstyle{definition}\newtheorem{definition}{Definition}[chapter]
+
+% New definition of square root:
+% it renames \sqrt as \oldsqrt
+\let\oldsqrt\sqrt
+% it defines the new \sqrt in terms of the old one
+\def\sqrt{\mathpalette\DHLhksqrt}
+\def\DHLhksqrt#1#2{%
+\setbox0=\hbox{$#1\oldsqrt{#2\,}$}\dimen0=\ht0
+\advance\dimen0-0.2\ht0
+\setbox2=\hbox{\vrule height\ht0 depth -\dimen0}%
+{\box0\lower0.4pt\box2}}
+
+
+%gets rid of bottom navigation bars
+% \setbeamertemplate{footline}[frame number]{}
+
+%gets rid of navigation symbols
+\setbeamertemplate{navigation symbols}{}
+
+\title[Video denoising]{$\,$ \\ $\,$ \\ Preliminary results on patch-based video denoising}
+\author[Pablo Arias]{Pablo Arias\\ Jean-Michel Morel\vspace{.5cm}\\ $\,$ \\ $\,$ \\ $\,$ \\
+Meeting CMLA-DxO \\March 17, 2015}
+\institute[CMLA]{}
+\date[]{}
+
+%\author[Pablo Arias]{Pablo Arias$^*$, Vicent Caselles$^*$, Gabriele Facciolo$^\dagger$ \\ Rida Sadek$^*$, Guillermo Sapiro$^\ddagger$ \\ $\,$ \\  $\,$ \\ $\,$ \\ $\,$ \\
+%\institute[UPF]{* Universitat Pompeu Fabra\\ $\dagger$ ENS Cachan \\ $\ddagger$ Duke University}
+
+% \AtBeginSection[]  % "Beamer, do the following at the start of every section"
+% {\begin{frame}<beamer>
+% \frametitle{Outline} % make a frame titled "Outline"
+% \tableofcontents[currentsection]  % show TOC and highlight current section
+% \end{frame}}
+%
+% \AtBeginSubsection[]  % "Beamer, do the following at the start of every section"
+% {\begin{frame}<beamer>
+% \frametitle{Outline} % make a frame titled "Outline"
+% \tableofcontents[currentsection,currentsubsection]  % show TOC and highlight current section
+% \end{frame}}
+
+\graphicspath{{./figures/}}
+
+\begin{document}
+
+\begin{frame}
+    \titlepage
+\end{frame}
+
+% \begin{frame}{Gradient-domain video editing}
+% 	\begin{center}
+% 		\includegraphics[width=0.19\textwidth]{figures_rida/vid_edit/screen_seq_screen_025_cropped}
+% 		\includegraphics[width=0.19\textwidth]{figures_rida/vid_edit/screen_seq_mask_red_031_cropped}
+% 		\includegraphics[width=0.19\textwidth]{figures_rida/vid_edit/screen_seq_mask_red_037_cropped}
+% 		\includegraphics[width=0.19\textwidth]{figures_rida/vid_edit/screen_seq_mask_red_041_cropped}
+% 		\includegraphics[width=0.19\textwidth]{figures_rida/vid_edit/screen_seq_screen_045_cropped}	 
+% 		\\
+% 		\includegraphics[width=0.19\textwidth]{figures_rida/vid_edit/screen_seq_screen_025_cropped}
+% 		\includegraphics[width=0.19\textwidth]{figures_rida/vid_edit/screen_seq_screen_031_cropped}
+% 		\includegraphics[width=0.19\textwidth]{figures_rida/vid_edit/screen_seq_screen_037_cropped}
+% 		\includegraphics[width=0.19\textwidth]{figures_rida/vid_edit/screen_seq_screen_041_cropped}
+% 		\includegraphics[width=0.19\textwidth]{figures_rida/vid_edit/screen_seq_screen_045_cropped}\\
+% 	\end{center}
+% \end{frame}
+
+\section{Introduction}
+
+
+\begin{frame}{Introduction}
+
+	We are exploring several patch-based approaches for video denoising.
+	We have currently extended to video:
+
+	\vspace{.2cm}
+
+	\begin{enumerate}
+		\item[1.] non-local Bayes (based on IPOL C++ code of Marc Lebrun)
+		\item[2.] a two-stage version of non-local means (based on same code)
+	\end{enumerate}
+
+	\vspace{1cm}
+
+	IPOL demos for both methods, together with:
+
+	\vspace{.2cm}
+
+	\begin{enumerate}
+		\item[1.] Video BM3D (Matlab/C code by Dabov, Danieyan, Foi; only grayscale)
+		\item[2.] BM4D (Matlab/C code by Maggioni, Foi)
+	\end{enumerate}
+	
+\end{frame}
+
+\begin{frame}{Video NL-Bayes}
+
+	Straightforward adaptation of non-local Bayes to video: patches are
+	searched for in a spatio-temporal search window, of size $W_x \times W_x
+	\times W_t$. 
+	
+	\pause
+
+	\vspace{.6cm}
+
+	Parameters based on default parameters for NL-Bayes for images:
+	\vspace{.2cm}
+	\begin{itemize} \itemsep=.2cm
+		\item $W_t$ selected by user
+		\item The number of similar patches $N_{\text{sim}}$ used for the
+			Bayesian estimation step: 
+			\[N_{\text{sim}} = N_{\text{sim},0} W_t,\]
+			where $N_{\text{sim},0}$ default parameter for image NL-Bayes.
+		\item Rest of parameters are the default ones from image NL-Bayes.
+	\end{itemize}
+
+	\vspace{1cm}
+
+\end{frame}
+
+\begin{frame}{Video two-stage NL-Means}
+
+	As in Video NL-Bayes, we build groups of similar patches which are jointly
+	denoised. 
+
+	\vspace{.5cm}
+	
+	Instead of performing the Bayesian group estimation, we estimate each patch
+	in the group by \structure{averages weighted by patch similarity} of the
+	group patches, as in NL-means.
+	
+	\vspace{.5cm}
+	
+	Patches in group are then \structure{aggregated to form an image}.
+
+	\vspace{.5cm}
+	
+	Two stages: basic and final estimates. In the final stage, the basic
+	estimate is used to build the groups of similar patches and to compute the
+	similarity weights.
+
+\end{frame}
+
+\multipleframe
+\begin{frame}{Video two-stage NL-Means}
+	
+	\structure{Basic estimate:} For each $x$:
+
+	\begin{enumerate}
+		\item[1.] Build a group $\mathcal G_x$ of patches similar to $\hat p_x$ ($L^2$
+			distance between $Y$ component).
+	
+		\item[2.] For each noisy patch $\hat p_y$ in the group $\mathcal G_x$:
+
+	\[p_y^{\text{NLM},b} = \frac1{C}\sum_{\hat p_z\in\mathcal G_x} w(\hat p_y, \hat p_z)\hat p_z.\]
+
+		Weights computed following [Buades, Coll, Morel; IPOL'13]:
+
+	\[\quad\displaystyle w(\hat p_y, \hat p_z) = \exp\left(-\frac1{h_b^2}\max(\|\hat p_y - \hat p_z\|_Y^2, 2\sigma^2/3)\right)\]
+	
+		\item[3.] Aggregate the estimated patches $p_y^{\text{NLM},b}$ on an image $u_b$.
+
+	\end{enumerate}
+	
+\end{frame}
+
+\begin{frame}{Video two-stage NL-Means}
+	
+	\structure{Final estimate:} For each $x$:
+
+	\begin{enumerate}
+		\item[1.] Build a group $\mathcal G_x$ of noisy patches such that their basic
+			estimate is similar to $p_x^b$ ($L^2$ distance
+			between color patches of $y_b)$.
+	
+		\item[2.] For each noisy patch $\hat p_y$ in the group $\mathcal G^n_x$:
+
+	\[p_y^{\text{NLM},f} = \frac1{C}\sum_{\hat p_z\in\mathcal G_x} w(p^b_y, p^b_z)\hat p_z.\]
+
+		Weights computed following [Buades, Coll, Morel; IPOL'13]:
+
+	\[w(p^b_y, p^b_z) = \exp\left(-\frac1{h_f^2}\max(\|p^b_y - p^b_z\|_{\text{RGB}}^2, 2\gamma\sigma^2)\right).\]
+	
+		\item[3.] Aggregate the estimated patches $p_y^{\text{NLM},f}$ on an image $u$.
+
+	\end{enumerate}
+	
+\end{frame}
+\restoreframe
+
+\begin{frame}{Video two-stage NL-Means}
+
+	\begin{itemize} \itemsep=.4cm
+		\item $W_t$ selected by user.
+		\item Rest of patch search parameters based on default parameters of
+			Video NL-Bayes.
+		\item Parameters for basic NL-means estimate based on default parameters
+			in [Buades, Coll, Morel; IPOL'13]. 
+		\item Parameters for final NL-means estimate set by trial-and-error based
+			on a few results.
+	\end{itemize}
+
+	\vspace{1cm}
+
+\end{frame}
+
+\multipleframe
+\begin{frame}{Video BM3D}
+
+	As in Video NL-Bayes, groups of similar patches are jointly denoised. Groups
+	are considered 3D signals, which are filtered in a 3D separable transformed
+	domain.
+
+	\vspace{.7cm}
+	
+	\structure{Basic estimate:} For each $x$:
+
+	\begin{enumerate}\itemsep=.5cm
+		\item[1.] Build a 3D group $\mathcal G_x$ of noisy patches similar to
+			$\hat p_x$ (using $L^2$ distance between $Y$ component and predictive
+			search).
+	
+		\item[2.] Hard thresholding on separable transform domain (separable
+			bi-orthogonal wavelet on spatial axes + Haar wavelet
+			on group axis).
+
+		\item[3.] Aggregate the estimated patches on an image $u_b$, the
+			basic estimate.
+
+	\end{enumerate}
+	
+\end{frame}
+
+\begin{frame}{Video BM3D}
+
+	As in Video NL-Bayes, groups of similar patches are jointly denoised. Groups
+	are considered 3D signals, which are filtered in a 3D separable transformed
+	domain.
+	
+	\vspace{.7cm}
+	
+	\structure{Final estimate:} For each $x$:
+
+	\begin{enumerate}\itemsep=.5cm
+		\item[1.] Build 3D groups $\mathcal G_x$ of noisy patches \structure{and
+			basic patches} similar to $p^b_x$ (using $L^2$ distance between $Y$
+			component \structure{of basic estimate} and predictive search).
+	
+		\item[2.] \structure{Wiener filtering} on separable transform domain (\structure{2D DTC} on spatial
+			axes + Haar wavelet on group axis). \structure{Coefficients of Wiener filter are estimated
+			from the transformed basic group.}
+
+		\item[3.] Aggregate the estimated patches on an image $u_f$, the
+			\structure{final estimate}.
+
+	\end{enumerate}
+	
+\end{frame}
+\restoreframe
+
+
+\multipleframe
+\begin{frame}{Video BM4D}
+
+	Collaborative filtering of \structure{spatio-temporal 3D patches}: a patch
+	that spans several frames. In each frame, the top-left corner follows a
+	motion trajectory.
+
+
+	\vspace{.6cm}
+	
+	\structure{Basic estimate:}
+	\begin{enumerate} \itemsep=.5cm
+		\item[1.] For each $x$ build a trajectory $\text{Traj}(x)$ of a variable
+			number of frames (block matching in noisy video $+$ temporal smoothing).
+		\item[2.] For each $x$, let $p_x$ be the spatio-temporal patch at $x$:
+			\begin{enumerate} \itemsep=.2cm
+				\item[2.1.] Build a 4D group $\mathcal G_x$ by stacking 3D noisy
+					spatio-temporal patches similar to $p_x$ ($L^2$ distance between
+					$Y$ component).
+				\item[2.2.] Thresholding in transform domain of 4D group
+					using separable 4D transform. Different basis for different
+					spatial, temporal and ``group'' dimensions.
+				\item[2.3.] Weighted aggregation based on 4D transform sparsity.
+			\end{enumerate}
+	\end{enumerate}
+
+\end{frame}
+
+\begin{frame}{Video BM4D}
+
+	Collaborative filtering of \structure{spatio-temporal 3D patches}: a patch
+	that spans several frames. In each frame, the top-left corner follows a
+	motion trajectory.
+
+
+	\vspace{.6cm}
+	
+	\structure{Final estimate:}
+	\begin{enumerate} \itemsep=.5cm
+		\item[1.] For each $x$ build a trajectory $\text{Traj}(x)$ of a variable
+			number of frames (block matching in \structure{basic estimate} $+$ temporal smoothing).
+		\item[2.] For each $x$, let $p_x$ be the spatio-temporal patch at $x$:
+			\begin{enumerate} \itemsep=.2cm
+				\item[2.1.] Build a 4D group $\mathcal G_x$ by stacking 3D noisy
+					spatio-temporal patches similar to $p_x$ ($L^2$ distance in
+					\structure{basic estimate}).
+				\item[2.2.] \structure{Wiener filtering} in transform domain of 4D
+					group using separable 4D transform. Different basis for
+					different spatial, temporal and ``group'' dimensions.
+				\item[2.3.] Weighted aggregation based on 4D \structure{filtered coefficients}.
+			\end{enumerate}
+	\end{enumerate}
+
+\end{frame}
+\restoreframe
+
+\begin{frame}[fragile]{IPOL demos and results}
+	Demos on:\\
+	\verb+http://dev.ipol.im/~pariasm/ipol_demo/video_nlbayes/+\\
+	\verb+http://dev.ipol.im/~pariasm/ipol_demo/vbm3d/+\\
+	\verb+http://dev.ipol.im/~pariasm/ipol_demo/vbm4d/+
+
+	\vspace{2cm}
+
+	Show results\dots
+
+\end{frame}
+
+\multipleframe
+\begin{frame}{PSNRs of basic estimates}
+
+	{\small
+	\begin{tabular}{| c | c |c c c c c|}
+		\hline \hline
+		$\sigma$  & Method \textbackslash Video & Army & DogDance & Evergreen & Mequon & Walking \\\hline\hline
+		\multirow{5}{*}{$10$} & BM4D           & \textbf{37.48} & \textbf{35.60} & \textbf{35.29} & \textbf{37.89} & \textbf{38.67} \\%\cline{2-7}
+		                      & VNLB $W_t = 0$ &         34.17  &         33.31  &         32.99  &         34.76  &         34.82  \\%\cline{2-7}
+		                      & VNLB $W_t = 1$ &         36.16  &         34.67  &         34.26  &         37.09  &         37.22  \\%\cline{2-7}
+		                      & VNLB $W_t = 2$ &         36.46  &         34.82  &         34.40  &         37.33  &         37.58  \\\hline
+%									 
+		\multirow{5}{*}{$25$} & BM4D           & \textbf{32.24} & \textbf{31.07} & \textbf{30.48} &         32.89  & \textbf{33.54} \\%\cline{2-7}
+		                      & VNLB $W_t = 0$ &         30.10  &         29.47  &         29.02  &         30.88  &         30.95  \\%\cline{2-7}
+		                      & VNLB $W_t = 1$ &         31.89  &         30.80  &         30.28  &         32.84  &         32.96  \\%\cline{2-7}
+		                      & VNLB $W_t = 2$ &         32.18  &         30.97  &         30.45  & \textbf{33.10} &         33.26  \\\hline
+%									 
+		\multirow{5}{*}{$40$} & BM4D           & \textbf{29.53} & \textbf{28.59} &         27.93  &         29.94  & \textbf{30.55} \\%\cline{2-7}
+		                      & VNLB $W_t = 0$ &         26.99  &         26.58  &         26.23  &         27.56  &         27.59  \\%\cline{2-7}
+		                      & VNLB $W_t = 1$ &         29.10  &         28.25  &         27.82  &         29.77  &         29.85  \\%\cline{2-7}
+									 & VNLB $W_t = 2$ &         29.46  &         28.50  & \textbf{28.07} & \textbf{30.13} &         30.25  \\\hline\hline
+	\end{tabular}}
+
+\end{frame}
+
+\begin{frame}{PSNRs of final estimates}
+
+	{\small
+	\begin{tabular}{| c | c |c c c c c|}
+		\hline \hline
+		$\sigma$  & Method \textbackslash Video & Army & DogDance & Evergreen & Mequon & Walking \\\hline\hline
+		\multirow{5}{*}{$10$} & BM4D           & \textbf{37.77} & \textbf{35.70} & \textbf{35.40} &         38.09  &         38.85  \\%\cline{2-7}
+		                      & VNLB $W_t = 0$ &         36.38  &         34.88  &         34.27  &         37.90  &         38.10  \\%\cline{2-7}
+		                      & VNLB $W_t = 1$ &         37.17  &         35.31  &         34.80  & \textbf{38.79} & \textbf{39.16} \\%\cline{2-7}
+		                      & VNLB $W_t = 2$ &         37.18  &         35.27  &         34.77  &         38.64  &         39.10  \\\hline
+%									 
+		\multirow{5}{*}{$25$} & BM4D           &         32.91  & \textbf{31.50} & \textbf{30.94} &         33.60  &         34.27  \\%\cline{2-7}
+		                      & VNLB $W_t = 0$ &         32.11  &         30.88  &         30.18  &         33.30  &         33.19  \\%\cline{2-7}
+		                      & VNLB $W_t = 1$ &         33.07  &         31.45  &         30.70  &         34.28  &         34.14  \\%\cline{2-7}
+		                      & VNLB $W_t = 2$ & \textbf{33.19} &         31.44  &         30.69  & \textbf{34.34} & \textbf{34.31} \\\hline
+%									 
+		\multirow{5}{*}{$40$} & BM4D           &         30.42  & \textbf{29.29} &         28.65  &         31.02  & \textbf{31.64} \\%\cline{2-7}
+		                      & VNLB $W_t = 0$ &         29.51  &         28.48  &         27.90  &         30.30  &         30.15  \\%\cline{2-7}
+		                      & VNLB $W_t = 1$ &         30.62  &         29.19  &         28.61  &         31.31  &         31.11  \\%\cline{2-7}
+									 & VNLB $W_t = 2$ & \textbf{30.81} &         29.24  & \textbf{28.66} & \textbf{31.43} &         31.35  \\\hline\hline
+	\end{tabular}}
+
+\end{frame}
+\restoreframe
+
+% \section{Experimental results}
+% 
+% %%%%%%%%%%%%%BOB Experiment%%%%%%%%%%%%%%%%%%%%%%%%
+% \multipleframe
+% 	\begin{frame}{Experimental results: One lid setting}
+% 		\begin{center}
+% 			\animategraphics[autoplay,loop,height=5cm]{8}{figures_rida/pres/bob_ori/}{002}{032}
+% 		\end{center}
+% 
+% 		\centerline{Fast illumination change. \structure{Original Sequence}}
+% 	\end{frame}
+% 	
+% 	
+% 	\begin{frame}{Experimental results: One lid setting}
+% 		\begin{center}
+% 			\animategraphics[autoplay,loop,height=5cm]{8}{figures_rida/pres/bob_editing/}{002}{032}
+% 		\end{center}
+% 
+% 		\centerline{Fast illumination change: \structure{Editing Domain}}
+% 	\end{frame}
+% 	
+% 	
+% 	\begin{frame}{Experimental results: One lid setting}
+% 		\begin{center}
+% 			\animategraphics[autoplay,loop,height=5cm]{8}{figures_rida/pres/bob_out/}{002}{032}
+% 		\end{center}
+% 
+% 		\centerline{Fast illumination change: \structure{Output}}
+% 	\end{frame}
+% 
+% 	
+% \begin{frame}{Experimental results: One lid setting}
+% 
+% 	\begin{center}
+% 		%output
+% 		\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_gbc_003}
+% 		\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_gbc_013}
+% 		\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_gbc_019}
+% 		\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_gbc_020}
+% 		\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_gbc_029}
+% 
+% 		%output BC
+% 		\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_bc_003}
+% 		\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_bc_013}
+% 		\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_bc_019}
+% 		\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_bc_020}
+% 		\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_bc_029}
+% 
+% 	%	%output BC filtered with mu = 10
+% 	%	\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_bcf_m10_003}
+% 	%	\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_bcf_m10_013}
+% 	%	\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_bcf_m10_019}
+% 	%	\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_bcf_m10_020}
+% 	%	\includegraphics[width=0.195\textwidth]{figures_rida/vid_edit/DSCD_norm_bcf_m10_029}
+% 	\end{center}
+% 
+% 	\begin{center}
+% 	\structure{Norm of the convective derivative.} 
+% 	\end{center}
+% \end{frame}
+% 
+% \restoreframe
+
+\begin{frame}{Next steps}
+	\begin{itemize}\itemsep=1cm
+	  \item Tune parameters - patch size and search region.
+	  \item Use coarse motion estimate to displace search region along frames.
+	  \item Detect still regions to enforce temporal consistency. 
+	  \item Address stair-casing problem.
+	  \item Compare against classical video denoising algorithms (e.g. temporal median).
+  \end{itemize}
+\end{frame}
+
+
+\begin{frame}{}
+	\centering
+   \vspace{1.7cm}
+   \textcolor{MyOrange}{\textbf{\Huge{Merci.}}}\\
+   \vspace{5cm}
+\end{frame}
+
+
+
+% 
+% 
+
+\end{document}
+

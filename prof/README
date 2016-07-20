@@ -1,0 +1,36 @@
+=====
+FILES
+=====
+
+callgrind.out.s??-inv        original version, inverting a full rank covariance matrix
+callgrind.out.s??-eigs       low rank assumption using k eigenvecs of cov. matrix (step 2)
+callgrind.out.s??-eigs-12    low rank assumption using k eigenvecs of cov. matrix (step 1 & 2)
+callgrind.out.s??-idsvd      low rank assumption using k sing. vecs. of data matrix (step 1)
+callgrind.out.s??-idsvd-12   low rank assumption using k sing. vecs. of data matrix (step 1 & 2)
+
+
+==================
+PROFILING ANALYSIS
+==================
+
+inv vs eigs
+-----------
+
+(1) Reduction factors for Bayesian estimate in the second step 
+
+	Reduction in cov matrix decomposition			: 0.9231
+	Reduction in matrix product for group denoising		: 0.0605
+	Overall reduction in step 2 bayes estimate		: 0.6143
+
+(2) Figures in (1) are the same regardless of the noise level.
+
+(3) For higher noise levels, the number of patch groups processed increases
+    in both the first and second step:
+
+				| s10	| s20	| s40
+	groups in step 1	| 14194	| 15757	| 17012
+	groups in step 2	| 24481	| 24778	| 31426
+
+(4) Figures in (3) are the same for both low rank and full rank implementations
+
+

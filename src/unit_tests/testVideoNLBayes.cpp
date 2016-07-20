@@ -20,6 +20,7 @@
 
 #include "Utilities.h"
 #include "VideoNLBayes.h"
+#include "LibMatrix.h"
 #include "cmd_option.h"
 
 #include <algorithm>
@@ -33,11 +34,55 @@
  * @author PABLO ARIAS  <pariasm@gmail.com>
  **/
 
+// Assumes row-major ordering
+void print_matrix(
+	std::vector<float> &matrix
+,	unsigned rows
+,	unsigned cols
+,	std::string filename
+){
+	FILE *file = fopen(filename.c_str(),"w");
+
+	// print output
+	for(int i = 0; i < rows; i++)
+	{
+		for(int j = 0; j < cols; j++)
+		{
+			fprintf(file, "%.16g ", matrix[i*cols + j]);
+		}
+		fprintf(file, "\n");
+	}
+
+	fclose(file);
+}
+
+// Assumes row-major ordering
+void print_matrix(
+	std::vector<double> &matrix
+,	unsigned rows
+,	unsigned cols
+,	std::string filename
+){
+	FILE *file = fopen(filename.c_str(),"w");
+
+	// print output
+	for(int i = 0; i < rows; i++)
+	{
+		for(int j = 0; j < cols; j++)
+		{
+			fprintf(file, "%.16g ", matrix[i*cols + j]);
+		}
+		fprintf(file, "\n");
+	}
+
+	fclose(file);
+}
+
 namespace VideoNLB
 {
 	std::vector<std::pair<float, unsigned> > estimateSimilarPatchesStep1_debug(
 		Video<float> const& i_im
-	,	std::vector<std::vector<float> > &o_group3d
+	,	std::vector<std::vector<float> > &o_group
 	,	std::vector<unsigned> &o_index
 	,	const unsigned pidx
 	,	const nlbParams &p_params
@@ -95,7 +140,7 @@ namespace VideoNLB
 		for (unsigned hy = 0, k = 0; hy < sP; hy++)
 		for (unsigned hx = 0;        hx < sP; hx++)
 		for (unsigned n  = 0; n < nSimP; n++, k++)
-			o_group3d[c][k] = i_im.data[o_index[n] + hy * w + hx + c * wh];
+			o_group[c][k] = i_im.data[o_index[n] + hy * w + hx + c * wh];
 
 		return distance;
 	
@@ -105,10 +150,139 @@ namespace VideoNLB
 		 * 0sp pixels from all patches
 		 */
 	}
+
+	/**
+	 * @brief Debug version of the version of
+	 * VideoNLB::computeBayesEstimateStep2_LRSVD that uses iddist to compute
+	 * a truncated SVD.
+	 *
+	 * @param io_groupNoisy: inputs all similar patches in the noisy image,
+	 *                         outputs their denoised estimates.
+	 * @param i_groupBasic: contains all similar patches in the basic image.
+	 * @param i_mat: contains :
+	 *    - groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
+	 *    - baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
+	 *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
+	 *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
+	 *    - tmpMat: allocated memory. Used to process the Bayes estimate;
+	 * @param io_nInverseFailed: update the number of failed matrix inversion;
+	 * @param p_imSize: size of the image;
+	 * @param p_params: see processStep2 for more explanations;
+	 * @param p_nSimP: number of similar patches.
+	 *
+	 * @return none.
+	 **/
+	float computeBayesEstimateStep2_LRSVD_id(
+		std::vector<float> &io_groupNoisy
+	,	std::vector<float>  &i_groupBasic
+	,	matWorkspace &i_mat
+	,	unsigned &io_nInverseFailed
+	,	const VideoSize &p_imSize
+	,	nlbParams const& p_params
+	,	const unsigned p_nSimP
+	){
+		//! Parameters initialization
+		const float diagVal = p_params.beta * p_params.sigma * p_params.sigma;
+		const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
+		                    * p_params.sizePatchTime * p_imSize.channels;
+		const unsigned r    = p_params.rank;
+	
+		//! Center 3D groups around their baricenter
+		centerData( i_groupBasic, i_mat.baricenter, p_nSimP, sPC);
+		centerData(io_groupNoisy, i_mat.baricenter, p_nSimP, sPC);
+	
+		//! Compute total variance HOW?
+		float total_variance = 0.f;
+	
+		//! Compute SVD
+		{
+			// convert data to double
+			i_mat.svd_ddata.resize(i_groupBasic.size());
+			std::vector<double>::iterator ddata = i_mat.svd_ddata.begin();
+			std::vector<float >::iterator fdata =  i_groupBasic.begin();
+			for (int i = 0; i < i_groupBasic.size(); ++i)
+				*ddata++ = (double)*fdata++;
+
+			print_matrix(i_mat.svd_ddata, sPC, p_nSimP, "/tmp/Xt.asc");
+	
+			// compute low rand SVD
+			int info = matrixLRSVD(i_mat.svd_ddata, p_nSimP, sPC, 4*r,
+					i_mat.svd_dS, i_mat.svd_dV, i_mat.svd_dU,
+					i_mat.svd_dwork);
+
+			print_matrix(i_mat.svd_dU , sPC, r, "/tmp/Ut.asc");
+			print_matrix(i_mat.svd_dS , 1  , r, "/tmp/S.asc");
+			print_matrix(i_mat.svd_dV , p_nSimP, r, "/tmp/Vt.asc");
+	
+			// convert SVD matrices to float
+			i_mat.svd_S.resize(i_mat.svd_dS.size());
+			i_mat.svd_V.resize(i_mat.svd_dV.size());
+			i_mat.svd_U.resize(i_mat.svd_dU.size());
+	
+			std::vector<float >::iterator to;
+			std::vector<double>::iterator from;
+	
+			to   = i_mat.svd_S .begin();
+			from = i_mat.svd_dS.begin();
+			for (int i = 0; i < i_mat.svd_dS.size(); ++i) *to++ = *from++;
+	
+			to   = i_mat.svd_V .begin();
+			from = i_mat.svd_dV.begin();
+			for (int i = 0; i < i_mat.svd_dV.size(); ++i) *to++ = *from++;
+	
+			to   = i_mat.svd_U .begin();
+			from = i_mat.svd_dU.begin();
+			for (int i = 0; i < i_mat.svd_dU.size(); ++i) *to++ = *from++;
+		}
+	
+		//! Compute variance captured by the r leading eigenvectors
+		float r_variance = 0.f;
+		for (int i = 0; i < r; ++i)
+		{
+			i_mat.svd_S[i] = (i_mat.svd_S[i] * i_mat.svd_S[i]) / (float)p_nSimP;
+			r_variance += i_mat.svd_S[i];
+		}
+	
+		//! Compute eigenvalues-based coefficients of Bayes' filter
+		float sigma2 = p_params.sigma * p_params.sigma;
+		for (unsigned k = 0; k < r; ++k)
+			i_mat.svd_S[k] = 1.f / sqrtf( 1.f + sigma2 / i_mat.svd_S[k] );
+	
+		//! Multiply sing. vector matrix by singular value matrix
+		{
+			float *svdU = i_mat.svd_U.data();
+			for (unsigned k = 0; k < r  ; ++k)
+			for (unsigned i = 0; i < sPC; ++i)
+				*svdU++ *= i_mat.svd_S[k];
+		}
+	
+		//! Z' = X'*V
+		productMatrix(i_mat.groupTranspose,
+		              io_groupNoisy,
+		              i_mat.svd_U,
+		              p_nSimP, r, sPC,
+		              false, false);
+	
+		//! hX' = Z'*V'
+		productMatrix(io_groupNoisy,
+		              i_mat.groupTranspose,
+		              i_mat.svd_U,
+		              p_nSimP, sPC, r,
+		              false, true);
+	
+		//! Add baricenter
+		for (unsigned j = 0, k = 0; j < sPC; j++)
+			for (unsigned i = 0; i < p_nSimP; i++, k++)
+				io_groupNoisy[k] += i_mat.baricenter[j];
+	
+		// return percentage of captured variance
+		return r_variance / total_variance;
+	
+	}
 }
 
 void print_patch_group(
-	std::vector<std::vector<float> > &group3d
+	std::vector<std::vector<float> > &group
 ,	std::vector<std::pair<float, unsigned> > &patch_dists
 ,	VideoNLB::nlbParams prms
 ,	VideoSize sz
@@ -129,9 +303,9 @@ void print_patch_group(
 	{
 		for (unsigned hx = 0; hx < sP; hx++, k++)
 		{
-			printf("% 3f,% 3f,% 3f   ", group3d[0][k*nSimP + 0], 
-			                            group3d[1][k*nSimP + 0],
-			                            group3d[2][k*nSimP + 0]);
+			printf("% 3f,% 3f,% 3f   ", group[0][k*nSimP + 0], 
+			                            group[1][k*nSimP + 0],
+			                            group[2][k*nSimP + 0]);
 		}
 		printf("\n");
 	}
@@ -143,9 +317,9 @@ void print_patch_group(
 	{
 		for (unsigned hx = 0; hx < sP; hx++, k++)
 		{
-			printf("% 3f,% 3f,% 3f   ", group3d[0][k*nSimP + idx], 
-			                            group3d[1][k*nSimP + idx],
-			                            group3d[2][k*nSimP + idx]);
+			printf("% 3f,% 3f,% 3f   ", group[0][k*nSimP + idx], 
+			                            group[1][k*nSimP + idx],
+			                            group[2][k*nSimP + idx]);
 		}
 		printf("\n");
 	}
@@ -165,36 +339,85 @@ int main(int argc, char **argv)
 {
 	//! Check if there is the right call for the algorithm
 	clo_usage("Unit test for Video NL-Bayes methods");
-//	if (argc != 9 && argc != 6)
-//	{
-//		fprintf(stdout, "Usage: %s path-to-frames first-frame last-frame frame-step sigma [px py pt]\n", argv[0]);
-//		return EXIT_FAILURE;
-//	}
 
 	//! Get command line inputs
-	const string i_video_path = clo_option("-i", "", "Patch to input sequence (printf format)");
+	const string i_noisy_path = clo_option("-i", "", "Patch to noisy sequence (printf format)");
+	const string i_basic_path = clo_option("-b", "", "Patch to basic sequence (printf format)");
+
+	const string output_file  = clo_option("-out", "stdout", "Output file");
+
 	const int i_firstFrame = clo_option("-f", 0, "First frame");
 	const int i_lastFrame  = clo_option("-l", 0, "Last frame");
 	const int i_frameStep  = clo_option("-s", 1, "Frame step");
+
 	const int i_sigma      = clo_option("-sigma", 0, "Add noise of standard deviation sigma");
-	const unsigned px      = clo_option("-px", 0, "Current point of analysis");
-	const unsigned py      = clo_option("-py", 0, "Current point of analysis");
-	const unsigned pt      = clo_option("-pt", 0, "Current point of analysis");
+	const unsigned px      = clo_option("-PAx", 100, "Point of analysis");
+	const unsigned py      = clo_option("-PAy", 100, "Point of analysis");
+	const unsigned pt      = clo_option("-PAt",   2, "Point of analysis");
+
+	//! Video NLB parameters
+	const int time_search1  = clo_option("-wt1", 2, "> Search window temporal radius, step 1");
+	const int time_search2  = clo_option("-wt2", 2, "> Search window temporal radius, step 2");
+	const int space_search1 = clo_option("-wx1",-1, "> Search window spatial radius, step 1");
+	const int space_search2 = clo_option("-wx2",-1, "> Search window spatial radius, step 2");
+	const int patch_sizex1  = clo_option("-px1",-1, "> Spatial patch size, step 1");
+	const int patch_sizex2  = clo_option("-px2",-1, "> Spatial patch size, step 2");
+	const int patch_sizet1  = clo_option("-pt1", 1, "> Temporal patch size, step 1");
+	const int patch_sizet2  = clo_option("-pt2", 1, "> Temporal patch size, step 2");
+	const int num_patches1  = clo_option("-np1",-1, "> Number of similar patches, step 1");
+	const int num_patches2  = clo_option("-np2",-1, "> Number of similar patches, step 2");
+	const int rank1         = clo_option("-r1" , 4, "> Rank or covariance matrix, step 1");
+	const int rank2         = clo_option("-r2" , 4, "> Rank or covariance matrix, step 2");
+
+	const int step = (i_basic_path.size()) ? 2 : 1;
 
 	//! Load video
-	Video<float> vid_ori;
+	Video<float> vid_nsy;
+	Video<float> vid_bsc;
 	{
-		vid_ori.loadVideo(i_video_path.c_str(), i_firstFrame, i_lastFrame, i_frameStep);
+		vid_nsy.loadVideo(i_noisy_path.c_str(), i_firstFrame, i_lastFrame, i_frameStep);
 
-		print_video_size("loaded video1", vid_ori);
+		if (step == 2)
+		{
+			vid_bsc.loadVideo(i_basic_path.c_str(), i_firstFrame, i_lastFrame, i_frameStep);
+			print_video_size("loaded basic video: ", vid_bsc);
+		}
+		else
+		{
+			Video<float> vid_ori(vid_nsy);
+			VideoUtils::addNoise(vid_ori, vid_nsy, i_sigma, 1);
+		}
+		
 	}
+
+	//! Set parameters
+	VideoNLB::nlbParams prms1, prms2;
+	{
+		VideoNLB::initializeNlbParameters(prms1, 1, i_sigma, vid_nsy.sz, 0, 1, time_search1, time_search1, patch_sizet1);
+		VideoNLB::initializeNlbParameters(prms2, 2, i_sigma, vid_nsy.sz, 0, 1, time_search2, time_search2, patch_sizet2);
+
+		//! Override with command line parameters
+		if (space_search1 >= 0) VideoNLB::setSizeSearchWindow(prms1, (unsigned)space_search1);
+		if (space_search2 >= 0) VideoNLB::setSizeSearchWindow(prms2, (unsigned)space_search2);
+		if (patch_sizex1  >= 0) VideoNLB::setSizePatch(prms1, vid_nsy.sz, (unsigned)patch_sizex1);;
+		if (patch_sizex2  >= 0) VideoNLB::setSizePatch(prms2, vid_nsy.sz, (unsigned)patch_sizex2);;
+		if (num_patches1  >= 0) VideoNLB::setNSimilarPatches(prms1, (unsigned)num_patches1);
+		if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
+
+		prms1.rank = rank1;
+		prms2.rank = rank2;
+	}
+
+	VideoNLB::printNlbParameters(prms1);
+	VideoNLB::printNlbParameters(prms2);
+
 
 	/*/! Test estimateSimilarPatchesStep1 and computeAggregationStep1 on a single pixel
 	{
 		using std::vector;
 
 		//! RGB to YUV
-		Video<float> vid(vid_ori);
+		Video<float> vid(vid_nsy);
 		VideoUtils::transformColorSpace(vid, true);
 
 		//! Initialize parameter structures
@@ -273,7 +496,7 @@ int main(int argc, char **argv)
 		using std::vector;
 
 		//! RGB to YUV
-		Video<float> vid(vid_ori);
+		Video<float> vid(vid_nsy);
 		VideoUtils::transformColorSpace(vid, true);
 
 		//! Initialize parameter structures
@@ -342,11 +565,114 @@ int main(int argc, char **argv)
 
 	}//*/
 
-	//! Test processNlBayes, both steps
+	//! Compute full basic estimate, and test estimateSimilarPatchesStep2 on a single pixel
+	{
+		using std::vector;
+
+		//! RGB to YUV
+		Video<float> vid(vid_nsy);
+
+		//! Run first step
+		Video<float> basic(vid.sz);
+		{
+			//! Number of subvideos in which video is divided
+			const unsigned nParts = 2;
+
+			if (prms1.verbose)
+			{
+				printf("1st Step\n");
+				for (int p = 0; p < nParts; ++p) printf("\n");
+			}
+
+			//! RGB to YUV
+			VideoUtils::transformColorSpace(vid, true);
+
+			//! Divide in subvideos
+			std::vector<Video<float> > parts_vid(nParts);
+			std::vector<VideoUtils::CropPosition > crops(nParts);
+			VideoUtils::subDivideTight(vid, parts_vid, crops, prms1.boundary,
+					nParts);
+
+			//! Process all sub-videos
+			std::vector<Video<float> > parts_basic(nParts);
+			std::vector<Video<float> > parts_final(nParts);
+			for (int n = 0; n < (int)nParts; n++)
+				processNlBayes(parts_vid[n], parts_basic[n], parts_final[n],
+						prms1, crops[n]);
+
+			//! Get the basic estimate
+			VideoUtils::subBuildTight(parts_basic, basic, prms1.boundary);
+
+			//! YUV to RGB
+			VideoUtils::transformColorSpace(vid  , false);
+			VideoUtils::transformColorSpace(basic, false);
+
+			//! Save video
+			basic.saveVideo("/tmp/basic_%02d.png", i_firstFrame, i_frameStep);
+		}
+
+		//! Compute second stage Bayes estimate for the point of analysis 
+		{
+
+			printf("2n step for point p = [%d,%d,%d]\n",px, py, pt);
+
+			//! Allocate
+			Video<float> final(vid.sz);
+
+			const unsigned sWx = prms2.sizeSearchWindow;
+			const unsigned sWt = prms2.sizeSearchTimeRangeFwd +
+										prms2.sizeSearchTimeRangeBwd + 1;
+			const unsigned sPx = prms2.sizePatch;
+			const unsigned sPt = prms2.sizePatchTime;
+			const VideoSize sz = vid.sz;
+
+			//! Matrices used during Bayes' estimate
+			const unsigned patch_dim = sPx * sPx * sPt * sz.channels;
+			const unsigned patch_num = sWx * sWx * sWt;
+
+			//! Matrices used for Bayes' estimate
+			VideoNLB::matWorkspace mat;
+			mat.groupTranspose.resize(patch_num * patch_dim);
+			mat.tmpMat        .resize(patch_dim * patch_dim);
+			mat.covMat        .resize(patch_dim * patch_dim);
+			mat.covMatTmp     .resize(patch_dim * patch_dim);
+			mat.baricenter    .resize(patch_dim);
+	
+			//! Matrices used for Bayes' estimate
+			vector<unsigned> index(patch_num);
+			vector<float> group_nsy(patch_num * patch_dim);
+			vector<float> group_bsc(patch_num * patch_dim);
+			vector<float> agg_weights(patch_num);
+	
+			//! Indices of the point of analysis in a color and scalar video
+			const unsigned ij  = sz.index(px,py,pt);
+			const unsigned ij3 = sz.index(px,py,pt, 0);
+
+			//! Search for similar patches around the reference one
+			unsigned nSimP = estimateSimilarPatchesStep2(vid_nsy, basic,
+					group_nsy, group_bsc, index, ij3, prms2);
+
+			printf("\tFound %d similar patches at p = [%d,%d,%d]\n", nSimP, px, py, pt);
+
+			//! Bayes' estimate
+			unsigned failed_inv = 0;
+			const float var_id = computeBayesEstimateStep2_LRSVD_id(group_nsy, group_bsc, mat, failed_inv, sz, prms2, nSimP);
+			printf("\tid done\n");
+			const float var_fl = computeBayesEstimateStep2_FR      (group_nsy, group_bsc, mat, failed_inv, sz, prms2, nSimP, agg_weights);
+			printf("\tfull rank done\n");
+
+			printf("\tVariances of group at p = [%d,%d,%d]\n",px, py, pt);
+			printf("\t\tw/id      var = %f\n",var_id);
+			printf("\t\tw/full    var = %f\n",var_fl);
+		}
+
+	}//*/
+
+	/*/! Test processNlBayes, both steps
 	{
 		//! Add noise
 		Video<float> vid;
-		VideoUtils::addNoise(vid_ori, vid, i_sigma, true);
+		VideoUtils::addNoise(vid_nsy, vid, i_sigma, true);
 
 		//! Save noisy video
 		vid.saveVideo("/tmp/vid_%02d.png", i_firstFrame, i_frameStep);
@@ -412,7 +738,7 @@ int main(int argc, char **argv)
 
 	/*/! Test indexing operations
 	{
-		VideoSize size3 = vid_ori.sz;
+		VideoSize size3 = vid_nsy.sz;
 		VideoSize size1(size3);
 		size1.channels = 1;
 		size1.update_fields();
