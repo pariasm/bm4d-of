@@ -18,18 +18,25 @@ if isempty(bsic),
 	sigma_bsic = sigma;
 end
 
-
 % center
 %mean_nisy = 128 + 0*mean(nisy, 2);
 %mean_bsic = 128 + 0*mean(bsic, 2);
 mean_nisy = mean(nisy, 2);
 mean_bsic = mean(bsic, 2);
-nisy = nisy - mean_nisy*ones(1,n);
-bsic = bsic - mean_bsic*ones(1,n);
+%nisy = Diag(wwx)*(nisy - mean_nisy*ones(1,n));
+%bsic = Diag(wwx)*(bsic - mean_bsic*ones(1,n));
+
+nisy = (nisy - mean_nisy*ones(1,n));
+bsic = (bsic - mean_bsic*ones(1,n));
 
 if ~isempty(orig),
 	orig = orig - mean_nisy*ones(1,n);
 end
+
+
+% use window (spatial only)
+%SigmaNoise = sigma^2*U'*diag(wwx.^2)*U;
+
 
 
 if isempty(S),
@@ -37,6 +44,11 @@ if isempty(S),
 	if isempty(U),
 		% covariance matrix
 		C = 1/n*bsic*bsic';
+
+		% redefine rank as...
+		if (rank >= 0), rank = min(rank, n-1);
+		else            rank = min(d   , n-1);
+		end
 		
 		% eigendecomposition
 		if rank > 0 && rank < d,
@@ -50,6 +62,7 @@ if isempty(S),
 	else
 		% project data vectors onto basis
 		S = diag(mean((U'*bsic).^2,2));
+%		S = diag(mean((U'*diag(wwx)*bsic).^2,2));
 	end
 	
 	

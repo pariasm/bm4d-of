@@ -6,16 +6,16 @@
 
 
 % parameters
-prms1.wx = 37;
-prms1.wt = 2;
-prms1.px = 7;
+prms1.wx = 25;
+prms1.wt = 0;
+prms1.px = 5;
 prms1.pt = 3;
 prms1.np = 10;
 prms1.r  = -1;
 
-prms2.wx = 37;
+prms2.wx = 25;
 prms2.wt = 2;
-prms2.px = 7;
+prms2.px = 5;
 prms2.pt = 3;
 prms2.np = 10;
 prms2.r  = -1;
@@ -88,8 +88,10 @@ orig = orig(cropy(1):cropy(2),cropx(1):cropx(2),:,cropt(1):cropt(2));
 %disp(20*log10(255/sqrt(norm(o(:) - d5p(:))^2/length(o(:)))))
 
 prms1.filter_type = 'neg';
-[deno1_neg, aggw1, bias1_neg] = nlbayes_step(nisy, []       , orig, sigma, prms1);
-[deno2_neg, aggw2, bias2_neg] = nlbayes_step(nisy, deno1_neg, orig, sigma, prms2);
+%[deno1_neg, aggw1, bias1_neg] = nlbayes_step(nisy, []       , orig, sigma, prms1);
+%[deno2_neg, aggw2, bias2_neg] = nlbayes_step(nisy, deno1_neg, orig, sigma, prms2);
+[deno1_neg, aggw1, bias1_neg] = nlbayes_step(nisy, []       , [], sigma, prms1);
+[deno2_neg, aggw2, bias2_neg] = nlbayes_step(nisy, deno1_neg, [], sigma, prms2);
 
 b1n = bias1_neg(5:end-5,5:end-5,:,:);
 b2n = bias2_neg(5:end-5,5:end-5,:,:);
