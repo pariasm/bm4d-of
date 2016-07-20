@@ -17,8 +17,8 @@
 #include "../Utilities/Utilities.h"
 #include "LibDCT.h"
 
-#define DEBUG_SHOW_WEIGHT
-#define DEBUG_COMPUTE_GROUP_ERROR
+//#define DEBUG_SHOW_WEIGHT
+//#define DEBUG_COMPUTE_GROUP_ERROR
 //#define DEBUG_SHOW_PATCH_GROUPS
 
 namespace VideoNLB
