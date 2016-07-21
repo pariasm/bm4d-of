@@ -53,7 +53,7 @@
  * coefficient is set to zero. This applies whenever the Gaussian model is
  * estimated from the noisy patches: in the first step, or in the second step
  * if NOISY_COVARIANCE2 option is defined. */
-//#define THRESHOLD_WEIGHTS1
+#define THRESHOLD_WEIGHTS1
 //#define THRESHOLD_WEIGHTS2
 
 /* Uses an adaptation of Li,Zhand,Dai fixed point iteration to estimate the
@@ -369,7 +369,8 @@ void setNSimilarPatches(nlbParams& prms, unsigned nSimilarPatches)
  **/
 void setTau(nlbParams& prms, const VideoSize &size, float tau)
 {
-	prms.tau = tau * tau * prms.sizePatch * prms.sizePatch * size.channels;
+	prms.tau = tau * tau * prms.sizePatch * prms.sizePatch * 
+	           prms.sizePatchTime * (prms.isFirstStep ? 1 : size.channels);
 }
 
 /**

@@ -270,8 +270,6 @@ int main(int argc, char **argv)
 	//! Percentage or processed groups of patches over total number of pixels
 	std::vector<float> groupsRatio;
 
-	printf("%f %f\n",tau1,prms1.tau);
-
 	//! Run denoising algorithm
 #ifndef DEBUG_COMPUTE_GROUP_ERROR
 	groupsRatio = VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2);
