@@ -1,0 +1,113 @@
+# first step
+
+center/no center
+
+# second step
+
+center      /no center
+noisy cov   /clean cov
+noisy center/clean center
+
+# number of variantes for the second step
+center      / 0 | 0 | 1 | 1 | 1 | 1
+noisy cov   / 0 | 1 | 0 | 0 | 1 | 1
+noisy center/   |   | 0 | 1 | 0 | 1
+
+# plan:
+	#1 for each strategy, find best parameters on images
+	#2 compare best performances attained by each strategy
+	#3 determine best strategy
+	#4 find best parameters for sequences
+
+# TODO
+	# check why without centering (np2=1) = (np2=2)  
+	# compute results with smaller np2 for px2=4
+
+                 ╔══════════════════════════╦══════════════════════════╦══════════════════════════╗
+             2nd ║ cov ba                   ║ cov ny - th              ║ cov ny   th on           ║
+                 ╟────────┬────────┬────────╫────────┬────────┬────────╫────────┬────────┬────────╢
+ 1st             ║ ctr ba │ ctr ny │ ctr no ║ ctr ba │ ctr ny │ ctr no ║ ctr ba │ ctr ny │ ctr no ║
+╔═══════╤════════╬════════╪════════╪════════╬════════╪════════╪════════╬════════╪════════╪════════╣
+║       │        ║always  │        │        ║        │        │        ║        │        │        ║
+║ th no │ ctr no ║worse   │        │        ║        │        │        ║        │        │        ║
+║       │        ║than ctr│        │        ║        │        │        ║        │        │        ║
+║       ├────────╫────────┼────────┼────────╫────────┼────────┼────────╫────────┼────────┼────────╢
+║       │        ║slightly│worse   │worser  ║very bad│        │        ║very bad│        │        ║
+║       │ ctr    ║better  │than    │than    ║        │        │        ║        │        │        ║
+║       │        ║than REF│left    │left    ║        │        │        ║        │        │        ║
+╠═══════╪════════╬════════╪════════╪════════╬════════╪════════╪════════╬════════╪════════╪════════╣
+║       │        ║always  │        │        ║        │        │        ║        │        │        ║
+║ th    │ ctr no ║worse   │        │        ║        │        │        ║        │        │        ║
+║       │        ║than ctr│        │        ║        │        │        ║        │        │        ║
+║       ├────────╫────────┼────────┼────────╫────────┼────────┼────────╫────────┼────────┼────────╢
+║       │        ║        │worse   │worser  ║very bad│        │        ║very bad│        │        ║
+║       │ ctr    ║REF     │than    │than    ║        │        │        ║        │        │        ║
+║       │        ║        │left    │left    ║        │        │        ║        │        │        ║
+╚═══════╧════════╩════════╧════════╧════════╩════════╧════════╧════════╩════════╧════════╧════════╝
+
+# conclusion:
+#	- 1st step with centering
+#	- 2nd step with centering using basic
+#	- 2nd step with variances using basic
+#	* no thresholding seems better
+
+# Now we got different approaches for step 1:
+#	classical hard thresholding
+# 	classical soft thresholding
+# 	0-1 filter based on sample variance
+#
+# These new methods add an additional parameter. In order to compare
+# them, we need to determine, for each pair np1, np2 and for each sigma,
+# the best value of the parameter.
+
+                ╔══════════════════╗
+            2nd ║ cov ba           ║
+ 1st            ║ ctr ba           ║
+╔═══════════════╬══════════════════╣
+║ hard          ║2. slightly       ║
+║ thresholding  ║worse than        ║
+║ of dct        ║1.                ║
+║ coefficients  ║                  ║
+╠═══════════════╬══════════════════╣
+║ soft          ║3. worse          ║
+║ thresholding  ║than 2.           ║
+║ of dct        ║                  ║
+║ coefficients  ║                  ║
+╠═══════════════╬══════════════════╣
+║ linear hard   ║1. similar        ║
+║ thresholding  ║perf. to          ║
+║ of dct coeff. ║thresholding      ║
+║ variances     ║negative weights  ║
+╠═══════════════╬══════════════════╣
+║ bayesian soft ║1.5 slightly      ║
+║ thresholding  ║worse perf. than  ║
+║ of dct        ║1.                ║
+║ coefficients  ║                  ║
+╠═══════════════╬══════════════════╣
+║ linear soft   ║? yet to be       ║
+║ thresholding  ║implemented       ║
+║ of dct coeff. ║                  ║
+║ variances     ║                  ║
+╚═══════════════╩══════════════════╝
+
+
+# Still to check
+# run for patch sizes px1 =  4  6  8
+#                     px2 =  4  6  8
+#                     sig = 10 20 40
+#                     np1 = 20 30 40 60 80 100
+#                     np1 =  2  3  4  6  8  10 15 20
+#
+# run with threshold and without threshold
+
+
+
+# Other questions:
+# are the negative weights better when considering only a single patch?
+#	after a simple test, it seems that the don't. artifacts 
+#	are huge with a signle patch if weights are not thresholded
+#
+# do the neg. weights cause the noise in flat regions in nlbayes?
+#
+
+
