@@ -83,6 +83,7 @@ int main(int argc, char **argv)
 	const float beta2       = clo_option("-b2" ,-1.f, "> Noise correction factor beta, step 2");
 	const float beta_mean1  = clo_option("-bm1",-1.f, "> Noise correction factor beta for mean, step 1");
 	const float beta_mean2  = clo_option("-bm2",-1.f, "> Noise correction factor beta for mean, step 2");
+	const float tau1        = clo_option("-t1" ,-1.f, "> Step 1 distance threshold");
 	const float tau2        = clo_option("-t2" ,-1.f, "> Step 2 distance threshold");
 	const float p_aggre1    = clo_option("-pag1", 0.f, "> Decay of per-patch aggregation weights, step 1");
 	const float p_aggre2    = clo_option("-pag2", 0.f, "> Decay of per-patch aggregation weights, step 2");
@@ -171,6 +172,7 @@ int main(int argc, char **argv)
 		if (beta2         >= 0) prms2.beta = beta2;
 		if (beta_mean1    >= 0) prms1.betaMean = beta_mean1;
 		if (beta_mean2    >= 0) prms2.betaMean = beta_mean2;
+		if (tau1          >= 0) VideoNLB::setTau(prms1, tmp, tau1);
 		if (tau2          >= 0) VideoNLB::setTau(prms2, tmp, tau2);
 
 		prms1.rank = rank1;
@@ -249,6 +251,7 @@ int main(int argc, char **argv)
 	if (beta2         >= 0) prms2.beta = beta2;
 	if (beta_mean1    >= 0) prms1.betaMean = beta_mean1;
 	if (beta_mean2    >= 0) prms2.betaMean = beta_mean2;
+	if (tau1          >= 0) VideoNLB::setTau(prms1, noisy.sz, tau1);
 	if (tau2          >= 0) VideoNLB::setTau(prms2, noisy.sz, tau2);
 
 	prms1.rank = rank1;
@@ -266,6 +269,8 @@ int main(int argc, char **argv)
 
 	//! Percentage or processed groups of patches over total number of pixels
 	std::vector<float> groupsRatio;
+
+	printf("%f %f\n",tau1,prms1.tau);
 
 	//! Run denoising algorithm
 #ifndef DEBUG_COMPUTE_GROUP_ERROR

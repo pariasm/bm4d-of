@@ -369,9 +369,7 @@ void setNSimilarPatches(nlbParams& prms, unsigned nSimilarPatches)
  **/
 void setTau(nlbParams& prms, const VideoSize &size, float tau)
 {
-	prms.tau = (!prms.isFirstStep) 
-	         ? tau * tau * prms.sizePatch * prms.sizePatch * size.channels
-	         : 0.f;
+	prms.tau = tau * tau * prms.sizePatch * prms.sizePatch * size.channels;
 }
 
 /**
@@ -393,8 +391,7 @@ void printNlbParameters(
 	printf("\t\tPatch size                  = %d\n"       , i_prms.sizePatch);
 	printf("\t\tPatch size temporal         = %d\n"       , i_prms.sizePatchTime);
 	printf("\t\tNumber of patches           = %d\n"       , i_prms.nSimilarPatches);
-	if (!i_prms.isFirstStep) printf("\t\tDistance threshold (tau)    = %g\n"       , i_prms.tau);
-	else                     printf("\t\tDistance threshold (tau)    = N/A\n"      );
+	printf("\t\tDistance threshold (tau)    = %g\n"       , i_prms.tau);
 	printf("\t\tSpatial search window       = %dx%d\n"    , i_prms.sizeSearchWindow, i_prms.sizeSearchWindow);
 	printf("\t\tTemporal search range       = [-%d,%d]\n" , i_prms.sizeSearchTimeRangeBwd, i_prms.sizeSearchTimeRangeBwd);
 	printf("\t\tSpatial border added        = %d\n"       , i_prms.boundary);
@@ -1035,7 +1032,8 @@ unsigned processNlBayes(
 
 	//! Used matrices during Bayes' estimate
 	const unsigned patch_dim = step1 ? sPx * sPx * sPt : sPx * sPx * sPt * sz.channels;
-	const unsigned patch_num = step1 ? p_params.nSimilarPatches : sWx * sWx * sWt;
+//	const unsigned patch_num = step1 ? p_params.nSimilarPatches : sWx * sWx * sWt;
+	const unsigned patch_num = sWx * sWx * sWt;
 
 	//! Matrices used for Bayes' estimate
 	vector<unsigned> index(patch_num);
@@ -1466,25 +1464,27 @@ unsigned estimateSimilarPatchesStep1(
 				std::make_pair(dist, i_im.sz.index(qx, qy, qt, 0));
 		}
 
-//		printf("distance.size() = %d", distance.size());
-//		for (int i = 0; i < distance.size(); i++)
-//		{
-//			unsigned cx, cy, ct, cc;
-//			i_im.sz.coords(distance[i].second, cx, cy, ct, cc);
-//			printf("d[%03d] = %g - p = [%02d,%02d,%02d,%2d]\n", i, distance[i].first,
-//					cx, cy, ct, cc);
-//		}
-
 		//! Keep only the N2 best similar patches
 		nSimP = std::min(p_params.nSimilarPatches, (unsigned)distance.size());
 		std::partial_sort(distance.begin(), distance.begin() + nSimP,
 		                  distance.end(), comparaisonFirst);
 
-		if (nSimP <  p_params.nSimilarPatches)
-		{
-			printf("SR1 [%d,%d,%d] ~ [%d-%d, %d-%d, %d-%d] - nsim = %d\n", 
-					px,py,pt,rangex[0], rangex[1], rangey[0], rangey[1], ranget[0], ranget[1], nSimP);
-		}
+		const float threshold = std::max(p_params.tau, distance[nSimP - 1].first);
+		nSimP = 0;
+
+		//! Register position of similar patches
+		for (unsigned n = 0; n < distance.size(); n++)
+			if (distance[n].first <= threshold)
+				o_index[nSimP++] = distance[n].second;
+
+//		if (nSimP < p_params.nSimilarPatches)
+//		{
+//			printf("SR1 [%d,%d,%d] ~ [%d-%d, %d-%d, %d-%d] - nsim = %d\n", 
+//					px,py,pt,rangex[0], rangex[1], rangey[0], rangey[1], ranget[0], ranget[1], nSimP);
+//		}
+
+//		if (nSimP > p_params.nSimilarPatches)
+//			printf("SR1 [%d,%d,%d] ~ nsim = %d\n", px,py,pt, nSimP);
 
 //		for (int i = 0; i < nSimP; i++)
 //		{
@@ -1493,10 +1493,6 @@ unsigned estimateSimilarPatchesStep1(
 //			printf("d[%03d] = %g - p = [%02d,%02d,%02d,%2d]\n", i, distance[i].first,
 //					cx, cy, ct, cc);
 //		}
-
-
-		//! Register position of patches
-		for (unsigned n = 0; n < nSimP; n++) o_index[n] = distance[n].second;
 	}
 	else // nSimilarPatches == 1
 		o_index[0] = pidx;
@@ -1653,11 +1649,6 @@ unsigned estimateSimilarPatchesStep2(
 		std::partial_sort(distance.begin(), distance.begin() + nSimP,
 		                  distance.end(), comparaisonFirst);
 
-/*		if (nSimP <  p_params.nSimilarPatches)
-			printf("SR2 [%d,%d,%d] ~ [%d-%d, %d-%d, %d-%d] - nsim = %d\n", 
-					px,py,pt,rangex[0], rangex[1], rangey[0], rangey[1], ranget[0], ranget[1], nSimP);*/
-
-		//! Save index of similar patches
 		const float threshold = (p_params.tau > distance[nSimP - 1].first ?
 		                         p_params.tau : distance[nSimP - 1].first);
 		nSimP = 0;
@@ -1667,8 +1658,8 @@ unsigned estimateSimilarPatchesStep2(
 			if (distance[n].first < threshold)
 				o_index[nSimP++] = distance[n].second;
 
-/*		if (nSimP > p_params.nSimilarPatches)
-			printf("SR2 [%d,%d,%d] ~ nsim = %d\n", px,py,pt, nSimP);*/
+//		if (nSimP > p_params.nSimilarPatches)
+//			printf("SR2 [%d,%d,%d] ~ nsim = %d\n", px,py,pt, nSimP);
 	}
 	else // nSimilarPatches == 1
 		o_index[0] = pidx;
