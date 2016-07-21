@@ -5,7 +5,7 @@ include_directories(${IIO_INCLUDE_DIR})
 include_directories(${FFTW_INCLUDES})
 
 add_library(videoNlBayes SHARED
-	VideoNLBayes.cpp
+	nldct.cpp
 	LibMatrix.cpp
 	LibDCT.cpp
 	../utils/LibImages.cpp

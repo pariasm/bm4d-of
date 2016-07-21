@@ -12,11 +12,13 @@
  */
 
 /**
- * @file VideoNLBayes.cpp
- * @brief Video NL-Bayes denoising functions
+ * @file nldct.cpp
+ * @brief NL-DCT image & video denoising functions
  *
- * @author Marc Lebrun <marc.lebrun.ik@gmail.com>
  * @author Pablo Arias <pariasm@gmail.com>
+ *
+ * Based on NL-Bayes code from
+ * Marc Lebrun <marc.lebrun.ik@gmail.com>
  **/
 
 #include <stdexcept>
@@ -26,7 +28,7 @@
 #include <math.h>
 #include <float.h>
 
-#include "VideoNLBayes.h"
+#include "nldct.h"
 #include "LibMatrix.h"
 #include "Utilities.h"
 

@@ -19,7 +19,7 @@
 #include <sstream>
 
 #include "Utilities.h"
-#include "VideoNLBayes.h"
+#include "nldct.h"
 #include "cmd_option.h"
 
 #include <algorithm>

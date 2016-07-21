@@ -20,7 +20,7 @@
 #include <sstream>
 
 #include "utils/Utilities.h"
-#include "core/VideoNLBayes.h"
+#include "core/nldct.h"
 #include "utils/cmd_option.h"
 
 using namespace std;
