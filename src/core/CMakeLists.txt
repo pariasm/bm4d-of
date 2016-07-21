@@ -9,7 +9,7 @@ add_library(videoNlBayes SHARED
 	matrix_funs.cpp
 	dct_handler.cpp
 	../utils/lib_image.cpp
-	../utils/LibVideoT.cpp
+	../utils/lib_videot.cpp
 	../utils/mt19937ar.c
 	../utils/utilities.cpp
 	)

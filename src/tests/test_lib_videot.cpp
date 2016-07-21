@@ -20,11 +20,11 @@
 #include <sstream>
 
 #include "utilities.h"
-#include "LibVideoT.hpp"
+#include "lib_videot.hpp"
 
 
 /**
- * @file   testLibVideoT.cpp
+ * @file   testlib_videot.cpp
  * @brief  Executable file to test libVideoT
  *
  *

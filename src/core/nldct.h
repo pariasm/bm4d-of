@@ -13,7 +13,7 @@
 #ifndef VIDEO_NL_BAYES_H_INCLUDED
 #define VIDEO_NL_BAYES_H_INCLUDED
 
-#include "../utils/LibVideoT.hpp"
+#include "../utils/lib_videot.hpp"
 #include "../utils/utilities.h"
 #include "dct_handler.h"
 

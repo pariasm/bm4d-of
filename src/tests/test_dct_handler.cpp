@@ -21,12 +21,12 @@
 
 #include "utilities.h"
 #include "dct_handler.h"
-#include "LibVideoT.hpp"
+#include "lib_videot.hpp"
 #include "matrix_funs.h"
 
 
 /**
- * @file   testLibVideoT.cpp
+ * @file   testlib_videot.cpp
  * @brief  Executable file to test libVideoT
  *
  *

@@ -11,13 +11,13 @@
  */
 
 /**
- * @file LibVideoT.cpp
- * @brief Spetializations of template functions defined in LibVideoT.hpp
+ * @file lib_videot.cpp
+ * @brief Spetializations of template functions defined in lib_videot.hpp
  *
  * @author Pablo Arias <pariasm@gmail.com>
  **/
 
-#include "LibVideoT.hpp"
+#include "lib_videot.hpp"
 
 //#include <fftw3.h>
 #include "lib_image.h"
