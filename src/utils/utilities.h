@@ -13,7 +13,7 @@
 #define UTILITIES_H_INCLUDED
 
 #include <vector>
-#include "LibImages.h"
+#include "lib_image.h"
 
 /**
  * @brief Convenient function to use the sort function provided by the vector library.

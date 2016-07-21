@@ -20,7 +20,7 @@
 #include "LibVideoT.hpp"
 
 //#include <fftw3.h>
-#include "LibImages.h"
+#include "lib_image.h"
 
 #include <cstdio>
 #include <cstdlib> // EXIT_FAILURE

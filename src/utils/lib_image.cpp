@@ -11,13 +11,13 @@
  */
 
 /**
- * @file LibImages.cpp
+ * @file lib_image.cpp
  * @brief Usefull functions on images
  *
  * @author Marc Lebrun <marc.lebrun.ik@gmail.com>
  **/
 
-#include "LibImages.h"
+#include "lib_image.h"
 #include "utilities.h"
 #include "mt19937ar.h"
 
