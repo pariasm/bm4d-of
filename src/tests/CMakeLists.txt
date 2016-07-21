@@ -1,8 +1,8 @@
 
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin)
 
-include_directories(../Utilities) # test LibVideo
-include_directories(../NlBayes)   # test VideoNLBayes
+include_directories(../utils) # test LibVideo
+include_directories(../core)   # test VideoNLBayes
 
 #message("SOURCE_DIR " ${CMAKE_SOURCE_DIR})
 

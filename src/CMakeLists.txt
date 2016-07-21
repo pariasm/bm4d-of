@@ -3,8 +3,8 @@ set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin)
 
 # internal includes
 include_directories(${CMAKE_SOURCE_DIR})
-include_directories(${CMAKE_SOURCE_DIR}/Utilities)
-include_directories(${CMAKE_SOURCE_DIR}/NlBayes)
+include_directories(${CMAKE_SOURCE_DIR}/utils)
+include_directories(${CMAKE_SOURCE_DIR}/core)
 
 # external excludes
 #include_directories(${CBLAS_INCLUDE_DIR})

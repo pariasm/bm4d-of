@@ -13,8 +13,8 @@
 #ifndef VIDEO_NL_BAYES_H_INCLUDED
 #define VIDEO_NL_BAYES_H_INCLUDED
 
-#include "../Utilities/LibVideoT.hpp"
-#include "../Utilities/Utilities.h"
+#include "../utils/LibVideoT.hpp"
+#include "../utils/Utilities.h"
 #include "LibDCT.h"
 
 //#define DEBUG_SHOW_WEIGHT

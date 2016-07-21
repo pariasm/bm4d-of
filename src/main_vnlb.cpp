@@ -19,9 +19,9 @@
 #include <string>
 #include <sstream>
 
-#include "Utilities/Utilities.h"
-#include "NlBayes/VideoNLBayes.h"
-#include "Utilities/cmd_option.h"
+#include "utils/Utilities.h"
+#include "core/VideoNLBayes.h"
+#include "utils/cmd_option.h"
 
 using namespace std;
 
