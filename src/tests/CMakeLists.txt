@@ -8,7 +8,7 @@ include_directories(../core)   # test nldct
 
 add_executable(test_libvideoT testLibVideoT.cpp)
 add_executable(patch_group    patch_group.cpp)
-add_executable(test_dct       testLibDCT.cpp)
+add_executable(test_dct       test_dct_handler.cpp)
 
 include_directories(${LAPACK_INCLUDES})
 

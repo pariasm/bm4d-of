@@ -10,7 +10,7 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "LibDCT.h"
+#include "dct_handler.h"
 #include <cstdlib>
 #include <cstdio>
 #include <cmath>

@@ -20,7 +20,7 @@
 #include <sstream>
 
 #include "Utilities.h"
-#include "LibDCT.h"
+#include "dct_handler.h"
 #include "LibVideoT.hpp"
 #include "matrix_funs.h"
 
