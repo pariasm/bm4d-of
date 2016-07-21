@@ -12,12 +12,12 @@
 
 /**
  * @file utilities.cpp
- * @brief Utilities functions.
+ * @brief utilities functions.
  *
  * @author Marc Lebrun <marc.lebrun.ik@gmail.com>
  **/
 
-#include "Utilities.h"
+#include "utilities.h"
 
 #include <math.h>
 #include <omp.h>

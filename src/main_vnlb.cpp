@@ -19,7 +19,7 @@
 #include <string>
 #include <sstream>
 
-#include "utils/Utilities.h"
+#include "utils/utilities.h"
 #include "core/nldct.h"
 #include "utils/cmd_option.h"
 

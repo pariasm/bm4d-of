@@ -30,7 +30,7 @@
 
 #include "nldct.h"
 #include "matrix_funs.h"
-#include "Utilities.h"
+#include "utilities.h"
 
 #ifdef _OPENMP
 #include <omp.h>

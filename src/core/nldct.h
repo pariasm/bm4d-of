@@ -14,7 +14,7 @@
 #define VIDEO_NL_BAYES_H_INCLUDED
 
 #include "../utils/LibVideoT.hpp"
-#include "../utils/Utilities.h"
+#include "../utils/utilities.h"
 #include "dct_handler.h"
 
 //#define DEBUG_SHOW_WEIGHT

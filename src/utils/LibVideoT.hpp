@@ -22,7 +22,7 @@
 
 
 #include "mt19937ar.h"
-#include "Utilities.h"
+#include "utilities.h"
 
 /**
  * @brief Structure containing size informations of a video.
@@ -396,7 +396,7 @@ inline T Video<T>::getPixelSymmetric(
 }
 
 
-//! Utilities for video
+//! utilities for video
 namespace VideoUtils
 {
 	/**

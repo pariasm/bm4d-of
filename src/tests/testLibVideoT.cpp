@@ -19,7 +19,7 @@
 #include <string>
 #include <sstream>
 
-#include "Utilities.h"
+#include "utilities.h"
 #include "LibVideoT.hpp"
 
 
@@ -182,7 +182,7 @@ class Video
 		void saveVideoAscii(const std::string i_prefix, 
 		                    unsigned i_firstFrame, unsigned i_frameStep = 1) const;
 
-		//! Utilities
+		//! utilities
 		unsigned index(unsigned x, unsigned y, unsigned t, unsigned c) const;
 		void coords(unsigned index, unsigned& x, unsigned& y, unsigned& t, unsigned& c) const;
 

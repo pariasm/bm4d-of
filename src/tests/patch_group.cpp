@@ -18,7 +18,7 @@
 #include <string>
 #include <sstream>
 
-#include "Utilities.h"
+#include "utilities.h"
 #include "nldct.h"
 #include "cmd_option.h"
 

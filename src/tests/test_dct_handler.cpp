@@ -19,7 +19,7 @@
 #include <string>
 #include <sstream>
 
-#include "Utilities.h"
+#include "utilities.h"
 #include "dct_handler.h"
 #include "LibVideoT.hpp"
 #include "matrix_funs.h"

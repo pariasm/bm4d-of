@@ -18,7 +18,7 @@
  **/
 
 #include "LibImages.h"
-#include "Utilities.h"
+#include "utilities.h"
 #include "mt19937ar.h"
 
 #include <unistd.h> // getpid

@@ -11,7 +11,7 @@ add_library(videoNlBayes SHARED
 	../utils/LibImages.cpp
 	../utils/LibVideoT.cpp
 	../utils/mt19937ar.c
-	../utils/Utilities.cpp
+	../utils/utilities.cpp
 	)
 
 target_link_libraries(videoNlBayes iio ${FFTWF_LIBRARIES})
