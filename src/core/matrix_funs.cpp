@@ -12,14 +12,14 @@
  */
 
 /**
- * @file LibMatrix.cpp
+ * @file matrix_funs.cpp
  * @brief Tools for matrix manipulation, based on ccmath functions
  *        by Daniel A. Atkinson.
  *
  * @author Marc Lebrun <marc.lebrun.ik@gmail.com>
  **/
 
-#include "LibMatrix.h"
+#include "matrix_funs.h"
 #include <iostream>
 #include <cmath>
 #include <cstdlib>

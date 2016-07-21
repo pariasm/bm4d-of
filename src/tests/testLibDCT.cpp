@@ -22,7 +22,7 @@
 #include "Utilities.h"
 #include "LibDCT.h"
 #include "LibVideoT.hpp"
-#include "LibMatrix.h"
+#include "matrix_funs.h"
 
 
 /**

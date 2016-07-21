@@ -15,7 +15,7 @@
 #include <cstdio>
 #include <cmath>
 
-#include "LibMatrix.h"
+#include "matrix_funs.h"
 
 #ifdef _OPENMP
 #include <omp.h>

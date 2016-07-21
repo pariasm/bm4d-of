@@ -29,7 +29,7 @@
 #include <float.h>
 
 #include "nldct.h"
-#include "LibMatrix.h"
+#include "matrix_funs.h"
 #include "Utilities.h"
 
 #ifdef _OPENMP

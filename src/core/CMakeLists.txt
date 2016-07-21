@@ -6,7 +6,7 @@ include_directories(${FFTW_INCLUDES})
 
 add_library(videoNlBayes SHARED
 	nldct.cpp
-	LibMatrix.cpp
+	matrix_funs.cpp
 	LibDCT.cpp
 	../utils/LibImages.cpp
 	../utils/LibVideoT.cpp
