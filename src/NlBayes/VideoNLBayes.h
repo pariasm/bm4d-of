@@ -391,32 +391,6 @@ int computeHomogeneousAreaStep2(
 );
 
 /**
- * @brief Compute the Bayes estimation.
- *
- * @param io_group: contains all similar patches. Will contain estimates for all similar patches;
- * @param i_mat: contains :
- *		- groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
- *		- baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
- *		- covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
- *		- covMatTmp: allocated memory. Used to process the Bayes estimate;
- *		- tmpMat: allocated memory. Used to process the Bayes estimate;
- * @param io_nInverseFailed: update the number of failed matrix inversion;
- * @param p_params: see processStep1 for more explanation.
- * @param p_nSimP: number of similar patches.
- * @param aggreWeights: output aggregation weights.
- *
- * @return none.
- **/
-float computeBayesEstimateStep1_FR(
-	std::vector<std::vector<float> > &io_group
-,	matWorkspace &i_mat
-,	unsigned &io_nInverseFailed
-,	nlbParams const& p_params
-,	const unsigned p_nSimP
-,	std::vector<std::vector<float> > &aggreWeights 
-);
-
-/**
  * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
  *
  * @param io_group: contains all similar patches. Will contain estimates for all similar patches;
@@ -433,44 +407,13 @@ float computeBayesEstimateStep1_FR(
  *
  * @return none.
  **/
-float computeBayesEstimateStep1_LR(
+float computeBayesEstimateStep1(
 	std::vector<std::vector<float> > &io_group
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
 ,	std::vector<std::vector<float> > &aggreWeights 
-);
-
-/**
- * @brief Compute the Bayes estimation.
- *
- * @param i_groupNoisy: contains all similar patches in the noisy video;
- * @param io_groupBasic: contains all similar patches in the basic video. Will contain estimates
- *			for all similar patches;
- * @param i_mat: contains :
- *		- groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
- *		- baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
- *		- covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
- *		- covMatTmp: allocated memory. Used to process the Bayes estimate;
- *		- tmpMat: allocated memory. Used to process the Bayes estimate;
- * @param io_nInverseFailed: update the number of failed matrix inversion;
- * @param p_imSize: size of the video;
- * @param p_params: see processStep2 for more explanations;
- * @param p_nSimP: number of similar patches.
- * @param aggreWeights: output aggregation weights.
- *
- * @return none.
- **/
-float computeBayesEstimateStep2_FR(
-	std::vector<float> &io_groupNoisy
-,	std::vector<float>  &i_groupBasic
-,	matWorkspace &i_mat
-,	unsigned &io_nInverseFailed
-,	const VideoSize &p_imSize
-,	nlbParams const& p_params
-,	const unsigned p_nSimP
-,	std::vector<float> &aggreWeights 
 );
 
 /**
@@ -493,7 +436,7 @@ float computeBayesEstimateStep2_FR(
  *
  * @return none.
  **/
-float computeBayesEstimateStep2_LR(
+float computeBayesEstimateStep2(
 	std::vector<float> &io_groupNoisy
 ,	std::vector<float>  &i_groupBasic
 ,	matWorkspace &i_mat

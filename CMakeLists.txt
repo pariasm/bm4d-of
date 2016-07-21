@@ -27,11 +27,7 @@ set(CMAKE_VERBOSE_MAKEFILE OFF)
 
 ###############################################################################
 
-include_directories("$ENV{HOME}/local/include/")
-set(CMAKE_PREFIX_PATH "$ENV{HOME}/local/")
-message(STATUS "Setting CMAKE_PREFIX_PATH as " ${CMAKE_PREFIX_PATH} " for local libraries")
 find_package( CBLAS REQUIRED )
-find_package( LAPACKE REQUIRED )
 
 find_path (FFTW_INCLUDES fftw3.h)
 find_library (FFTWF_LIBRARIES NAMES fftw3f)
