@@ -65,7 +65,7 @@ bin/vnlbayes \
 To denoise images
 
 bin/vnlbayes \
--i puto/el/que/lee.png \ # printf pattern to input image
+-i path/to/image.png \   # printf pattern to input image
 -sigma 20 \              # noise std. dev.
 -px1 8 \                 # patch size, step 1
 -px2 8 \                 # patch size, step 2
@@ -84,11 +84,12 @@ Type bin/vnlbayes --help for more usage instructions.
 
 4/
 A number of variants and combinations can be controlled by
-defining/undefining a set of compilation flags (sorry) available in 
+defining/undefining a set of compilation flags available in 
 
-             src/NlBayes/VideoNLBayes.cpp
+             src/core/nldct.h
+             src/core/nldct.cpp
 
-Please contact the authors for more information about them.
+Please contact the authors for more information about these flags.
 
 ===============
 ABOUT THIS FILE

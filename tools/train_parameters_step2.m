@@ -1,7 +1,7 @@
-results_folder_m1 =  '/home/pariasm/Work/denoising/projects/video_nlbayes3d-dct/results/train_color_step2_neg/';
-results_folder_m2 =  '/home/pariasm/Work/denoising/projects/video_nlbayes3d-dct/results/train_color_step2_pos/';
+results_folder_m1 =  '/home/pariasm/Work/denoising/projects/nldct/results/train_color_step2_pos/';
+results_folder_m2 =  '/home/pariasm/Work/denoising/projects/nldct/results/train_color_step2_neg/';
 
-nsims1 = [10, 20, 30, 40, 60];
+nsims1 = [10, 20, 30, 40, 60, 80, 100];
 nsims2 = [5, 10, 15, 20, 30];
 px2s  = [3, 4, 6];
 wx2s  = [11, 21, 31, 41];
@@ -77,7 +77,7 @@ mbb_m2 = mean(bb_m2,6);
 % px2 and nsims1.
 % -----------------------------------------------------------------------------
 
-for isig = 1,%1:nsigmas,
+for isig = 3,%1:nsigmas,
 for inp1 = 1:nnsims1,
 for ipx2 = 1:npx2s,
 %	figure(isig*100 + inp1*10 + ipx2)
