@@ -1660,7 +1660,7 @@ unsigned estimateSimilarPatchesStep2(
 				o_index[nSimP++] = distance[n].second;
 
 //		if (nSimP > p_params.nSimilarPatches)
-//			printf("SR2 [%d,%d,%d] ~ nsim = %d\n", px,py,pt, nSimP);
+//			printf("SR2 [%d,%d,%d] ~ nsim = %d ~ nsim ratio = %f\n", px,py,pt, nSimP, (float)nSimP/(float)(sWx*sWy*sWt));
 	}
 	else // nSimilarPatches == 1
 		o_index[0] = pidx;
@@ -3264,9 +3264,65 @@ int computeAggregationStep2(
 	const unsigned wh  = io_im.sz.wh;
 	const unsigned whc = io_im.sz.whc;
 
+	unsigned nAgg = p_nSimP;
+#ifdef PARTIAL_AGGREGATION2
+	unsigned nAggMax;
+	//! Coordinates of center of search box
+	unsigned px, py, pt, pc;
+	io_im.sz.coords(i_index[0], px, py, pt, pc);
+	{
+		//! Determine search range
+		int sWx   = p_params.sizeSearchWindow;
+		int sWy   = p_params.sizeSearchWindow;
+		const int sWt_f = p_params.sizeSearchTimeRangeFwd;
+		const int sWt_b = p_params.sizeSearchTimeRangeBwd;
+
+		unsigned rangex[2];
+		unsigned rangey[2];
+		unsigned ranget[2];
+
+#ifdef CENTRED_SEARCH
+		rangex[0] = std::max(0, (int)px - (int)(sWx-1)/2);
+		rangey[0] = std::max(0, (int)py - (int)(sWy-1)/2);
+		ranget[0] = std::max(0, (int)pt - (int) sWt_b   );
+
+		rangex[1] = std::min((int)io_im.sz.width  - (int)sPx, (int)px + (int)(sWx-1)/2);
+		rangey[1] = std::min((int)io_im.sz.height - (int)sPx, (int)py + (int)(sWy-1)/2);
+		ranget[1] = std::min((int)io_im.sz.frames - (int)sPt, (int)pt + (int) sWt_f   );
+#else
+		int shift_x = std::min(0, (int)px - (int)(sWx-1)/2); 
+		int shift_y = std::min(0, (int)py - (int)(sWy-1)/2); 
+		int shift_t = std::min(0, (int)pt - (int) sWt_b   ); 
+
+		shift_x += std::max(0, (int)px + (int)(sWx-1)/2 - (int)io_im.sz.width  + (int)sPx); 
+		shift_y += std::max(0, (int)py + (int)(sWy-1)/2 - (int)io_im.sz.height + (int)sPx); 
+		shift_t += std::max(0, (int)pt + (int) sWt_f    - (int)io_im.sz.frames + (int)sPt); 
+
+		rangex[0] = std::max(0, (int)px - (int)(sWx-1)/2 - (int)shift_x);
+		rangey[0] = std::max(0, (int)py - (int)(sWy-1)/2 - (int)shift_y);
+		ranget[0] = std::max(0, (int)pt - (int) sWt_b    - (int)shift_t);
+
+		rangex[1] = std::min((int)io_im.sz.width  - (int)sPx, (int)px + (int)(sWx-1)/2 - (int)shift_x);
+		rangey[1] = std::min((int)io_im.sz.height - (int)sPx, (int)py + (int)(sWy-1)/2 - (int)shift_y);
+		ranget[1] = std::min((int)io_im.sz.frames - (int)sPt, (int)pt + (int) sWt_f    - (int)shift_t);
+#endif
+
+		//! Redefine size of search range
+		sWx = rangex[1] - rangex[0] + 1;
+		sWy = rangey[1] - rangey[0] + 1;
+		int sWt = ranget[1] - ranget[0] + 1;
+
+		nAggMax = sWx*sWy*sWt/2;
+	}
+	nAgg = std::min(nAgg, nAggMax); 
+
+	if (nAgg == nAggMax)
+		printf("AG2 [%d,%d,%d] ~ nagg = %d\n", px,py,pt, nAgg);
+#endif
+
 	//! Aggregate estimates
 	int masked = 0;
-	for (unsigned n = 0; n < p_nSimP; n++)
+	for (unsigned n = 0; n < nAgg; n++)
 	{
 		const unsigned ind = i_index[n];
 		for (unsigned c = 0, k = 0; c < chnls; c++)
