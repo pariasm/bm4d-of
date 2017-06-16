@@ -1656,7 +1656,7 @@ unsigned estimateSimilarPatchesStep2(
 
 		//! Register position of similar patches
 		for (unsigned n = 0; n < distance.size(); n++)
-			if (distance[n].first < threshold)
+			if (distance[n].first <= threshold)
 				o_index[nSimP++] = distance[n].second;
 
 //		if (nSimP > p_params.nSimilarPatches)
@@ -2466,6 +2466,44 @@ float computeBayesEstimateStep1(
 ,	const unsigned p_nSimP
 ,	std::vector<std::vector<float> > &aggreWeights 
 ){
+	/* In some images might have a dark noiseless frame (for instance the image
+	 * might be the result of a transformation, and a black region correspond to
+	 * the pixels that where before the frame before the registration). A group
+	 * of patches with 0 variance create problems afterwards. Such groups have to
+	 * be avoided.
+	 * */
+
+	/* TODO
+	 * This fix only addresses the problem in which all patches are equal. A more
+	 * subtle situation is when some patches are equal. These patches shouldn't be
+	 * denoised, since it is extremely unlekely that such an event occurs.
+	 * */
+
+	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
+	                    * p_params.sizePatchTime;
+
+	for (unsigned c = 0; c < io_group.size(); c++)
+	for (unsigned j = 0; j < sPC; j++)
+	{
+#ifdef USE_FFTW
+		float v = io_group[c][j];
+#else
+		float v = io_group[c][j * p_nSimP];
+#endif
+		for (unsigned i = 1; i < p_nSimP; i++)
+#ifdef USE_FFTW
+			if (v != io_group[c][j + i * sPC])
+#else
+			if (v != io_group[c][j * p_nSimP + i])
+#endif
+				goto not_equal;
+	}
+
+	//! All patches are equal ~ do nothing
+	return 0.f;
+
+not_equal:
+	//! Not all patches are equal ~ denoise
 	return
 #if (defined(THRESHOLDING1))
 		computeBayesEstimateStep1_externalBasisTh(io_group, i_mat,
@@ -3074,6 +3112,36 @@ float computeBayesEstimateStep2(
 ,	const unsigned p_nSimP
 ,	std::vector<float> &aggreWeights 
 ){
+	/* In some images might have a dark noiseless frame (for instance the image
+	 * might be the result of a transformation, and a black region correspond to
+	 * the pixels that where before the frame before the registration). A group
+	 * of patches with 0 variance create problems afterwards. Such groups have to
+	 * be avoided.
+	 * */
+
+	/* TODO
+	 * This fix only addresses the problem in which all patches are equal. A more
+	 * subtle situation is when some patches are equal. These patches shouldn't be
+	 * denoised, since it is extremely unlekely that such an event occurs.
+	 * */
+
+	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
+	                    * p_params.sizePatchTime * p_size.channels;
+
+	for (unsigned c = 0; c < io_groupNoisy.size(); c++)
+	for (unsigned j = 0; j < sPC; j++)
+	{
+		float v = io_groupNoisy[j * p_nSimP];
+		for (unsigned i = 1; i < p_nSimP; i++)
+			if (v != io_groupNoisy[j * p_nSimP + i])
+				goto not_equal;
+	}
+
+	//! All patches are equal ~ do nothing
+	return 0.f;
+
+not_equal:
+	//! Not all patches are equal ~ denoise
 	return
 #if defined(THRESHOLDING2)
 		computeBayesEstimateStep2_externalBasisTh(io_groupNoisy, i_groupBasic,
