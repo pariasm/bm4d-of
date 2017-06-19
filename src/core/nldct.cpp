@@ -477,7 +477,44 @@ std::vector<float> runNlBayes(
  * @return Percentage of processed groups over number of pixels.
  **/
 std::vector<float> runNlBayes(
+	Video<float> const &i_imNoisy
+,	Video<float> &o_imBasic
+,	Video<float> &o_imFinal
+,	const nlbParams p_prms1
+,	const nlbParams p_prms2
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+,  Video<float> &i_imClean
+#endif
+){
+#ifndef DEBUG_COMPUTE_GROUP_ERROR
+	return runNlBayes(i_imNoisy, Video<float>(), Video<float>(), 
+			o_imBasic, o_imFinal, p_prms1, p_prms2);
+#else
+	return runNlBayes(i_imNoisy, Video<float>(), Video<float>(), 
+			o_imBasic, o_imFinal, p_prms1, p_prms2, i_imClean);
+#endif
+}
+
+/**
+ * @brief Main function to process the whole NL-Bayes algorithm.
+ *
+ * This function splits the image in several subimages when using
+ * OpenMP. Each subimage is then assinged to a thread, which runs
+ * processNlBayes on the subimage. The subimages are then assembled
+ * into the final image.
+ *
+ * @param i_imNoisy: contains the noisy image;
+ * @param o_imBasic: will contain the basic estimate image after the first step;
+ * @param o_imFinal: will contain the final denoised image after the second step;
+ * @param p_prms1  : parameters for first  step;
+ * @param p_prms2  : parameters for second step;
+ *
+ * @return Percentage of processed groups over number of pixels.
+ **/
+std::vector<float> runNlBayes(
 	Video<float> const& i_imNoisy
+,  Video<float> const& i_fflow
+,  Video<float> const& i_bflow
 ,	Video<float> &o_imBasic
 ,	Video<float> &o_imFinal
 ,	const nlbParams p_prms1
@@ -486,15 +523,31 @@ std::vector<float> runNlBayes(
 ,	Video<float> & i_imClean
 #endif
 ){
-	printf("Noisy video: %dx%dx%d channels %d\n", i_imNoisy.sz.width,
-	                                              i_imNoisy.sz.height,
-	                                              i_imNoisy.sz.frames,
-	                                              i_imNoisy.sz.channels);
+//	printf("Noisy video: %dx%dx%d channels %d\n", i_imNoisy.sz.width,
+//	                                              i_imNoisy.sz.height,
+//	                                              i_imNoisy.sz.frames,
+//	                                              i_imNoisy.sz.channels);
 	//! Only 1, 3 or 4-channels images can be processed.
 	const unsigned chnls = i_imNoisy.sz.channels;
 	if (! (chnls == 1 || chnls == 3 || chnls == 4))
 		throw std::runtime_error("VideoNLB::runNlBayes: Wrong number of "
 				"channels. Must be 1, 3 or 4.");
+
+	//! Check if optical flow is valid
+	const bool use_oflow = (i_fflow.sz.width > 0);
+	if (use_oflow && 
+		(i_fflow.sz.channels != 2 || 
+		 i_fflow.sz.width  != i_imNoisy.sz.width  ||
+		 i_fflow.sz.height != i_imNoisy.sz.height ||
+		 i_fflow.sz.frames != i_imNoisy.sz.frames))
+		throw std::runtime_error("VideoNLB::runNlBayes: Wrong size of fwd optical flow.");
+
+	if (use_oflow && 
+		(i_bflow.sz.channels != 2 || 
+		 i_bflow.sz.width  != i_imNoisy.sz.width  ||
+		 i_bflow.sz.height != i_imNoisy.sz.height ||
+		 i_bflow.sz.frames != i_imNoisy.sz.frames))
+		throw std::runtime_error("VideoNLB::runNlBayes: Wrong size of bwd optical flow.");
 
 	//! Print compiler options
 	if (p_prms1.verbose)
@@ -627,6 +680,15 @@ std::vector<float> runNlBayes(
 		std::vector<VideoUtils::CropPosition > imCrops(nParts);
 		VideoUtils::subDivideTight(imNoisy, imNoisySub, imCrops, p_prms1.boundary, nParts);
 
+		//! Divide optical flow 
+		std::vector<Video<float> > fflowSub(nParts), bflowSub(nParts);
+		if (use_oflow)
+		{
+			std::vector<VideoUtils::CropPosition > oflowCrops(nParts);
+			VideoUtils::subDivideTight(i_fflow, fflowSub, oflowCrops, p_prms1.boundary, nParts);
+			VideoUtils::subDivideTight(i_bflow, bflowSub, oflowCrops, p_prms1.boundary, nParts);
+		}
+
 #ifdef DEBUG_COMPUTE_GROUP_ERROR
 		if (p_prms1.colorSpace == YUV)
 			VideoUtils::transformColorSpace(i_imClean, true);
@@ -658,9 +720,12 @@ std::vector<float> runNlBayes(
 		for (int n = 0; n < (int)nParts; n++)
 			groupsProcessedSub[n] = 
 #ifndef DEBUG_COMPUTE_GROUP_ERROR
-				processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms1, imCrops[n]);
+				processNlBayes(imNoisySub[n], fflowSub[n], bflowSub[n],
+				               imBasicSub[n], imFinalSub[n], p_prms1, imCrops[n]);
 #else
-				processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], imCleanSub[n], p_prms1, imCrops[n]);
+				processNlBayes(imNoisySub[n], fflowSub[n], bflowSub[n],
+				               imBasicSub[n], imFinalSub[n], imCleanSub[n],
+				               p_prms1, imCrops[n]);
 #endif
 
 #ifdef USE_FFTW
@@ -788,6 +853,15 @@ std::vector<float> runNlBayes(
 		VideoUtils::subDivideTight(  imNoisy, imNoisySub, imCrops, p_prms2.boundary, nParts);
 		VideoUtils::subDivideTight(o_imBasic, imBasicSub, imCrops, p_prms2.boundary, nParts);
 
+		//! Divide optical flow 
+		std::vector<Video<float> > fflowSub(nParts), bflowSub(nParts);
+		if (use_oflow)
+		{
+			std::vector<VideoUtils::CropPosition > oflowCrops(nParts);
+			VideoUtils::subDivideTight(i_fflow, fflowSub, oflowCrops, p_prms2.boundary, nParts);
+			VideoUtils::subDivideTight(i_bflow, bflowSub, oflowCrops, p_prms2.boundary, nParts);
+		}
+
 #ifdef DEBUG_COMPUTE_GROUP_ERROR
 		if (p_prms2.colorSpace == YUV)
 			VideoUtils::transformColorSpace(i_imClean, true);
@@ -818,9 +892,12 @@ std::vector<float> runNlBayes(
 		{
 			groupsProcessedSub[n] = 
 #ifndef DEBUG_COMPUTE_GROUP_ERROR
-				processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], p_prms2, imCrops[n]);
+				processNlBayes(imNoisySub[n], fflowSub[n], bflowSub[n],
+				               imBasicSub[n], imFinalSub[n], p_prms2, imCrops[n]);
 #else
-				processNlBayes(imNoisySub[n], imBasicSub[n], imFinalSub[n], imCleanSub[n], p_prms2, imCrops[n]);
+				processNlBayes(imNoisySub[n], fflowSub[n], bflowSub[n],
+				               imBasicSub[n], imFinalSub[n], imCleanSub[n],
+				               p_prms2, imCrops[n]);
 #endif
 		}
 
@@ -941,6 +1018,8 @@ std::vector<float> runNlBayes(
  **/
 unsigned processNlBayes(
 	Video<float> const& i_imNoisy
+,	Video<float> const& i_fflow
+,	Video<float> const& i_bflow
 ,	Video<float> &io_imBasic
 ,	Video<float> &o_imFinal
 #ifdef DEBUG_COMPUTE_GROUP_ERROR
@@ -1183,11 +1262,11 @@ unsigned processNlBayes(
 
 				//! Search for similar patches around the reference one
 #ifndef DEBUG_COMPUTE_GROUP_ERROR
-				unsigned nSimP = estimateSimilarPatchesStep1(i_imNoisy, group,
-						index, ij3, p_params);
+				unsigned nSimP = estimateSimilarPatchesStep1(i_imNoisy, i_fflow, i_bflow,
+						group, index, ij3, p_params);
 #else
-				unsigned nSimP = estimateSimilarPatchesStep1(i_imNoisy, group,
-						index, ij3, p_params, i_imClean, groupClean);
+				unsigned nSimP = estimateSimilarPatchesStep1(i_imNoisy, i_fflow, i_bflow,
+						group, index, ij3, p_params, i_imClean, groupClean);
 #endif
 
 				//! If we use the homogeneous area trick
@@ -1281,10 +1360,11 @@ unsigned processNlBayes(
 				//! Search for similar patches around the reference one
 #ifndef DEBUG_COMPUTE_GROUP_ERROR
 				unsigned nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic,
-						groupNoisy, groupBasic, index, ij3, p_params);
+						i_fflow, i_bflow, groupNoisy, groupBasic, index, ij3, p_params);
 #else
 				unsigned nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic,
-						groupNoisy, groupBasic, index, ij3, p_params, i_imClean, groupClean);
+						i_fflow, i_bflow, groupNoisy, groupBasic, index, ij3, p_params,
+						i_imClean, groupClean);
 #endif
 
 				//! If we use the homogeneous area trick
@@ -1375,147 +1455,195 @@ unsigned processNlBayes(
 /**
  * @brief Estimate the best similar patches to a reference one.
  *
- * @param i_im: contains the noisy image on which distances are processed;
- * @param o_group: will contain values of similar patches;
- * @param o_index: will contain index of similar patches;
+ * @param im: contains the noisy image on which distances are processed;
+ * @param group: will contain values of similar patches;
+ * @param index: will contain index of similar patches;
  * @param p_ij: index of the reference patch;
  * @param p_params: see processStep1 for more explanation.
  *
  * @return none.
  **/
 unsigned estimateSimilarPatchesStep1(
-	Video<float> const& i_im
-,	std::vector<std::vector<float> > &o_group
-,	std::vector<unsigned> &o_index
+	Video<float> const& im
+,	Video<float> const& fflow
+,	Video<float> const& bflow
+,	std::vector<std::vector<float> > &group
+,	std::vector<unsigned> &index
 ,	const unsigned pidx
-,	const nlbParams &p_params
+,	const nlbParams &params
 #ifdef DEBUG_COMPUTE_GROUP_ERROR
-,	Video<float> const& i_imClean
-,	std::vector<std::vector<float> > & o_groupClean
+,	Video<float> const& imClean
+,	std::vector<std::vector<float> > & groupClean
 #endif
 ){
-	const int sPx   = p_params.sizePatch;
-	const int sPt   = p_params.sizePatchTime;
+	const int sPx   = params.sizePatch;
+	const int sPt   = params.sizePatchTime;
 	unsigned nSimP = 1;
 
-	if (p_params.nSimilarPatches > 1)
+	if (params.nSimilarPatches > 1)
 	{
-		//! Coordinates of center of search box
-		unsigned px, py, pt, pc;
-		i_im.sz.coords(pidx, px, py, pt, pc);
+		const VideoSize sz = im.sz;
+		const bool use_flow = (fflow.sz.width > 0);
 
 		//! Determine search range
-		int sWx   = p_params.sizeSearchWindow;
-		int sWy   = p_params.sizeSearchWindow;
-		const int sWt_f = p_params.sizeSearchTimeRangeFwd;
-		const int sWt_b = p_params.sizeSearchTimeRangeBwd;
+		int sWx   = params.sizeSearchWindow;
+		int sWy   = params.sizeSearchWindow;
+		const int sWt_f = params.sizeSearchTimeRangeFwd;
+		const int sWt_b = params.sizeSearchTimeRangeBwd;
 
-		unsigned rangex[2];
-		unsigned rangey[2];
-		unsigned ranget[2];
+		//! Coordinates of center of search box
+		unsigned px, py, pt, pc;
+		im.sz.coords(pidx, px, py, pt, pc);
 
+		//! Temporal search range
+		int ranget[2];
 #ifdef CENTRED_SEARCH
-		rangex[0] = std::max(0, (int)px - (sWx-1)/2);
-		rangey[0] = std::max(0, (int)py - (sWy-1)/2);
-		ranget[0] = std::max(0, (int)pt -  sWt_b   );
-
-		rangex[1] = std::min((int)i_im.sz.width  - sPx, (int)px + (sWx-1)/2);
-		rangey[1] = std::min((int)i_im.sz.height - sPx, (int)py + (sWy-1)/2);
-		ranget[1] = std::min((int)i_im.sz.frames - sPt, (int)pt +  sWt_f   );
+		ranget[0] = std::max(0, (int)pt -  sWt_b);
+		ranget[1] = std::min((int)sz.frames - sPt, (int)pt + sWt_f);
 #else
-		int shift_x = std::min(0, (int)px - (sWx-1)/2); 
-		int shift_y = std::min(0, (int)py - (sWy-1)/2); 
-		int shift_t = std::min(0, (int)pt -  sWt_b   ); 
+		int shift_t = std::min(0, (int)pt -  sWt_b)  
+		            + std::max(0, (int)pt +  sWt_f - (int)sz.frames + sPt); 
 
-		shift_x += std::max(0, (int)px + (sWx-1)/2 - (int)i_im.sz.width  + sPx); 
-		shift_y += std::max(0, (int)py + (sWy-1)/2 - (int)i_im.sz.height + sPx); 
-		shift_t += std::max(0, (int)pt +  sWt_f    - (int)i_im.sz.frames + sPt); 
-
-		rangex[0] = std::max(0, (int)px - (sWx-1)/2 - shift_x);
-		rangey[0] = std::max(0, (int)py - (sWy-1)/2 - shift_y);
-		ranget[0] = std::max(0, (int)pt -  sWt_b    - shift_t);
-
-		rangex[1] = std::min((int)i_im.sz.width  - sPx, (int)px + (sWx-1)/2 - shift_x);
-		rangey[1] = std::min((int)i_im.sz.height - sPx, (int)py + (sWy-1)/2 - shift_y);
-		ranget[1] = std::min((int)i_im.sz.frames - sPt, (int)pt +  sWt_f    - shift_t);
+		ranget[0] = std::max(0, (int)pt - sWt_b - shift_t);
+		ranget[1] = std::min((int)sz.frames - sPt, (int)pt +  sWt_f - shift_t);
 #endif
 
-		//! Redefine size of search range
-		sWx = rangex[1] - rangex[0] + 1;
-		sWy = rangey[1] - rangey[0] + 1;
+		//! Redefine size of temporal search range
 		int sWt = ranget[1] - ranget[0] + 1;
 
+		//! Allocate vector of patch distances
 		std::vector<std::pair<float, unsigned> > distance(sWx * sWy * sWt);
 
-		//! Compute distance between patches in search range
-		for (unsigned qt = ranget[0], dt = 0; qt <= ranget[1]; qt++, dt++)
-		for (unsigned qy = rangey[0], dy = 0; qy <= rangey[1]; qy++, dy++)
-		for (unsigned qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
-		{
-			//! Squared L2 distance
-			float dist = 0.f, dif;
-			for (unsigned ht = 0; ht < sPt; ht++)
-			for (unsigned hy = 0; hy < sPx; hy++)
-			for (unsigned hx = 0; hx < sPx; hx++)
-				dist += (dif = i_im(px + hx, py + hy, pt + ht)
-				             - i_im(qx + hx, qy + hy, qt + ht)) * dif;
+		//! Number of patches in search region
+		int nsrch = 0;
 
-			//! Save distance and corresponding patch index
-			distance[dt * sWx*sWy + dy * sWx + dx] = 
-				std::make_pair(dist, i_im.sz.index(qx, qy, qt, 0));
+		//! Schedule frames in temporal range
+		std::vector<int> srch_ranget;
+		srch_ranget.push_back(pt);
+		for (int qt = pt+1; qt <= ranget[1]; ++qt) srch_ranget.push_back(qt);
+		for (int qt = pt-1; qt >= ranget[0]; --qt) srch_ranget.push_back(qt);
+
+		//! Trajectory of search center
+		std::vector<int> cx(sWt,0), cy(sWt,0), ct(sWt,0);
+
+		//! Search
+		for (int ii = 0; ii < sWt; ++ii)
+		{
+			int qt = srch_ranget[ii]; // video frame number
+			int dt = qt - ranget[0]; // search region frame number
+			int dir = std::max(-1, std::min(1, qt - (int)pt)); // direction (forward or backwards from pt)
+
+			//! Integrate optical flow to new center
+			if (dir != 0)
+			{
+				int cx0 = cx[dt - dir];
+				int cy0 = cy[dt - dir];
+				int ct0 = ct[dt - dir];
+				float cx_f = cx0 + (use_flow ? (dir > 0 ? fflow(cx0,cy0,ct0,0) : bflow(cx0,cy0,ct0,0)) : 0.f);
+				float cy_f = cy0 + (use_flow ? (dir > 0 ? fflow(cx0,cy0,ct0,1) : bflow(cx0,cy0,ct0,1)) : 0.f);
+				cx[dt] = std::max(0., std::min((double)sz.width  - 1, round(cx_f)));
+				cy[dt] = std::max(0., std::min((double)sz.height - 1, round(cy_f)));
+				ct[dt] = qt;
+			}
+			else
+			{
+				cx[dt] = px;
+				cy[dt] = py;
+				ct[dt] = pt;
+			}
+
+			//! Spatial search range
+			int rangex[2];
+			int rangey[2];
+#ifdef CENTRED_SEARCH
+			rangex[0] = std::max(0, cx[dt] - (sWx-1)/2);
+			rangey[0] = std::max(0, cy[dt] - (sWy-1)/2);
+
+			rangex[1] = std::min((int)sz.width  - sPx, cx[dt] + (sWx-1)/2);
+			rangey[1] = std::min((int)sz.height - sPx, cy[dt] + (sWy-1)/2);
+#else
+			int shift_x = std::min(0, cx[dt] - (sWx-1)/2); 
+			int shift_y = std::min(0, cy[dt] - (sWy-1)/2); 
+
+			shift_x += std::max(0, cx[dt] + (sWx-1)/2 - (int)sz.width  + sPx); 
+			shift_y += std::max(0, cy[dt] + (sWy-1)/2 - (int)sz.height + sPx); 
+
+			rangex[0] = std::max(0, cx[dt] - (sWx-1)/2 - shift_x);
+			rangey[0] = std::max(0, cy[dt] - (sWy-1)/2 - shift_y);
+
+			rangex[1] = std::min((int)sz.width  - sPx, cx[dt] + (sWx-1)/2 - shift_x);
+			rangey[1] = std::min((int)sz.height - sPx, cy[dt] + (sWy-1)/2 - shift_y);
+#endif
+
+			//! Compute distance between patches in search range
+			for (int qy = rangey[0], dy = 0; qy <= rangey[1]; qy++, dy++)
+			for (int qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
+			{
+				//! Squared L2 distance
+				float dist = 0.f, dif;
+				for (int ht = 0; ht < sPt; ht++)
+				for (int hy = 0; hy < sPx; hy++)
+				for (int hx = 0; hx < sPx; hx++)
+					dist += (dif = im(px + hx, py + hy, pt + ht)
+					             - im(qx + hx, qy + hy, qt + ht)) * dif;
+
+				//! Save distance and corresponding patch index
+				distance[nsrch++] = std::make_pair(dist, sz.index(qx, qy, qt, 0));
+			}
 		}
 
+		distance.resize(nsrch);
+
 		//! Keep only the N2 best similar patches
-		nSimP = std::min(p_params.nSimilarPatches, (unsigned)distance.size());
+		nSimP = std::min(params.nSimilarPatches, (unsigned)distance.size());
 		std::partial_sort(distance.begin(), distance.begin() + nSimP,
 		                  distance.end(), comparaisonFirst);
 
-		const float threshold = std::max(p_params.tau, distance[nSimP - 1].first);
+		//! Add more patches if their distance is below a threshold
+		const float threshold = std::max(params.tau, distance[nSimP - 1].first);
 		nSimP = 0;
-
-		//! Register position of similar patches
 		for (unsigned n = 0; n < distance.size(); n++)
 			if (distance[n].first <= threshold)
-				o_index[nSimP++] = distance[n].second;
+				index[nSimP++] = distance[n].second;
 
-//		if (nSimP < p_params.nSimilarPatches)
+//		if (nSimP < params.nSimilarPatches)
 //		{
 //			printf("SR1 [%d,%d,%d] ~ [%d-%d, %d-%d, %d-%d] - nsim = %d\n", 
 //					px,py,pt,rangex[0], rangex[1], rangey[0], rangey[1], ranget[0], ranget[1], nSimP);
 //		}
 
-//		if (nSimP > p_params.nSimilarPatches)
+//		if (nSimP > params.nSimilarPatches)
 //			printf("SR1 [%d,%d,%d] ~ nsim = %d\n", px,py,pt, nSimP);
 
 //		for (int i = 0; i < nSimP; i++)
 //		{
 //			unsigned cx, cy, ct, cc;
-//			i_im.sz.coords(distance[i].second, cx, cy, ct, cc);
+//			im.sz.coords(distance[i].second, cx, cy, ct, cc);
 //			printf("d[%03d] = %g - p = [%02d,%02d,%02d,%2d]\n", i, distance[i].first,
 //					cx, cy, ct, cc);
 //		}
 	}
 	else // nSimilarPatches == 1
-		o_index[0] = pidx;
+		index[0] = pidx;
 
 	//! Stack selected patches into the 3D group
-	const unsigned w   = i_im.sz.width;
-	const unsigned wh  = i_im.sz.wh;
-	const unsigned whc = i_im.sz.whc;
+	const unsigned w   = im.sz.width;
+	const unsigned wh  = im.sz.wh;
+	const unsigned whc = im.sz.whc;
 #ifdef USE_FFTW
-	for (unsigned c  = 0; c < i_im.sz.channels; c++)
+	for (unsigned c  = 0; c < im.sz.channels; c++)
 	for (unsigned n  = 0, k = 0; n < nSimP; n++)
 	for (unsigned ht = 0;        ht < sPt; ht++)
 	for (unsigned hy = 0;        hy < sPx; hy++)
 	for (unsigned hx = 0;        hx < sPx; hx++, k++)
-		o_group[c][k] = i_im(c * wh + o_index[n] + ht * whc + hy * w + hx);
+		group[c][k] = im(c * wh + index[n] + ht * whc + hy * w + hx);
 #else
-	for (unsigned c  = 0; c < i_im.sz.channels; c++)
+	for (unsigned c  = 0; c < im.sz.channels; c++)
 	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
 	for (unsigned hy = 0;        hy < sPx; hy++)
 	for (unsigned hx = 0;        hx < sPx; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
-		o_group[c][k] = i_im(c * wh + o_index[n] + ht * whc + hy * w + hx);
+		group[c][k] = im(c * wh + index[n] + ht * whc + hy * w + hx);
 #endif
 
 	/* 000  pixels from all patches
@@ -1526,19 +1654,19 @@ unsigned estimateSimilarPatchesStep1(
 
 #ifdef DEBUG_COMPUTE_GROUP_ERROR
 #ifdef USE_FFTW
-	for (unsigned c  = 0; c < i_im.sz.channels; c++)
+	for (unsigned c  = 0; c < im.sz.channels; c++)
 	for (unsigned n  = 0, k = 0; n < nSimP; n++)
 	for (unsigned ht = 0;        ht < sPt; ht++)
 	for (unsigned hy = 0;        hy < sPx; hy++)
 	for (unsigned hx = 0;        hx < sPx; hx++, k++)
-		o_groupClean[c][k] = i_imClean(c * wh + o_index[n] + ht * whc + hy * w + hx);
+		groupClean[c][k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
 #else
-	for (unsigned c  = 0; c < i_im.sz.channels; c++)
+	for (unsigned c  = 0; c < im.sz.channels; c++)
 	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
 	for (unsigned hy = 0;        hy < sPx; hy++)
 	for (unsigned hx = 0;        hx < sPx; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
-		o_groupClean[c][k] = i_imClean(c * wh + o_index[n] + ht * whc + hy * w + hx);
+		groupClean[c][k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
 #endif
 #endif
 
@@ -1548,137 +1676,190 @@ unsigned estimateSimilarPatchesStep1(
 /**
  * @brief Keep from all near patches the similar ones to the reference patch for the second step.
  *
- * @param i_imNoisy: contains the original noisy image;
- * @param i_imBasic: contains the basic estimation;
- * @param o_groupNoisy: will contain similar patches for all channels of i_imNoisy;
- * @param o_groupBasic: will contain similar patches for all channels of i_imBasic;
- * @param o_index: will contain index of similar patches;
- * @param p_ij: index of the reference patch;
- * @param p_imSize: size of images;
- * @param p_params: see processStep2 for more explanations.
+ * @param imNoisy: contains the original noisy image;
+ * @param imBasic: contains the basic estimation;
+ * @param fflow: forward optical flow (optional)
+ * @param bflow: backward optical flow (optional)
+ * @param groupNoisy: will contain similar patches for all channels of imNoisy;
+ * @param groupBasic: will contain similar patches for all channels of i_imBasic;
+ * @param index: will contain index of similar patches;
+ * @param pidx: index of the reference patch;
+ * @param params: see processStep2 for more explanations.
  *
  * @return number of similar patches kept.
  **/
 unsigned estimateSimilarPatchesStep2(
-	Video<float> const& i_imNoisy
-,	Video<float> const& i_imBasic
-,	std::vector<float> &o_groupNoisy
-,	std::vector<float> &o_groupBasic
-,	std::vector<unsigned> &o_index
+	Video<float> const& imNoisy
+,	Video<float> const& imBasic
+,	Video<float> const& fflow
+,	Video<float> const& bflow
+,	std::vector<float> &groupNoisy
+,	std::vector<float> &groupBasic
+,	std::vector<unsigned> &index
 ,	const unsigned pidx
-,	const nlbParams &p_params
+,	const nlbParams &params
 #ifdef DEBUG_COMPUTE_GROUP_ERROR
-,	Video<float> const& i_imClean
-,	std::vector<float> & o_groupClean
+,	Video<float> const& imClean
+,	std::vector<float> & groupClean
 #endif
 ){
-	const int sPx   = p_params.sizePatch;
-	const int sPt   = p_params.sizePatchTime;
-	const int chnls = i_imNoisy.sz.channels;
+	const VideoSize sz = imNoisy.sz;
+	const int sPx   = params.sizePatch;
+	const int sPt   = params.sizePatchTime;
+	const int chnls = sz.channels;
 	unsigned nSimP = 1;
 
-	if (p_params.nSimilarPatches > 1)
+	if (params.nSimilarPatches > 1)
 	{
+		bool use_flow = (fflow.sz.width > 0);
+
 		//! Coordinates of center of search box
 		unsigned px, py, pt, pc;
-		i_imBasic.sz.coords(pidx, px, py, pt, pc);
+		sz.coords(pidx, px, py, pt, pc);
 
 		//! Determine search range
-		int sWx   = p_params.sizeSearchWindow;
-		int sWy   = p_params.sizeSearchWindow;
-		const int sWt_f = p_params.sizeSearchTimeRangeFwd;
-		const int sWt_b = p_params.sizeSearchTimeRangeBwd;
+		int sWx   = params.sizeSearchWindow;
+		int sWy   = params.sizeSearchWindow;
+		const int sWt_f = params.sizeSearchTimeRangeFwd;
+		const int sWt_b = params.sizeSearchTimeRangeBwd;
 
-		unsigned rangex[2];
-		unsigned rangey[2];
-		unsigned ranget[2];
-
+		//! Temporal search range
+		int ranget[2];
 #ifdef CENTRED_SEARCH
-		rangex[0] = std::max(0, (int)px - (sWx-1)/2);
-		rangey[0] = std::max(0, (int)py - (sWy-1)/2);
-		ranget[0] = std::max(0, (int)pt -  sWt_b   );
-
-		rangex[1] = std::min((int)i_imNoisy.sz.width  - sPx, (int)px + (sWx-1)/2);
-		rangey[1] = std::min((int)i_imNoisy.sz.height - sPx, (int)py + (sWy-1)/2);
-		ranget[1] = std::min((int)i_imNoisy.sz.frames - sPt, (int)pt +  sWt_f   );
+		ranget[0] = std::max(0, (int)pt -  sWt_b);
+		ranget[1] = std::min((int)sz.frames - sPt, (int)pt + sWt_f);
 #else
-		int shift_x = std::min(0, (int)px - (sWx-1)/2); 
-		int shift_y = std::min(0, (int)py - (sWy-1)/2); 
-		int shift_t = std::min(0, (int)pt -  sWt_b   ); 
+		int shift_t = std::min(0, (int)pt -  sWt_b)  
+		            + std::max(0, (int)pt +  sWt_f - (int)sz.frames + sPt); 
 
-		shift_x += std::max(0, (int)px + (sWx-1)/2 - (int)i_imNoisy.sz.width  + sPx); 
-		shift_y += std::max(0, (int)py + (sWy-1)/2 - (int)i_imNoisy.sz.height + sPx); 
-		shift_t += std::max(0, (int)pt +  sWt_f    - (int)i_imNoisy.sz.frames + sPt); 
-
-		rangex[0] = std::max(0, (int)px - (sWx-1)/2 - shift_x);
-		rangey[0] = std::max(0, (int)py - (sWy-1)/2 - shift_y);
-		ranget[0] = std::max(0, (int)pt -  sWt_b    - shift_t);
-
-		rangex[1] = std::min((int)i_imNoisy.sz.width  - sPx, (int)px + (sWx-1)/2 - shift_x);
-		rangey[1] = std::min((int)i_imNoisy.sz.height - sPx, (int)py + (sWy-1)/2 - shift_y);
-		ranget[1] = std::min((int)i_imNoisy.sz.frames - sPt, (int)pt +  sWt_f    - shift_t);
+		ranget[0] = std::max(0, (int)pt - sWt_b - shift_t);
+		ranget[1] = std::min((int)sz.frames - sPt, (int)pt +  sWt_f - shift_t);
 #endif
 
-		//! Redefine size of search range
-		sWx = rangex[1] - rangex[0] + 1;
-		sWy = rangey[1] - rangey[0] + 1;
+		//! Redefine size of temporal search range
 		int sWt = ranget[1] - ranget[0] + 1;
 
+		//! Allocate vector of patch distances
 		std::vector<std::pair<float, unsigned> > distance(sWx * sWy * sWt);
 
-		//! Compute distance between patches in search range
-		for (unsigned qt = ranget[0], dt = 0; qt <= ranget[1]; qt++, dt++)
-		for (unsigned qy = rangey[0], dy = 0; qy <= rangey[1]; qy++, dy++)
-		for (unsigned qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
-		{
-			//! Squared L2 distance between color patches of basic image
-			float dist = 0.f, dif;
-			for (unsigned c = 0; c < chnls; c++)
-			for (unsigned ht = 0; ht < sPt; ht++)
-			for (unsigned hy = 0; hy < sPx; hy++)
-			for (unsigned hx = 0; hx < sPx; hx++)
-				dist += (dif = i_imBasic(px + hx, py + hy, pt + ht, c)
-				             - i_imBasic(qx + hx, qy + hy, qt + ht, c) ) * dif;
+		//! Number of patches in search region
+		int nsrch = 0;
 
-			//! Save distance and corresponding patch index
-			distance[dt * sWx*sWy + dy * sWx + dx] = 
-				std::make_pair(dist, i_imBasic.sz.index(qx, qy, qt, 0));
+		//! Schedule frames in temporal range
+		std::vector<int> srch_ranget;
+		srch_ranget.push_back(pt);
+		for (int qt = pt+1; qt <= ranget[1]; ++qt) srch_ranget.push_back(qt);
+		for (int qt = pt-1; qt >= ranget[0]; --qt) srch_ranget.push_back(qt);
+
+		//! Trajectory of search center
+		std::vector<int> cx(sWt,0), cy(sWt,0), ct(sWt,0);
+
+		//! Search
+		for (int ii = 0; ii < sWt; ++ii)
+		{
+			int qt = srch_ranget[ii]; // video frame number
+			int dt = qt - ranget[0]; // search region frame number
+			int dir = std::max(-1, std::min(1, qt - (int)pt)); // direction (forward or backwards from pt)
+
+			//! Integrate optical flow to new center
+			if (dir != 0)
+			{
+				int cx0 = cx[dt - dir];
+				int cy0 = cy[dt - dir];
+				int ct0 = ct[dt - dir];
+//				if (cx0 > (int)bflow.sz.width - 1 || cx0 < 0 ||
+//				    cy0 > (int)bflow.sz.height- 1 || cy0 < 0 ||
+//				    ct0 > (int)bflow.sz.frames- 1 || ct0 < 0 )
+//					printf("sz = %d,%d,%d ~ c = %d,%d,%d\n",bflow.sz.width, bflow.sz.height, bflow.sz.frames, cx0, cy0, ct0);
+				float cx_f = cx0 + (use_flow ? (dir > 0 ? fflow(cx0,cy0,ct0,0) : bflow(cx0,cy0,ct0,0)) : 0.f);
+				float cy_f = cy0 + (use_flow ? (dir > 0 ? fflow(cx0,cy0,ct0,1) : bflow(cx0,cy0,ct0,1)) : 0.f);
+				cx[dt] = std::max(0., std::min((double)sz.width  - 1, round(cx_f)));
+				cy[dt] = std::max(0., std::min((double)sz.height - 1, round(cy_f)));
+				ct[dt] = qt;
+			}
+			else
+			{
+				cx[dt] = px;
+				cy[dt] = py;
+				ct[dt] = pt;
+			}
+
+			//! Spatial search range
+			int rangex[2];
+			int rangey[2];
+#ifdef CENTRED_SEARCH
+			rangex[0] = std::max(0, cx[dt] - (sWx-1)/2);
+			rangey[0] = std::max(0, cy[dt] - (sWy-1)/2);
+
+			rangex[1] = std::min((int)sz.width  - sPx, cx[dt] + (sWx-1)/2);
+			rangey[1] = std::min((int)sz.height - sPx, cy[dt] + (sWy-1)/2);
+#else
+			int shift_x = std::min(0, cx[dt] - (sWx-1)/2); 
+			int shift_y = std::min(0, cy[dt] - (sWy-1)/2); 
+
+			shift_x += std::max(0, cx[dt] + (sWx-1)/2 - (int)sz.width  + sPx); 
+			shift_y += std::max(0, cy[dt] + (sWy-1)/2 - (int)sz.height + sPx); 
+
+			rangex[0] = std::max(0, cx[dt] - (sWx-1)/2 - shift_x);
+			rangey[0] = std::max(0, cy[dt] - (sWy-1)/2 - shift_y);
+
+			rangex[1] = std::min((int)sz.width  - sPx, cx[dt] + (sWx-1)/2 - shift_x);
+			rangey[1] = std::min((int)sz.height - sPx, cy[dt] + (sWy-1)/2 - shift_y);
+#endif
+
+			//! Compute distance between patches in search range
+			for (int qy = rangey[0], dy = 0; qy <= rangey[1]; qy++, dy++)
+			for (int qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
+			{
+				//! Squared L2 distance
+				float dist = 0.f, dif;
+				for (int c = 0; c < chnls; c++)
+				for (int ht = 0; ht < sPt; ht++)
+				for (int hy = 0; hy < sPx; hy++)
+				for (int hx = 0; hx < sPx; hx++)
+					dist += (dif = imBasic(px + hx, py + hy, pt + ht, c)
+					             - imBasic(qx + hx, qy + hy, qt + ht, c) ) * dif;
+
+				//! Save distance and corresponding patch index
+				distance[nsrch++] = std::make_pair(dist, sz.index(qx, qy, qt, 0));
+			}
 		}
 
+		distance.resize(nsrch);
+
 		//! Keep only the nSimilarPatches best similar patches
-		nSimP = std::min(p_params.nSimilarPatches, (unsigned)distance.size());
+		nSimP = std::min(params.nSimilarPatches, (unsigned)distance.size());
 		std::partial_sort(distance.begin(), distance.begin() + nSimP,
 		                  distance.end(), comparaisonFirst);
 
-		const float threshold = (p_params.tau > distance[nSimP - 1].first ?
-		                         p_params.tau : distance[nSimP - 1].first);
+		//! Add more patches if their distance is bellow the threshold
+		const float threshold = (params.tau > distance[nSimP - 1].first ?
+		                         params.tau : distance[nSimP - 1].first);
 		nSimP = 0;
-
-		//! Register position of similar patches
 		for (unsigned n = 0; n < distance.size(); n++)
 			if (distance[n].first <= threshold)
-				o_index[nSimP++] = distance[n].second;
+				index[nSimP++] = distance[n].second;
 
-//		if (nSimP > p_params.nSimilarPatches)
+//		if (nSimP > params.nSimilarPatches)
 //			printf("SR2 [%d,%d,%d] ~ nsim = %d ~ nsim ratio = %f\n", px,py,pt, nSimP, (float)nSimP/(float)(sWx*sWy*sWt));
 	}
 	else // nSimilarPatches == 1
-		o_index[0] = pidx;
+		index[0] = pidx;
 
 	//! Save similar patches into 3D groups
-	const unsigned w   = i_imNoisy.sz.width;
-	const unsigned wh  = i_imNoisy.sz.wh;
-	const unsigned whc = i_imNoisy.sz.whc;
+	const unsigned w   = imNoisy.sz.width;
+	const unsigned wh  = imNoisy.sz.wh;
+	const unsigned whc = imNoisy.sz.whc;
 	for (unsigned c = 0, k = 0; c < chnls; c++)
 	for (unsigned ht = 0; ht < sPt; ht++)
 	for (unsigned hy = 0; hy < sPx; hy++)
 	for (unsigned hx = 0; hx < sPx; hx++)
 	for (unsigned n = 0; n < nSimP; n++, k++)
 	{
-		o_groupNoisy[k] = i_imNoisy(c * wh + o_index[n] + ht * whc + hy * w + hx);
-		o_groupBasic[k] = i_imBasic(c * wh + o_index[n] + ht * whc + hy * w + hx);
+		groupNoisy[k] = imNoisy(c * wh + index[n] + ht * whc + hy * w + hx);
+		groupBasic[k] = imBasic(c * wh + index[n] + ht * whc + hy * w + hx);
 #ifdef DEBUG_COMPUTE_GROUP_ERROR
-		o_groupClean[k] = i_imClean(c * wh + o_index[n] + ht * whc + hy * w + hx);
+		groupClean[k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
 #endif
 	}
 

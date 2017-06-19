@@ -266,6 +266,32 @@ std::vector<float> runNlBayes(
 );
 
 /**
+ * @brief Main function to process the whole NL-Bayes algorithm.
+ *
+ * @param i_imNoisy: contains the noisy video;
+ * @param i_fflow  : forward optical flow;
+ * @param i_bflow  : backward optical flow;
+ * @param o_imBasic: will contain the basic estimate image after the first step;
+ * @param o_imFinal: will contain the final denoised image after the second step;
+ * @param p_params1 : parameters for first step
+ * @param p_params1 : parameters for second step
+ *
+ * @return Percentage of processed groups over number of pixels.
+ **/
+std::vector<float> runNlBayes(
+	Video<float> const& i_imNoisy
+,  Video<float> const& i_fflow
+,  Video<float> const& i_bflow
+,	Video<float> &o_imBasic
+,	Video<float> &o_imFinal
+,	const nlbParams p_params1
+,	const nlbParams p_params2
+#ifdef DEBUG_COMPUTE_GROUP_ERROR
+,  Video<float> &i_imClean
+#endif
+);
+
+/**
  * @brief Generic step of the NL-Bayes denoising (could be the first or the second).
  *
  * @param i_imNoisy: contains the noisy video;
@@ -288,6 +314,8 @@ std::vector<float> runNlBayes(
  **/
 unsigned processNlBayes(
 	Video<float> const& i_imNoisy
+,	Video<float> const& i_fflow
+,	Video<float> const& i_bflow
 ,	Video<float> &io_imBasic
 ,	Video<float> &o_imFinal
 #ifdef DEBUG_COMPUTE_GROUP_ERROR
@@ -310,6 +338,8 @@ unsigned processNlBayes(
  **/
 unsigned estimateSimilarPatchesStep1(
 	Video<float> const& i_im
+,	Video<float> const& i_fflow
+,	Video<float> const& i_bflow
 ,	std::vector<std::vector<float> > &o_group
 ,	std::vector<unsigned> &o_index
 ,	const unsigned p_ij
@@ -336,6 +366,8 @@ unsigned estimateSimilarPatchesStep1(
 unsigned estimateSimilarPatchesStep2(
 	Video<float> const& i_imNoisy
 ,	Video<float> const& i_imBasic
+,	Video<float> const& i_fflow
+,	Video<float> const& i_bflow
 ,	std::vector<float> &o_groupNoisy
 ,	std::vector<float> &o_groupBasic
 ,	std::vector<unsigned> &o_index

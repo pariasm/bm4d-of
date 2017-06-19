@@ -59,6 +59,10 @@ int main(int argc, char **argv)
 	const unsigned lastFrame  = clo_option("-l", 0, "last frame");
 	const unsigned frameStep  = clo_option("-s", 1, "frame step");
 
+	//! Paths to optical flow
+	const string  fflow_path = clo_option("-fof", "", "< input forward  optical flow");
+	const string  bflow_path = clo_option("-bof", "", "< input backward optical flow");
+
 	//! General parameters
 	const float sigma = clo_option("-sigma", 0.f, "Add noise of standard deviation sigma");
 	const bool has_noise = (bool) clo_option("-has-noise"   , false, "> input image already has noise");
@@ -141,6 +145,14 @@ int main(int argc, char **argv)
 	if (patch_sizex1 > 0 && inbsc_path != "")
 		fprintf(stderr, "\x1b[33;1mWarning:\x1b[0m a basic sequence path ignored since px1 > 0.\n");
 
+	if ((fflow_path != "" && bflow_path == "") || 
+	    (fflow_path == "" && bflow_path != ""))
+	{
+		fprintf(stderr, "Only one oflow path provided.\nTry `%s --help' for more information.\n",
+				argv[0]);
+		return EXIT_FAILURE;
+	}
+
 
 	//! Determine mode
 	Mode mode;
@@ -148,6 +160,8 @@ int main(int argc, char **argv)
 	if ((patch_sizex1 != 0) && (patch_sizex2 == 0)) mode = BSIC_ONLY;
 	if ((patch_sizex1 == 0) && (patch_sizex2 != 0)) mode = DENO_ONLY;
 	if ((patch_sizex1 == 0) && (patch_sizex2 == 0)) mode = NISY_ONLY;
+
+	bool use_oflow = (fflow_path != "");
 
 
 	//! Only print parameters
@@ -197,10 +211,13 @@ int main(int argc, char **argv)
 
 	//! Declarations
 	Video<float> original, noisy, basic, final, diff;
+	Video<float> fflow, bflow;
 
 	//! Load input videos
 	                       original.loadVideo(input_path, firstFrame, lastFrame, frameStep);
 	if (mode == DENO_ONLY) basic   .loadVideo(inbsc_path, firstFrame, lastFrame, frameStep);
+	if (use_oflow)         fflow   .loadVideo(fflow_path, firstFrame, lastFrame, frameStep);
+	if (use_oflow)         bflow   .loadVideo(bflow_path, firstFrame, lastFrame, frameStep);
 
 	//! Add noise
 	if (has_noise)
@@ -272,9 +289,15 @@ int main(int argc, char **argv)
 
 	//! Run denoising algorithm
 #ifndef DEBUG_COMPUTE_GROUP_ERROR
-	groupsRatio = VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2);
+	if (use_oflow)
+		groupsRatio = VideoNLB::runNlBayes(noisy, fflow, bflow, basic, final, prms1, prms2);
+	else
+		groupsRatio = VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2);
 #else
-	groupsRatio = VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2, original);
+	if (use_oflow)
+		groupsRatio = VideoNLB::runNlBayes(noisy, fflow, bflow, basic, final, prms1, prms2, original);
+	else
+		groupsRatio = VideoNLB::runNlBayes(noisy, basic, final, prms1, prms2, original);
 #endif
 
 	//! Compute PSNR and RMSE
