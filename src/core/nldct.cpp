@@ -3246,10 +3246,12 @@ float computeBayesEstimateStep2_externalBasisTh(
 #endif
 		}
 		else
+#ifndef DCT_DONT_CENTER2
 			//! r = 0: set all patches as baricenter
 			for (unsigned j = 0, k = 0; j < sPC; j++)
 				for (unsigned i = 0; i < p_nSimP; i++, k++)
 					groupNoisy_c[k] = i_mat.baricenter[j];
+#endif
 
 		//! Copy channel back into vector
 		std::copy(groupNoisy_c.begin(), groupNoisy_c.end(),
