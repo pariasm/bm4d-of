@@ -1,3 +1,4 @@
+cmake_policy(SET CMP0048 NEW) # avoid annoing warnings
 
 project(VideoNLBayes C CXX Fortran)
 

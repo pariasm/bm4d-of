@@ -1,14 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
+cmake_policy(SET CMP0048 NEW)
 project(iio C)
 
 message(STATUS "Configuring project: " ${CMAKE_PROJECT_NAME})
-
-###############################################################################
-
-set(PROJECT_VERSION_MAJOR  0)
-set(PROJECT_VERSION_MINOR  1)
-set(PROJECT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}"
-    CACHE INTERNAL "The project version.")
 
 ###############################################################################
 
