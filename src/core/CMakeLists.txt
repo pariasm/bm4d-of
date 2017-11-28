@@ -4,7 +4,7 @@ include_directories(${CMAKE_SOURCE_DIR}/src/utils)
 include_directories(${IIO_INCLUDE_DIR})
 include_directories(${FFTW_INCLUDES})
 
-add_library(videoNlBayes SHARED
+add_library(vnldct SHARED
 	nldct.cpp
 	matrix_funs.cpp
 	dct_handler.cpp
@@ -14,11 +14,11 @@ add_library(videoNlBayes SHARED
 	../utils/utilities.cpp
 	)
 
-target_link_libraries(videoNlBayes iio ${FFTWF_LIBRARIES})
+target_link_libraries(vnldct iio ${FFTWF_LIBRARIES})
 
-set_target_properties(videoNlBayes PROPERTIES
+set_target_properties(vnldct PROPERTIES
 	SOVERSION ${PROJECT_VERSION})
 
-install(TARGETS videoNlBayes
+install(TARGETS vnldct
     LIBRARY DESTINATION lib
     COMPONENT libs)

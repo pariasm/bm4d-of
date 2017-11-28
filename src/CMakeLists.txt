@@ -1,4 +1,3 @@
-
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin)
 
 # internal includes
@@ -10,10 +9,10 @@ include_directories(${CMAKE_SOURCE_DIR}/core)
 #include_directories(${CBLAS_INCLUDE_DIR})
 include_directories(${IIO_INCLUDE_DIR})
 
-add_executable(vnlbayes main_vnlb.cpp)
+add_executable(nldct main_vnlb.cpp)
 
 #link_directories(${CMAKE_BINARY_DIR}/lib)
-target_link_libraries(vnlbayes videoNlBayes ${CBLAS_LIBRARIES})
+target_link_libraries(nldct vnldct ${CBLAS_LIBRARIES})
 
 # These are not necessary
 # ${IIO_LIBRARIES})
