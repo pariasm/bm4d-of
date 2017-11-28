@@ -46,7 +46,7 @@ int main(int argc, char **argv)
 	using std::string;
 	const string  input_path = clo_option("-i"    , ""              , "< input sequence");
 	const string  inbsc_path = clo_option("-b"    , ""              , "< input basic sequence");
-	const string  noisy_path = clo_option("-nisy" , "nisy_%03d.png" , "> noisy sequence");
+	const string  noisy_path = clo_option("-nisy" , ""              , "> noisy sequence");
 	const string  final_path = clo_option("-deno" , "deno_%03d.png" , "> denoised sequence");
 	const string  basic_path = clo_option("-bsic" , "bsic_%03d.png" , "> basic denoised sequence");
 	const string   diff_path = clo_option("-diff" , "diff_%03d.png" , "> difference sequence");
@@ -225,6 +225,12 @@ int main(int argc, char **argv)
 		VideoUtils::addNoise(original, noisy, sigma, verbose);
 
 	//! Save noisy video
+	if (noisy_path != "")
+	{
+		if (verbose) printf("Saving noisy video\n");
+		noisy.saveVideo(noisy_path, firstFrame, frameStep);
+	}
+
 	if (mode == NISY_ONLY)
 	{
 		if (!has_noise && sigma)
@@ -232,10 +238,6 @@ int main(int argc, char **argv)
 			float noisy_psnr = -1, noisy_rmse = -1;
 			VideoUtils::computePSNR(original, noisy, noisy_psnr, noisy_rmse);
 			writingMeasures("measures.txt", sigma, noisy_psnr, noisy_rmse, 0, true, "_noisy");
-
-			if (verbose) printf("Saving noisy video\n");
-			noisy.saveVideo(noisy_path, firstFrame, frameStep);
-
 			return EXIT_SUCCESS;
 		}
 		else
