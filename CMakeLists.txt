@@ -1,6 +1,6 @@
 cmake_policy(SET CMP0048 NEW) # avoid annoing warnings
 
-project(nldct VERSION 1.0 LANGUAGES C CXX Fortran)
+project(nldct VERSION 1.0 LANGUAGES C CXX)
 message(STATUS "Configuring main project: " ${PROJECT_NAME})
 
 # flags #######################################################################
@@ -46,6 +46,7 @@ set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
 set(CPACK_SOURCE_GENERATOR "TGZ")
 set(CPACK_SOURCE_IGNORE_FILES
 "\\\\.*\\\\.swp"
+"\\\\*\\\\.o"
 "^${PROJECT_SOURCE_DIR}/build/"
 "^${PROJECT_SOURCE_DIR}/tools/"
 "^${PROJECT_SOURCE_DIR}/results/"
