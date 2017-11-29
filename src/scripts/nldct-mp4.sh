@@ -3,13 +3,14 @@
 #this script is used to execute the program from the IPOL demo
 bindir=$1
 vidin=$2
-vidout=$3
-sigma=$4
-px=$5
-pt=$6
-wx=$7
-wt=$8
-np=$9
+denoout=$3
+nisyout=$4
+sigma=$5
+px=$6
+pt=$7
+wx=$8
+wt=$9
+np=${10}
 
 #extract info from video
 info=`avprobe -v error -show_streams  $vidin`
@@ -41,18 +42,32 @@ time avconv -v error -i $vidin -f image2 i%04d.png
 echo
 
 echo run nldct denoising
-echo $bindir/nldct -i i%04d.png -f 1 -l $nframes -bsic d%04d.png -sigma $sigma \
-     -px2 0 -px1 $px -pt1 $pt -wx1 $wx -wt1 $wt -np1 $np
-time $bindir/nldct -i i%04d.png -f 1 -l $nframes -bsic d%04d.png -sigma $sigma \
-     -px2 0 -px1 $px -pt1 $pt -wx1 $wx -wt1 $wt -np1 $np
+export OMP_NUM_THREADS=8 # set max number of threads
+echo $bindir/nldct -i i%04d.png -f 1 -l $nframes -bsic d%04d.png -nisy n%04d.png \
+	  -sigma $sigma -px2 0 -px1 $px -pt1 $pt -wx1 $wx -wt1 $wt -np1 $np
+time $bindir/nldct -i i%04d.png -f 1 -l $nframes -bsic d%04d.png -nisy n%04d.png \
+	  -sigma $sigma -px2 0 -px1 $px -pt1 $pt -wx1 $wx -wt1 $wt -np1 $np
 echo
 
 echo save output video as lossless mp4
-echo avconv -v error -framerate $framerate -f image2 -i d%04d.png \
-     -r $framerate -c:v libx264 -preset ultrafast -crf 0 $vidout
-time avconv -v error -framerate $framerate -f image2 -i d%04d.png \
-     -r $framerate -c:v libx264 -preset ultrafast -crf 0 $vidout
+echo avconv -y -v error -framerate $framerate -f image2 -i d%04d.png \
+     -r $framerate -c:v libx264 -preset ultrafast -crf 0 $denoout
+time avconv -y -v error -framerate $framerate -f image2 -i d%04d.png \
+     -r $framerate -c:v libx264 -preset ultrafast -crf 0 $denoout
+
+echo avconv -y -v error -framerate $framerate -f image2 -i n%04d.png \
+     -r $framerate -c:v libx264 -preset ultrafast -crf 0 $nisyout
+time avconv -y -v error -framerate $framerate -f image2 -i n%04d.png \
+     -r $framerate -c:v libx264 -preset ultrafast -crf 0 $nisyout
 echo
 
+nkeep=19
+echo keep $nkeep frames at the beginning of the sequence
+f1=1
+f2=$((nkeep > nframes ? nframes : nkeep))
+
 echo remove pngs
-rm -R {i,d}????.png
+for ((i=$nkeep+1; i<=$nframes; i++))
+do
+	rm -R {i,d,n}$(printf "%04d" $i).png
+done
