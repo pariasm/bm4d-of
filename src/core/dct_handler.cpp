@@ -54,8 +54,8 @@ void DCTThreadsHandler::init(
 
 	// define method based on patch size
 //	method = (width * height * frames < 32) ? MATPROD : FFTW;
-//	method = FFTW;
-	method = MATPROD;
+	method = FFTW;
+//	method = MATPROD; // FIXME: MATPROD IS NOT WORKING!
 
 //	fprintf(stderr, "init DCT for %d thread - %d x %d x %d ~ %d\n",nthreads, width, height, frames, nsignals);
 
