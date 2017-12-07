@@ -11,6 +11,7 @@ pt=$7
 wx=$8
 wt=$9
 np=${10}
+pxlfmt=${11}
 
 #extract info from video
 info=`avprobe -v error -show_streams  $vidin`
@@ -37,8 +38,19 @@ echo " "input video size: $width x $height x $nframes @ $framerate fps
 echo
 
 echo extract frames from input video
-echo avconv -v error -i $vidin -f image2 i%04d.png
-time avconv -v error -i $vidin -f image2 i%04d.png
+if [ $pxlfmt == "gray" ]
+then
+	echo avconv -v error -i $vidin -f image2 -vf format=gray i%04d.png
+	time avconv -v error -i $vidin -f image2 -vf format=gray i%04d.png
+
+	for i in $(seq 1 $nframes)
+	do
+		plambda i$(printf %04d $i).png "x[0]" -o i$(printf %04d $i).png
+	done
+else
+	echo avconv -v error -i $vidin -f image2 i%04d.png
+	time avconv -v error -i $vidin -f image2 i%04d.png
+fi
 echo
 
 echo run nldct denoising
@@ -59,6 +71,16 @@ echo avconv -y -v error -framerate $framerate -f image2 -i n%04d.png \
      -r $framerate -c:v libx264 -preset ultrafast -crf 0 $nisyout
 time avconv -y -v error -framerate $framerate -f image2 -i n%04d.png \
      -r $framerate -c:v libx264 -preset ultrafast -crf 0 $nisyout
+
+if [ $pxlfmt == "gray" ]
+then
+	# overwrite input video (if it was RGB, it will be overwritten by
+	# a grayscale video)
+	echo avconv -y -v error -framerate $framerate -f image2 -i i%04d.png \
+	     -r $framerate -c:v libx264 -preset ultrafast -crf 0 $vidin
+	time avconv -y -v error -framerate $framerate -f image2 -i i%04d.png \
+	     -r $framerate -c:v libx264 -preset ultrafast -crf 0 $vidin
+fi
 echo
 
 nkeep=19

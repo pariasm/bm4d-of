@@ -31,7 +31,7 @@ if(OPENMP_FOUND)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
-# add project's directories ###################################################
+# add project directories #####################################################
 
 add_subdirectory(lib/iio)
 add_subdirectory(src/core)
