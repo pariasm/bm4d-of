@@ -2982,25 +2982,6 @@ float computeBayesEstimateStep2_externalBasis(
 		std::vector<float> groupBasic_c( i_groupBasic.begin() + sPC*p_nSimP * c   ,
 		                                 i_groupBasic.begin() + sPC*p_nSimP *(c+1));
 
-#ifndef DCT_DONT_CENTER2
-		//! Center 3D groups around their baricenter
- #ifdef BARICENTER_BASIC
-
-		//! Center basic and noisy patches using basic's baricenter
-		centerData(groupBasic_c, i_mat.baricenter, p_nSimP, sPC);
-		for (unsigned j = 0, k = 0; j < sPC; j++)
-			for (unsigned i = 0; i < p_nSimP; i++, k++)
-				groupNoisy_c[k] -= i_mat.baricenter[j];
-
- #else //BARICENTER_BASIC
-
-		//! Center basic noisy patches each with its own baricenter
-		centerData(groupBasic_c, i_mat.baricenter, p_nSimP, sPC);
-		centerData(groupNoisy_c, i_mat.baricenter, p_nSimP, sPC);
-
- #endif//BARICENTER_BASIC
-#endif//DCT_DONT_CENTER2
-
 		if (r > 0)
 		{
 			/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
@@ -3017,6 +2998,13 @@ float computeBayesEstimateStep2_externalBasis(
 			 * hX' = X' * U * (W * U')
 			 */
 
+			//! Project noisy patches over basis: Z' = X'*U (to compute variances)
+			productMatrix(i_mat.groupTransposeNoisy,
+			              groupNoisy_c,
+			              i_mat.patch_basis,
+			              p_nSimP, sPC, sPC,
+			              false, false);
+
 			//! Project basic patches over basis: Z' = X'*U (to compute variances)
 #ifndef NOISY_COVARIANCE2
 			productMatrix(i_mat.groupTranspose,
@@ -3025,12 +3013,31 @@ float computeBayesEstimateStep2_externalBasis(
 			              p_nSimP, sPC, sPC,
 			              false, false);
 #else
-			productMatrix(i_mat.groupTranspose,
-			              groupNoisy_c,
-			              i_mat.patch_basis,
-			              p_nSimP, sPC, sPC,
-			              false, false);
+			i_mat.groupTranspose = i_mat.groupTransposeNoisy;
 #endif
+
+#ifndef DCT_DONT_CENTER2
+			//! Center 3D groups around their baricenter
+ #ifdef BARICENTER_BASIC
+
+			//! Center basic and noisy patches using basic's baricenter
+			centerData(i_mat.groupTranspose, i_mat.baricenter, p_nSimP, sPC);
+			for (unsigned j = 0, k = 0; j < sPC; j++)
+			{
+				i_mat.baricenterNoisy[j] = i_mat.baricenter[j];
+				for (unsigned i = 0; i < p_nSimP; i++, k++)
+					i_mat.groupTransposeNoisy[k] -= i_mat.baricenter[j];
+			}
+
+ #else //BARICENTER_BASIC
+
+			//! Center basic noisy patches each with its own baricenter
+			centerData(i_mat.groupTranspose     , i_mat.baricenter     , p_nSimP, sPC);
+			centerData(i_mat.groupTransposeNoisy, i_mat.baricenterNoisy, p_nSimP, sPC);
+
+ #endif//BARICENTER_BASIC
+#endif//DCT_DONT_CENTER2
+
 
 			//! Compute variance over each component
 			//  TODO: compute r leading components
@@ -3096,21 +3103,34 @@ float computeBayesEstimateStep2_externalBasis(
 			for (unsigned i = 0; i < sPC; ++i)
 				*eigVecs++ = *basis++ * i_mat.covEigVals[k];
 
-			//! Project noisy patches over basis: Z' = X'*U
-#ifndef NOISY_COVARIANCE2
-			productMatrix(i_mat.groupTranspose,
-			              groupNoisy_c,
-			              i_mat.patch_basis,
-			              p_nSimP, sPC, sPC,
-			              false, false);
-#endif
-
 			//! hX' = Z'*(U*W)'
 			productMatrix(groupNoisy_c,
-			              i_mat.groupTranspose,
+			              i_mat.groupTransposeNoisy,
 			              i_mat.covEigVecs,
 			              p_nSimP, sPC, r,
 			              false, true);
+
+#ifndef DCT_DONT_CENTER2
+			//! Add baricenter
+
+#ifdef MEAN_HYPERPRIOR_BM3D2
+			float *z = i_mat.baricenterNoisy.data();
+			float *y = i_mat.baricenter.data();
+			for (unsigned k = 0; k < r  ; ++k, ++z, ++y) if (k != 0) 
+				*z *= (*y**y)/(*y**y + beta_sigma2/(float)p_nSimP);
+#endif
+
+			//! invert dct
+			productMatrix(i_mat.baricenter,
+			              i_mat.baricenterNoisy,
+			              i_mat.patch_basis,
+			              1, sPC, r,
+			              false, true);
+
+			for (unsigned j = 0, k = 0; j < sPC; j++)
+				for (unsigned i = 0; i < p_nSimP; i++, k++)
+					groupNoisy_c[k] += i_mat.baricenter[j];
+#endif
 
 //	printMatrix(i_mat.groupTranspose, sPC, p_nSimP, "/tmp/z.asc");
 //	printMatrix(io_groupNoisy       , sPC, p_nSimP, "/tmp/x_filtered.asc");
@@ -3118,25 +3138,22 @@ float computeBayesEstimateStep2_externalBasis(
 //	if (1)
 //	{
 //		// stop here
-//		printf("stopped: PRESS Ctrl-C or prepare for the WORST!!\n");
+//		printf("stopped: PRESS Ctrl-C\n");
 //		while (1) int a = 1;
 //	}
-
-
-#ifndef DCT_DONT_CENTER2
-			//! Add baricenter
-			for (unsigned j = 0, k = 0; j < sPC; j++)
-				for (unsigned i = 0; i < p_nSimP; i++, k++)
-					groupNoisy_c[k] += i_mat.baricenter[j];
-#endif
 		}
 		else
-#ifndef DCT_DONT_CENTER2
+		{
 			//! r = 0: set all patches as baricenter
+ #ifdef BARICENTER_BASIC
+			centerData(groupBasic_c, i_mat.baricenter, p_nSimP, sPC);
+ #else
+			centerData(groupNoisy_c, i_mat.baricenter, p_nSimP, sPC);
+ #endif
 			for (unsigned j = 0, k = 0; j < sPC; j++)
 				for (unsigned i = 0; i < p_nSimP; i++, k++)
 					groupNoisy_c[k] = i_mat.baricenter[j];
-#endif
+		}
 
 		//! Copy channel back into vector
 		std::copy(groupNoisy_c.begin(), groupNoisy_c.end(),
