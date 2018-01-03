@@ -207,7 +207,9 @@ void initializeNlbParameters(
 		o_params.nSimilarPatches = o_params.sizePatch * o_params.sizePatch * 3;
 
 	//! Offset: step between two similar patches
-	o_params.offSet     = std::max((unsigned)1, o_params.sizePatch     / 2);
+	o_params.offSet = (p_step == 2) ? std::max((unsigned)1, 3 * o_params.sizePatch / 4)
+	                                : std::max((unsigned)1, 2 * o_params.sizePatch / 4);
+
 //	o_params.offSetTime = std::max((unsigned)1, o_params.sizePatchTime / 2);
 	o_params.offSetTime = 1;
 
@@ -331,6 +333,8 @@ void setSizePatch(nlbParams& prms, const VideoSize &size, unsigned sizePatch)
 	prms.sizePatch = sizePatch;
 	prms.boundary = 2*(prms.sizeSearchWindow/2) + (prms.sizePatch - 1);
 	prms.offSet = sizePatch/2;
+	prms.offSet = (prms.isFirstStep) ? std::max((unsigned)1, 3 * sizePatch / 4)
+	                                 : std::max((unsigned)1, 2 * sizePatch / 4);
 
 	//! Update number of similar patches, only if it is less than recommended value
 	if (size.channels == 3)
@@ -2707,7 +2711,7 @@ float computeBayesEstimateStep1_externalBasisTh(
 
 #ifdef MEAN_HYPERPRIOR_BM3D1
 			z = i_mat.baricenter.data();
-			for (unsigned k = 0; k < r  ; ++k, ++z) if (k != 0) 
+			for (unsigned k = 0; k < r  ; ++k, ++z)// if (k != 0)
  #if defined(SOFT_THRESHOLD1)
 				*z = *z > 0 ? std::max(*z - beta_sigma/sqrtf((float)p_nSimP), 0.f)
 				            : std::min(*z + beta_sigma/sqrtf((float)p_nSimP), 0.f);
@@ -3215,7 +3219,7 @@ float computeBayesEstimateStep2_externalBasis(
 #ifdef MEAN_HYPERPRIOR_BM3D2
 			float *z = i_mat.baricenterNoisy.data();
 			float *y = i_mat.baricenter.data();
-			for (unsigned k = 0; k < r  ; ++k, ++z, ++y) if (k != 0) 
+			for (unsigned k = 0; k < r  ; ++k, ++z, ++y)// if (k != 0)
 				*z *= (*y**y)/(*y**y + beta_sigma2/(float)p_nSimP);
 #endif
 
