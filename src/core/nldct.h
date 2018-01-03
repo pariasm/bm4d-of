@@ -83,7 +83,9 @@ struct nlbParams
 struct matWorkspace
 {
 	std::vector<float> groupTranspose;
+	std::vector<float> groupTransposeNoisy;
 	std::vector<float> baricenter;
+	std::vector<float> baricenterNoisy;
 	std::vector<float> covMat;
 	std::vector<float> covMatTmp;
 	std::vector<float> tmpMat;

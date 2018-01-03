@@ -40,13 +40,13 @@
 //#define DCT_DONT_CENTER1
 //#define DCT_DONT_CENTER2
 
-#define USE_FFTW
+//#define USE_FFTW
 
 /* Shrinks the mean to 0 with an empirical hyper-Bayesian approach. */
 //#define MEAN_HYPERPRIOR1
 //#define MEAN_HYPERPRIOR2
-//#define MEAN_HYPERPRIOR_BM3D1
-//#define MEAN_HYPERPRIOR_BM3D2
+#define MEAN_HYPERPRIOR_BM3D1
+#define MEAN_HYPERPRIOR_BM3D2
 
 /* Avoid negative weights in the empirical Wiener filter. When the estimated
  * variance of a certain component is lower than the noise variance, the filter
@@ -66,7 +66,7 @@
 
 /* Use nonlinear coefficient thresholding instead of empirical Wiener filter in
  * Step 1. Parameter beta is used to control the threshold beta*sigma². */
-//#define THRESHOLDING1
+#define THRESHOLDING1
 //#define SOFT_THRESHOLD1
 //#define SOFT_THRESHOLD1_BAYES 
 
@@ -89,7 +89,7 @@
 /* Corrects the 'centering bug' discovered by Nicola. In the second step, basic
  * and noisy patches are centered using the basic baricenter. If left undefined,
  * each set of patches (noisy and basic) are centered using their own baricenter. */
-#define BARICENTER_BASIC
+//#define BARICENTER_BASIC
 
 /* The parameter beta is used as a noise correction factor. It provides a way 
  * to control the thresholding/filtering strength of the algorithm, by modifying
@@ -1119,11 +1119,13 @@ unsigned processNlBayes(
 	//! Matrices used for Bayes' estimate
 	vector<unsigned> index(patch_num);
 	matWorkspace mat;
-	mat.groupTranspose.resize(patch_num * patch_dim);
-	mat.tmpMat        .resize(patch_dim * patch_dim);
-	mat.covMat        .resize(patch_dim * patch_dim);
-	mat.covMatTmp     .resize(patch_dim * patch_dim);
-	mat.baricenter    .resize(patch_dim);
+	mat.groupTranspose     .resize(patch_num * patch_dim);
+	mat.tmpMat             .resize(patch_dim * patch_dim);
+	mat.covMat             .resize(patch_dim * patch_dim);
+	mat.covMatTmp          .resize(patch_dim * patch_dim);
+	mat.baricenter         .resize(patch_dim);
+	mat.groupTransposeNoisy.resize(patch_num * patch_dim); //FIXME
+	mat.baricenterNoisy    .resize(patch_dim); //FIXME
 
 	//! Store DCT basis
 	const unsigned sPc = 1; // number of channels TODO: obsolete!
@@ -2002,7 +2004,7 @@ float computeBayesEstimateStep1_externalBasisFFTW(
 #endif
 	const unsigned sPC = p_params.sizePatch * p_params.sizePatch
 	                   * p_params.sizePatchTime;
-	const unsigned r   = sPC; // p_params.rank; // XXX FIXME TODO
+	const unsigned r   = p_params.rank ? sPC : 0; // XXX FIXME TODO
 
 	const float inSimP = 1.f/(float)p_nSimP;
 
@@ -2538,11 +2540,6 @@ float computeBayesEstimateStep1_externalBasisTh(
 
 	for (unsigned c = 0; c < io_group.size(); c++)
 	{
-#ifndef DCT_DONT_CENTER1
-		//! Center 3D group
-		centerData(io_group[c], i_mat.baricenter, p_nSimP, sPC);
-#endif
-
 		if (r > 0)
 		{
 			/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
@@ -2565,6 +2562,11 @@ float computeBayesEstimateStep1_externalBasisTh(
 			              i_mat.patch_basis,
 			              p_nSimP, sPC, sPC,
 			              false, false);
+
+#ifndef DCT_DONT_CENTER1
+			//! Center 3D group
+			centerData(i_mat.groupTranspose, i_mat.baricenter, p_nSimP, sPC);
+#endif
 
 #if defined(SOFT_THRESHOLD1_BAYES)
 			//! Compute variance over each component
@@ -2605,28 +2607,44 @@ float computeBayesEstimateStep1_externalBasisTh(
 				*z = (*z * *z) > beta_sigma2 ? *z : 0.f;
 #endif
 
+#ifdef MEAN_HYPERPRIOR_BM3D1
+			z = i_mat.baricenter.data();
+			for (unsigned k = 0; k < r  ; ++k, ++z) if (k != 0) 
+ #if defined(SOFT_THRESHOLD1)
+				*z = *z > 0 ? std::max(*z - beta_sigma/sqrtf((float)p_nSimP), 0.f)
+				            : std::min(*z + beta_sigma/sqrtf((float)p_nSimP), 0.f);
+ #elif defined(SOFT_THRESHOLD1_BAYES)
+				*z = *z > 0 ? std::max(*z - i_mat.covEigVals[k]/sqrtf((float)p_nSimP), 0.f)
+				            : std::min(*z + i_mat.covEigVals[k]/sqrtf((float)p_nSimP), 0.f);
+ #else
+				*z = (*z * *z) > 0.1*beta_sigma2/(float)p_nSimP ? *z : 0.f;
+ #endif
+#endif
+
+#ifndef DCT_DONT_CENTER1
+			//! Add baricenter
+			z = i_mat.groupTranspose.data();
+			for (unsigned j = 0, k = 0; j < sPC; j++)
+				for (unsigned i = 0; i < p_nSimP; i++, k++, ++z)
+					*z += i_mat.baricenter[j];
+#endif
+
 			//! hX' = Z'*U'
 			productMatrix(io_group[c],
 			              i_mat.groupTranspose,
 			              i_mat.patch_basis,
 			              p_nSimP, sPC, r,
 			              false, true);
-
-#ifndef DCT_DONT_CENTER1
-			//! Add baricenter
-			for (unsigned j = 0, k = 0; j < sPC; j++)
-				for (unsigned i = 0; i < p_nSimP; i++, k++)
-					io_group[c][k] += i_mat.baricenter[j];
-#endif
 		}
 		else
 		{
-#ifndef DCT_DONT_CENTER1
+			//! Center 3D group
+			centerData(io_group[c], i_mat.baricenter, p_nSimP, sPC);
+
 			//! rank = 0: set as baricenter
 			for (unsigned j = 0, k = 0; j < sPC; j++)
 				for (unsigned i = 0; i < p_nSimP; i++, k++)
 					io_group[c][k] = i_mat.baricenter[j];
-#endif
 
 			//! Avoid 0/0 in return statement
 			total_variance = 1.f;
