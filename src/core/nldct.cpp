@@ -1290,12 +1290,11 @@ unsigned processNlBayes(
 				                                    * bt[kt * sPt + nt] : 0;
 	}
 
-#ifdef AGG_WINDOW
 	mat.agg_window.resize(patch_dim);
 	{
 		if (sPx == 8) // use BM3D's Kaiser window
 		{
-			float *w = mat.agg_window.data();
+			float *z = mat.agg_window.data();
 
 			for (unsigned t = 0; t < sPt; t++)
 			{
@@ -1313,7 +1312,6 @@ unsigned processNlBayes(
 			for (unsigned i = 0; i < sPt*sPx*sPx; i++)
 				mat.agg_window[i] = 1.;
 	}
-#endif
 
 
 	//! Variance captured by the principal components
@@ -1400,7 +1398,7 @@ unsigned processNlBayes(
 				//! Aggregation
 				remaining_groups -=
 					computeAggregationStep1(io_imBasic, weight, mask, group, aggreWeights, 
-							index, p_params, nSimP);
+							mat.agg_window, index, p_params, nSimP);
 			}
 
 		//! Weighted aggregation
@@ -1497,7 +1495,7 @@ unsigned processNlBayes(
 				//! Aggregation
 				remaining_groups -=
 					computeAggregationStep2(o_imFinal, weight, mask, groupNoisy,
-						aggreWeights, variance, index, p_params, nSimP);
+						aggreWeights, mat.agg_window, variance, index, p_params, nSimP);
 			}
 
 		//! Weighted aggregation
@@ -3649,7 +3647,7 @@ float computeBayesEstimateStep2(
 ,	const VideoSize &p_size
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
-,	std::vector<float> &aggreWeights 
+,	std::vector<float> &aggreWeights
 ){
 	/* In some images might have a dark noiseless frame (for instance the image
 	 * might be the result of a transformation, and a black region correspond to
@@ -3720,7 +3718,8 @@ int computeAggregationStep1(
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
 ,	std::vector<std::vector<float> > const& i_group
-,	std::vector<std::vector<float> > const& aggreWeights 
+,	std::vector<std::vector<float> > const& aggreWeights
+,	std::vector<float> const& aggreWindow
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
 ,	const unsigned p_nSimP
@@ -3744,9 +3743,9 @@ int computeAggregationStep1(
 	{
 		const unsigned ind = i_index[n];
 		const unsigned ind1 = (ind / whc) * wh + ind % wh;
-		for (unsigned pt = 0; pt < sPt; pt++)
-		for (unsigned py = 0; py < sPx; py++)
-		for (unsigned px = 0; px < sPx; px++)
+		for (unsigned pt = 0, i = 0; pt < sPt; pt++)
+		for (unsigned py = 0       ; py < sPx; py++)
+		for (unsigned px = 0       ; px < sPx; px++, i++)
 		{
 			for (unsigned c = 0; c < chnls; c++)
 			{
@@ -3754,13 +3753,13 @@ int computeAggregationStep1(
 				// XXX NOTE: we only use aggregWeights[0] to avoid color artifacts XXX
 #ifdef USE_FFTW
 				io_im(ij + pt * whc + py * w + px) += 
-					aggreWeights[0][n] * i_group[c][n*sPC + pt*sPx*sPx + py*sPx + px];
+					aggreWeights[0][n] * aggreWindow[i] * i_group[c][n*sPC + i];
 #else
 				io_im(ij + pt * whc + py * w + px) += 
-					aggreWeights[0][n] * i_group[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
+					aggreWeights[0][n] * aggreWindow[i] * i_group[c][i * p_nSimP + n];
 #endif
 			}
-			io_weight(ind1 + pt * wh + py * w + px) += aggreWeights[0][n];
+			io_weight(ind1 + pt * wh + py * w + px) += aggreWeights[0][n] * aggreWindow[i];
 		}
 
 		//! Use Paste Trick
@@ -3860,7 +3859,8 @@ int computeAggregationStep2(
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
 ,	std::vector<float> const& i_group
-,	std::vector<float> const& aggreWeights 
+,	std::vector<float> const& aggreWeights
+,	std::vector<float> const& aggreWindow
 ,	Video<float> &variance
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
@@ -3889,28 +3889,28 @@ int computeAggregationStep2(
 		{
 			const unsigned ij = ind + c * wh;
 			for (unsigned pt = 0, k = 0; pt < sPt; pt++)
-			for (unsigned py = 0; py < sPx; py++)
-			for (unsigned px = 0; px < sPx; px++, k++)
+			for (unsigned py = 0       ; py < sPx; py++)
+			for (unsigned px = 0       ; px < sPx; px++, k++)
 				io_im(ij + pt * whc + py * w + px) +=
-					aggreWeights[n] * i_group[k + (n + c * p_nSimP) * sPC];
+					aggreWeights[n] * aggreWindow[i] * i_group[k + (n + c * p_nSimP) * sPC];
 #else
 		const unsigned ind = i_index[n];
 		for (unsigned c = 0, k = 0; c < chnls; c++)
 		{
 			const unsigned ij = ind + c * wh;
-			for (unsigned pt = 0; pt < sPt; pt++)
-			for (unsigned py = 0; py < sPx; py++)
-			for (unsigned px = 0; px < sPx; px++, k++)
+			for (unsigned pt = 0, i = 0; pt < sPt; pt++)
+			for (unsigned py = 0       ; py < sPx; py++)
+			for (unsigned px = 0       ; px < sPx; px++, k++, i++)
 				io_im(ij + pt * whc + py * w + px) +=
-					aggreWeights[n] * i_group[k * p_nSimP + n];
+					aggreWeights[n] * aggreWindow[i] * i_group[k * p_nSimP + n];
 #endif
 		}
 
 		const unsigned ind1 = (ind / whc) * wh + ind % wh;
-		for (unsigned pt = 0; pt < sPt; pt++)
-		for (unsigned py = 0; py < sPx; py++)
-		for (unsigned px = 0; px < sPx; px++)
-			io_weight(ind1 + pt * wh + py * w + px) += aggreWeights[n];
+		for (unsigned pt = 0, i = 0; pt < sPt; pt++)
+		for (unsigned py = 0       ; py < sPx; py++)
+		for (unsigned px = 0       ; px < sPx; px++, i++)
+			io_weight(ind1 + pt * wh + py * w + px) += aggreWeights[n] * aggreWindow[i];
 
 		//! Apply Paste Trick
 		unsigned px, py, pt;

@@ -122,6 +122,9 @@ struct matWorkspace
 	std::vector<float> patch_basis_x;
 	std::vector<float> patch_basis_y;
 	std::vector<float> patch_basis_t;
+
+	// aggregation window to minimize blocking artifacts
+	std::vector<float> agg_window;
 };
 
 /**
@@ -504,6 +507,7 @@ int computeAggregationStep1(
 ,	Video<char>  &io_mask
 ,	std::vector<std::vector<float> > const& i_group
 ,	std::vector<std::vector<float> > const& aggreWeights
+,	std::vector<float> const& aggreWindow
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams& p_params
 ,	const unsigned p_nSimP
@@ -530,6 +534,7 @@ int computeAggregationStep2(
 ,	Video<char>  &io_mask
 ,	std::vector<float> const& i_group
 ,	std::vector<float> const& aggreWeights
+,	std::vector<float> const& aggreWindow
 ,	Video<float> &variance
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams& p_params
