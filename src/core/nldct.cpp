@@ -170,6 +170,9 @@ void initializeNlbParameters(
 ){
 	const bool s1 = (p_step == 1);
 
+	o_params.transform = (p_step == 1) ? bior1_5 : dct;
+//	o_params.transform = dct;
+
 	//! Standard deviation of the noise
 	o_params.sigma = p_sigma;
 
@@ -1129,26 +1132,27 @@ unsigned processNlBayes(
 
 	//! Store DCT basis
 	const unsigned sPc = 1; // number of channels TODO: obsolete!
-	mat.patch_basis.resize(patch_dim * patch_dim);
+	mat.patch_basis    .resize(patch_dim * patch_dim);
+	mat.patch_basis_inv.resize(patch_dim * patch_dim);
 	mat.patch_basis_x.resize(sPx * sPc * sPx * sPc);
 	mat.patch_basis_y.resize(sPx * sPc * sPx * sPc);
 	mat.patch_basis_t.resize(sPt * sPc * sPt * sPc);
+	if (p_params.transform == dct)
 	{
-
 		// 1D DCT basis for signals of length sPx
 		std::vector<float> cosx(sPx * sPx);
 		for (unsigned kx = 0, i = 0; kx < sPx; kx++)
 		for (unsigned nx = 0       ; nx < sPx; nx++, i++)
 			cosx[i] = cos( (0.5 + (float)nx)*  (float)kx * M_PI / (float)sPx )
-			        * sqrt( (kx == 0 ? 1. : 2.) / (float) sPx ); 
+			        * sqrt( (kx == 0 ? 1. : 2.) / (float) sPx );
 
 		// 1D DCT basis for signals of length sPt
 		std::vector<float> cost(sPt * sPt);
 		for (unsigned kt = 0, i = 0; kt < sPt; kt++)
 		for (unsigned nt = 0       ; nt < sPt; nt++, i++)
-//			cost[i] = nt == kt ? 1 : 0; 
+//			cost[i] = nt == kt ? 1 : 0;
 			cost[i] = cos( (0.5 + (float)nt)*  (float)kt * M_PI / (float)sPt )
-			        * sqrt( (kt == 0 ? 1. : 2.) / (float) sPt ); 
+			        * sqrt( (kt == 0 ? 1. : 2.) / (float) sPt );
 
 		//! 3D DCT basis
 		for (unsigned kc = 0, i = 0; kc < sPc; kc++)
@@ -1158,29 +1162,32 @@ unsigned processNlBayes(
 			for (unsigned nc = 0    ; nc < sPc; nc++)
 			for (unsigned nt = 0    ; nt < sPt; nt++)
 			for (unsigned ny = 0    ; ny < sPx; ny++)      // triplets (nt,ny,nx) are
-			for (unsigned nx = 0    ; nx < sPx; nx++, i++) // patch positions 
-				mat.patch_basis[i] = (nc == kc) ? cosx[kx * sPx + nx] 
-				                                * cosx[ky * sPx + ny] 
-				                                * cost[kt * sPt + nt] : 0; 
+			for (unsigned nx = 0    ; nx < sPx; nx++, i++) // patch positions
+				mat.patch_basis[i] = (nc == kc) ? cosx[kx * sPx + nx]
+				                                * cosx[ky * sPx + ny]
+				                                * cost[kt * sPt + nt] : 0;
+
+		//! inverse transform
+		mat.patch_basis_inv = mat.patch_basis;
 
 		//! 1D DCT bases
 		for (unsigned kc = 0, i = 0; kc < sPc; kc++)
 		for (unsigned kx = 0       ; kx < sPx; kx++) // basis vectors
 			for (unsigned nc = 0    ; nc < sPc; nc++)
-			for (unsigned nx = 0    ; nx < sPx; nx++, i++) // patch positions 
-				mat.patch_basis_x[i] = (nc == kc) ? cosx[kx * sPx + nx] : 0; 
+			for (unsigned nx = 0    ; nx < sPx; nx++, i++) // patch positions
+				mat.patch_basis_x[i] = (nc == kc) ? cosx[kx * sPx + nx] : 0;
 
 		for (unsigned kc = 0, i = 0; kc < sPc; kc++)
 		for (unsigned ky = 0       ; ky < sPx; ky++) // basis vectors
 			for (unsigned nc = 0    ; nc < sPc; nc++)
-			for (unsigned ny = 0    ; ny < sPx; ny++, i++) // patch positions 
-				mat.patch_basis_y[i] = (nc == kc) ? cosx[ky * sPx + ny] : 0; 
+			for (unsigned ny = 0    ; ny < sPx; ny++, i++) // patch positions
+				mat.patch_basis_y[i] = (nc == kc) ? cosx[ky * sPx + ny] : 0;
 
 		for (unsigned kc = 0, i = 0; kc < sPc; kc++)
 		for (unsigned kt = 0       ; kt < sPt; kt++) // basis vectors
 			for (unsigned nc = 0    ; nc < sPc; nc++)
-			for (unsigned nt = 0    ; nt < sPt; nt++, i++) // patch positions 
-				mat.patch_basis_t[i] = (nc == kc) ? cost[kt * sPt + nt] : 0; 
+			for (unsigned nt = 0    ; nt < sPt; nt++, i++) // patch positions
+				mat.patch_basis_t[i] = (nc == kc) ? cost[kt * sPt + nt] : 0;
 	
 		/*! Verify
 		for (unsigned kx = 0, i = 0; kx < sPx; kx++)
@@ -1206,12 +1213,103 @@ unsigned processNlBayes(
 			for (unsigned nc = 0; nc < sPc; nc++)
 			for (unsigned nt = 0; nt < sPt; nt++)
 			for (unsigned ny = 0; ny < sPx; ny++)      // triplets (nt,ny,nx) are
-			for (unsigned nx = 0; nx < sPx; nx++, i++) // patch positions 
+			for (unsigned nx = 0; nx < sPx; nx++, i++) // patch positions
 				norm += mat.covEigVecs[i]*mat.covEigVecs[i];
 
 			printf("|v[%d,%d,%d,%d]| = %f\n",kc,kt,ky,kx,norm);
 		}*/
 	}
+	else
+	{
+		if (sPx != 8)
+			throw std::runtime_error("VideoNLB::processNlBayes: bior1_5 transform is only "
+					"implemented for patches of size 8 x 8 x pt.");
+
+		// 1D bior1.5 basis for signals of length sPx=8
+		std::vector<float> bx(sPx * sPx);
+		int i = 0;
+		bx[i++]= 0.353553390593274; bx[i++]= 0.353553390593274; bx[i++]= 0.353553390593274; bx[i++]= 0.353553390593274; bx[i++]= 0.353553390593274; bx[i++]= 0.353553390593274; bx[i++]= 0.353553390593274; bx[i++]= 0.353553390593274;
+		bx[i++]= 0.219417649252501; bx[i++]= 0.449283757993216; bx[i++]= 0.449283757993216; bx[i++]= 0.219417649252501; bx[i++]=-0.219417649252501; bx[i++]=-0.449283757993216; bx[i++]=-0.449283757993216; bx[i++]=-0.219417649252501;
+		bx[i++]= 0.569359398342846; bx[i++]= 0.402347308162278; bx[i++]=-0.402347308162278; bx[i++]=-0.569359398342846; bx[i++]=-0.083506045090284; bx[i++]= 0.083506045090284; bx[i++]=-0.083506045090284; bx[i++]= 0.083506045090284;
+		bx[i++]=-0.083506045090284; bx[i++]= 0.083506045090284; bx[i++]=-0.083506045090284; bx[i++]= 0.083506045090284; bx[i++]= 0.569359398342846; bx[i++]= 0.402347308162278; bx[i++]=-0.402347308162278; bx[i++]=-0.569359398342846;
+		bx[i++]= 0.707106781186547; bx[i++]=-0.707106781186547; bx[i++]=                 0; bx[i++]=                 0; bx[i++]=                 0; bx[i++]=                 0; bx[i++]=                 0; bx[i++]=                 0;
+		bx[i++]=                 0; bx[i++]=                 0; bx[i++]= 0.707106781186547; bx[i++]=-0.707106781186547; bx[i++]=                 0; bx[i++]=                 0; bx[i++]=                 0; bx[i++]=                 0;
+		bx[i++]=                 0; bx[i++]=                 0; bx[i++]=                 0; bx[i++]=                 0; bx[i++]= 0.707106781186547; bx[i++]=-0.707106781186547; bx[i++]=                 0; bx[i++]=                 0;
+		bx[i++]=                 0; bx[i++]=                 0; bx[i++]=                 0; bx[i++]=                 0; bx[i++]=                 0; bx[i++]=                 0; bx[i++]= 0.707106781186547; bx[i++]=-0.707106781186547;
+
+		// 1D basis for signals of length sPt (identity matrix)
+		std::vector<float> bt(sPt * sPt);
+		for (unsigned kt = 0, i = 0; kt < sPt; kt++)
+		for (unsigned nt = 0       ; nt < sPt; nt++, i++)
+			bt[i] = nt == kt ? 1 : 0;
+
+		//! 3D DCT basis
+		for (unsigned kc = 0, i = 0; kc < sPc; kc++)
+		for (unsigned kt = 0       ; kt < sPt; kt++) // triplets (kt,ky,kx) are
+		for (unsigned ky = 0       ; ky < sPx; ky++) // frequencies and index
+		for (unsigned kx = 0       ; kx < sPx; kx++) // basis vectors
+			for (unsigned nc = 0    ; nc < sPc; nc++)
+			for (unsigned nt = 0    ; nt < sPt; nt++)
+			for (unsigned ny = 0    ; ny < sPx; ny++)      // triplets (nt,ny,nx) are
+			for (unsigned nx = 0    ; nx < sPx; nx++, i++) // patch positions
+				mat.patch_basis[i] = (nc == kc) ? bx[kx * sPx + nx]
+				                                * bx[ky * sPx + ny]
+				                                * bt[kt * sPt + nt] : 0;
+
+		// same for the inverse transform
+		i = 0;
+		bx[i++]= 0.353553390593274; bx[i++]= 0.353553390593274; bx[i++]= 0.5; bx[i++]= 0.0; bx[i++]= 0.707106781186547; bx[i++]=-0.121533978016438; bx[i++]=-0.000000000000000; bx[i++]= 0.121533978016438;
+		bx[i++]= 0.353553390593274; bx[i++]= 0.353553390593274; bx[i++]= 0.5; bx[i++]=-0.0; bx[i++]=-0.707106781186547; bx[i++]=-0.121533978016438; bx[i++]= 0.000000000000000; bx[i++]= 0.121533978016438;
+		bx[i++]= 0.353553390593274; bx[i++]= 0.353553390593274; bx[i++]=-0.5; bx[i++]=-0.0; bx[i++]= 0.121533978016438; bx[i++]= 0.707106781186548; bx[i++]=-0.121533978016438; bx[i++]= 0.000000000000000;
+		bx[i++]= 0.353553390593274; bx[i++]= 0.353553390593274; bx[i++]=-0.5; bx[i++]= 0.0; bx[i++]= 0.121533978016438; bx[i++]=-0.707106781186548; bx[i++]=-0.121533978016438; bx[i++]= 0.000000000000000;
+		bx[i++]= 0.353553390593274; bx[i++]=-0.353553390593274; bx[i++]= 0.0; bx[i++]= 0.5; bx[i++]= 0.000000000000000; bx[i++]= 0.121533978016438; bx[i++]= 0.707106781186547; bx[i++]=-0.121533978016438;
+		bx[i++]= 0.353553390593274; bx[i++]=-0.353553390593274; bx[i++]= 0.0; bx[i++]= 0.5; bx[i++]= 0.000000000000000; bx[i++]= 0.121533978016438; bx[i++]=-0.707106781186547; bx[i++]=-0.121533978016438;
+		bx[i++]= 0.353553390593274; bx[i++]=-0.353553390593274; bx[i++]= 0.0; bx[i++]=-0.5; bx[i++]=-0.121533978016438; bx[i++]=-0.000000000000000; bx[i++]= 0.121533978016438; bx[i++]= 0.707106781186547;
+		bx[i++]= 0.353553390593274; bx[i++]=-0.353553390593274; bx[i++]= 0.0; bx[i++]=-0.5; bx[i++]=-0.121533978016438; bx[i++]=-0.000000000000000; bx[i++]= 0.121533978016438; bx[i++]=-0.707106781186547;
+
+		// 1D basis for signals of length sPt (identity matrix)
+		for (unsigned kt = 0, i = 0; kt < sPt; kt++)
+		for (unsigned nt = 0       ; nt < sPt; nt++, i++)
+			bt[i] = nt == kt ? 1 : 0;
+
+		//! 3D DCT basis (stored transposed, so we can use the dct code)
+		for (unsigned nc = 0, i = 0; nc < sPc; nc++)
+		for (unsigned nt = 0       ; nt < sPt; nt++) // triplets (kt,ky,kx) are
+		for (unsigned ny = 0       ; ny < sPx; ny++) // frequencies and index
+		for (unsigned nx = 0       ; nx < sPx; nx++) // basis vectors
+			for (unsigned kc = 0    ; kc < sPc; kc++)
+			for (unsigned kt = 0    ; kt < sPt; kt++)
+			for (unsigned ky = 0    ; ky < sPx; ky++)      // triplets (nt,ny,nx) are
+			for (unsigned kx = 0    ; kx < sPx; kx++, i++) // patch positions
+				mat.patch_basis_inv[i] = (nc == kc) ? bx[kx * sPx + nx]
+				                                    * bx[ky * sPx + ny]
+				                                    * bt[kt * sPt + nt] : 0;
+	}
+
+#ifdef AGG_WINDOW
+	mat.agg_window.resize(patch_dim);
+	{
+		if (sPx == 8) // use BM3D's Kaiser window
+		{
+			float *w = mat.agg_window.data();
+
+			for (unsigned t = 0; t < sPt; t++)
+			{
+				*z++ = 0.1924; *z++ = 0.2989; *z++ = 0.3846; *z++ = 0.4325; *z++ = 0.4325; *z++ = 0.3846; *z++ = 0.2989; *z++ = 0.1924;
+				*z++ = 0.2989; *z++ = 0.4642; *z++ = 0.5974; *z++ = 0.6717; *z++ = 0.6717; *z++ = 0.5974; *z++ = 0.4642; *z++ = 0.2989;
+				*z++ = 0.3846; *z++ = 0.5974; *z++ = 0.7688; *z++ = 0.8644; *z++ = 0.8644; *z++ = 0.7688; *z++ = 0.5974; *z++ = 0.3846;
+				*z++ = 0.4325; *z++ = 0.6717; *z++ = 0.8644; *z++ = 0.9718; *z++ = 0.9718; *z++ = 0.8644; *z++ = 0.6717; *z++ = 0.4325;
+				*z++ = 0.4325; *z++ = 0.6717; *z++ = 0.8644; *z++ = 0.9718; *z++ = 0.9718; *z++ = 0.8644; *z++ = 0.6717; *z++ = 0.4325;
+				*z++ = 0.3846; *z++ = 0.5974; *z++ = 0.7688; *z++ = 0.8644; *z++ = 0.8644; *z++ = 0.7688; *z++ = 0.5974; *z++ = 0.3846;
+				*z++ = 0.2989; *z++ = 0.4642; *z++ = 0.5974; *z++ = 0.6717; *z++ = 0.6717; *z++ = 0.5974; *z++ = 0.4642; *z++ = 0.2989;
+				*z++ = 0.1924; *z++ = 0.2989; *z++ = 0.3846; *z++ = 0.4325; *z++ = 0.4325; *z++ = 0.3846; *z++ = 0.2989; *z++ = 0.1924;
+			}
+		}
+		else
+			for (unsigned i = 0; i < sPt*sPx*sPx; i++)
+				mat.agg_window[i] = 1.;
+	}
+#endif
 
 
 	//! Variance captured by the principal components
@@ -2632,7 +2730,8 @@ float computeBayesEstimateStep1_externalBasisTh(
 			//! hX' = Z'*U'
 			productMatrix(io_group[c],
 			              i_mat.groupTranspose,
-			              i_mat.patch_basis,
+//			              i_mat.patch_basis,
+			              i_mat.patch_basis_inv,
 			              p_nSimP, sPC, r,
 			              false, true);
 		}

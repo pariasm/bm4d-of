@@ -25,6 +25,7 @@ namespace VideoNLB
 {
 
 enum ColorSpace {RGB, YUV};
+enum Transform {dct, bior1_5};
 
 /**
  * @brief Structures of parameters dedicated to NL-Bayes process
@@ -68,6 +69,7 @@ struct nlbParams
 	bool isFirstStep;
 	bool doPasteBoost;
 	bool verbose;
+	Transform transform;
 	ColorSpace colorSpace;
 };
 
@@ -114,6 +116,7 @@ struct matWorkspace
 
 	// store a fixed patch basis (eg. DCT)
 	std::vector<float> patch_basis;
+	std::vector<float> patch_basis_inv; // for non-orthogonal transforms
 
 	// store a sepparable fixed patch basis (eg. DCT)
 	std::vector<float> patch_basis_x;
