@@ -1069,6 +1069,7 @@ unsigned processNlBayes(
 	bool border_y1 = p_crop.ending_y < p_crop.source_sz.height;
 	bool border_t1 = p_crop.ending_t < p_crop.source_sz.frames;
 
+#ifdef SCRAMBLED_REFERENCE_PATCHES
 	//! Only pixels of the center of the image must be processed (not the boundaries)
 	int n_groups = 0;
 	unsigned stepx = p_params.offSet;
@@ -1104,6 +1105,35 @@ unsigned processNlBayes(
 			}
 		}
 	}
+#else
+	//! Only pixels of the center of the image must be processed (not the boundaries)
+	int n_groups = 0;
+	unsigned stepx = p_params.offSet;
+	unsigned stepy = p_params.offSet;
+	unsigned stepf = p_params.offSetTime;
+	int ori_x =                        border_x0 ? sPx-1 + sWx/2 : 0 ;
+	int ori_y =                        border_y0 ? sPx-1 + sWx/2 : 0 ;
+	int ori_f =                        border_t0 ? sPt-1 + sWt/2 : 0 ;
+	int end_x = (int)sz.width  - (int)(border_x1 ? sPx-1 + sWx/2 : sPx-1);
+	int end_y = (int)sz.height - (int)(border_y1 ? sPx-1 + sWx/2 : sPx-1);
+	int end_f = (int)sz.frames - (int)(border_t1 ? sPt-1 + sWt/2 : sPt-1);
+	for (int f = ori_f, df = 0; f < end_f; f++, df++)
+	for (int y = ori_y, dy = 0; y < end_y; y++, dy++)
+	for (int x = ori_x, dx = 0; x < end_x; x++, dx++)
+	{
+		if ( (df % stepf == 0) || (!border_t1 && f == end_f - 1))
+		if ( (dy % stepy == 0) ||
+			  (!border_y1 && y == end_y - 1) ||
+			  (!border_y0 && y == ori_y    ) )
+		if ( (dx % stepx == 0) ||
+			  (!border_x1 && x == end_x - 1) ||
+			  (!border_x0 && x == ori_x    ) )
+		{
+			mask(x,y,f) = true;
+			n_groups++;
+		}
+	}
+#endif
 
 //	printf("Processing at most %d groups of similar patches\n", n_groups);
 
