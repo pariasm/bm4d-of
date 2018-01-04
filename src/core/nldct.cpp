@@ -1588,7 +1588,7 @@ unsigned processNlBayes(
 	return group_counter;
 }
 
-//#define VBM3D_SEARCH
+#define VBM3D_SEARCH
 #ifdef VBM3D_SEARCH
 /**
  * @brief Estimate the best similar patches to a reference one.
@@ -1620,7 +1620,10 @@ unsigned estimateSimilarPatchesStep1(
 
 	if (params.nSimilarPatches > 1)
 	{
-		unsigned nSimPFrame = 2; // number of similar patches per frame
+		const unsigned nSimPFrame = 2; // number of similar patches per frame
+//		const float dsub = 7*7*sPx*sPx*sPt*255;
+		const float dsub = 7*7*255;
+		const float tau_match = 4500*sPx*sPx*sPt;
 
 		const VideoSize sz = im.sz;
 		const bool use_flow = (fflow.sz.width > 0);
@@ -1744,7 +1747,10 @@ unsigned estimateSimilarPatchesStep1(
 					for (int hy = 0; hy < sPx; hy++)
 					for (int hx = 0; hx < sPx; hx++)
 						dist += (dif = im(px + hx, py + hy, pt + ht)
-										 - im(qx + hx, qy + hy, qt + ht)) * dif;
+						             - im(qx + hx, qy + hy, qt + ht)) * dif;
+
+					//! Small bias towards the center of the region
+					dist -= (qy == py && qx == px)? dsub : 0;
 
 					//! Save distance and corresponding patch index
 					distance_t.push_back(std::make_pair(dist, sz.index(qx, qy, qt, 0)));
@@ -1787,6 +1793,18 @@ unsigned estimateSimilarPatchesStep1(
 //		}
 //
 //		while (1);
+
+//		//! Store indices of most similar patches
+//		for (unsigned n = 0; n < nSimP; n++)
+//			if (distance[n].first > 4500*sPx*sPx*sPt) 
+//				printf(".");
+
+		//! Remove patches with a distance larger than tau_match
+		{
+			int n = 1;
+			while (2*n <= nSimP && distance[n].first < tau_match) n *= 2;
+			nSimP = n;
+		}
 
 		//! Store indices of most similar patches
 		for (unsigned n = 0; n < nSimP; n++)
@@ -2106,6 +2124,10 @@ unsigned estimateSimilarPatchesStep2(
 	if (params.nSimilarPatches > 1)
 	{
 		unsigned nSimPFrame = 2; // number of similar patches per frame
+//		const float dsub = 3*3*sPx*sPx*sPt*255;
+//		const float dsub = 3*3*sPx*sPx*sPt;
+		const float dsub = 3*3*255;
+		const float tau_match = 3000*sPx*sPx*sPt;
 
 		const bool use_flow = (fflow.sz.width > 0);
 
@@ -2231,6 +2253,9 @@ unsigned estimateSimilarPatchesStep2(
 						dist += (dif = imBasic(px + hx, py + hy, pt + ht)
 										 - imBasic(qx + hx, qy + hy, qt + ht)) * dif;
 
+					//! Small bias towards the center of the region
+					dist -= (qy == py && qx == px)? dsub : 0;
+
 					//! Save distance and corresponding patch index
 					distance_t.push_back(std::make_pair(dist, sz.index(qx, qy, qt, 0)));
 				}
@@ -2272,6 +2297,13 @@ unsigned estimateSimilarPatchesStep2(
 //		}
 //
 //		while (1);
+//
+		//! Remove patches with a distance larger than tau_match
+		{
+			int n = 1;
+			while (2*n <= nSimP && distance[n].first < tau_match) n *= 2;
+			nSimP = n;
+		}
 
 		//! Store indices of most similar patches
 		for (unsigned n = 0; n < nSimP; n++)
@@ -3277,7 +3309,8 @@ float computeBayesEstimateStep1_externalBasisTh(
 				*z = *z > 0 ? std::max(*z - i_mat.covEigVals[k]/sqrtf((float)p_nSimP), 0.f)
 				            : std::min(*z + i_mat.covEigVals[k]/sqrtf((float)p_nSimP), 0.f);
  #else
-				*z = (*z * *z) > beta_sigma2/(float)p_nSimP/(float)p_nSimP ? *z : 0.f;
+				*z = (*z * *z) > beta_sigma2/(float)p_nSimP ? *z : 0.f;
+//				*z = (*z * *z) > beta_sigma2/(float)p_nSimP/(float)p_nSimP ? *z : 0.f;
  #endif
 #endif
 
