@@ -3228,7 +3228,7 @@ float computeBayesEstimateStep1_externalBasisTh(
 				*z = *z > 0 ? std::max(*z - i_mat.covEigVals[k]/sqrtf((float)p_nSimP), 0.f)
 				            : std::min(*z + i_mat.covEigVals[k]/sqrtf((float)p_nSimP), 0.f);
  #else
-				*z = (*z * *z) > 0.1*beta_sigma2/(float)p_nSimP ? *z : 0.f;
+				*z = (*z * *z) > beta_sigma2/(float)p_nSimP/(float)p_nSimP ? *z : 0.f;
  #endif
 #endif
 
