@@ -263,7 +263,8 @@ void initializeNlbParameters(
 	//  Differs from manuscript (tau = 4) because (1) this threshold is to be used 
 	//  with the squared distance and (2) the distance is not normalized
 	if(s1) o_params.tau = 0; // not used
-	else   o_params.tau = 16.f * o_params.sizePatch * o_params.sizePatch * p_size.channels;
+//	else   o_params.tau = 16.f * o_params.sizePatch * o_params.sizePatch * p_size.channels;
+	else   o_params.tau = 0;
 
 	//! Print information?
 	o_params.verbose = p_verbose;
