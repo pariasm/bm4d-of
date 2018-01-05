@@ -1123,11 +1123,11 @@ unsigned processNlBayes(
 	{
 		if ( (df % stepf == 0) || (!border_t1 && f == end_f - 1))
 		if ( (dy % stepy == 0) ||
-			  (!border_y1 && y == end_y - 1) ||
-			  (!border_y0 && y == ori_y    ) )
+		     (!border_y1 && y == end_y - 1) ||
+		     (!border_y0 && y == ori_y    ) )
 		if ( (dx % stepx == 0) ||
-			  (!border_x1 && x == end_x - 1) ||
-			  (!border_x0 && x == ori_x    ) )
+		     (!border_x1 && x == end_x - 1) ||
+		     (!border_x0 && x == ori_x    ) )
 		{
 			mask(x,y,f) = true;
 			n_groups++;
@@ -3182,6 +3182,7 @@ float computeBayesEstimateStep1_externalBasisHyper(
 }
 
 #define VBM3D_HAAR_TRANSFORM
+#ifdef VBM3D_HAAR_TRANSFORM
 /**
  * @brief Implementation of computeBayesEstimateStep1 using an 
  * external basis provided by the user in the workspace i_mat.covEigVecs.
@@ -3195,6 +3196,115 @@ float computeBayesEstimateStep1_externalBasisTh(
 ,	unsigned &io_nInverseFailed
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
+,	std::vector<std::vector<float> > &aggreWeights
+){
+	//! Parameters initialization
+	const float beta_sigma = p_params.beta * p_params.sigma;
+	const float beta_sigma2 = beta_sigma * beta_sigma;
+#ifndef USE_BETA_FOR_VARIANCE
+	const float sigma2 = p_params.sigma * p_params.sigma;
+#else
+	const float sigma2 = beta_sigma2;
+#endif
+	const unsigned sPC = p_params.sizePatch * p_params.sizePatch
+	                   * p_params.sizePatchTime;
+
+	//! Compute variance to determine the aggregation weight
+	int non_zero_coeffs = 0;
+
+	for (unsigned c = 0; c < io_group.size(); c++)
+	{
+		/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
+		 * row a patch. Thus, in column-major storage it corresponds to X^T, where
+		 * each column of X contains a centered data point.
+		 *
+		 * We need to compute the noiseless estimage hX as 
+		 * hX = U * W * U' * X
+		 * where U is the matrix with the eigenvectors and W is a diagonal matrix
+		 * with the filter coefficients.
+		 *
+		 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
+		 * we compute 
+		 * hX' = X' * U * (W * U')
+		 */
+
+		//! Project over basis: Z' = X'*U
+		productMatrix(i_mat.groupTranspose,
+		              io_group[c],
+		              i_mat.patch_basis,
+		              p_nSimP, sPC, sPC,
+		              false, false);
+
+		//! Compute Haar transform inplace
+		{
+			float *z = i_mat.groupTranspose.data();
+
+			const float isqrt2 = 1./sqrt(2.);
+			for (int s = 2, h = 1; s <= p_nSimP; s *= 2, h *= 2)
+			for (int i = 0       ; i <  sPC    ; i++)
+			for (int n = 0       ; n <  p_nSimP; n += s)
+			{
+				const float z0 = z[n     + i*p_nSimP]*isqrt2;
+				const float z1 = z[n + h + i*p_nSimP]*isqrt2;
+				z[n     + i*p_nSimP] = (z0 + z1);
+				z[n + h + i*p_nSimP] = (z0 - z1);
+			}
+		}
+
+		//! Thresholding
+		float *z = i_mat.groupTranspose.data();
+		for (unsigned k = 0; k < sPC; ++k)
+		for (unsigned i = 0; i < p_nSimP; ++i, ++z)
+			if (*z * *z > beta_sigma2 || (k == 0 && i == 0)) non_zero_coeffs++;
+			else *z = 0.f;
+
+		//! Invert Haar transform inplace
+		{
+			float *z = i_mat.groupTranspose.data();
+			const float isqrt2 = 1./sqrt(2.);
+			for (int s = p_nSimP, h = s/2; s >= 2; s /= 2, h /= 2)
+			for (int i = 0       ; i <  sPC    ; i++)
+			for (int n = 0       ; n <  p_nSimP; n += s)
+			{
+				const float z0 = z[n     + i*p_nSimP]*isqrt2;
+				const float z1 = z[n + h + i*p_nSimP]*isqrt2;
+				z[n     + i*p_nSimP] = (z0 + z1);
+				z[n + h + i*p_nSimP] = (z0 - z1);
+			}
+		}
+
+		//! hX' = Z'*U'
+		productMatrix(io_group[c],
+		              i_mat.groupTranspose,
+		              i_mat.patch_basis_inv,
+		              p_nSimP, sPC, sPC,
+		              false, true);
+	}
+
+	// aggregation weights
+	const float variance = 1/sigma2/(float)non_zero_coeffs;
+	for (unsigned c = 0; c < io_group.size(); c++)
+	for (unsigned n = 0; n < p_nSimP; n++)
+		aggreWeights[c][n] = variance;
+
+	// return percentage of captured variance
+	return variance;
+}
+#else
+/**
+ * @brief Implementation of computeBayesEstimateStep1 using an 
+ * external basis provided by the user in the workspace i_mat.covEigVecs.
+ * This version considers different non-linear thresholding operators.
+ *
+ * See computeBayesEstimateStep1 for information about the arguments.
+ **/
+float computeBayesEstimateStep1_externalBasisTh(
+	std::vector<std::vector<float> > &io_group
+,	matWorkspace &i_mat
+,	unsigned &io_nInverseFailed
+,	nlbParams const& p_params
+,	const unsigned p_nSimP
+,	std::vector<std::vector<float> > &aggreWeights
 ){
 	//! Parameters initialization
 	const float beta_sigma = p_params.beta * p_params.sigma;
@@ -3237,27 +3347,9 @@ float computeBayesEstimateStep1_externalBasisTh(
 			              p_nSimP, sPC, sPC,
 			              false, false);
 
-#ifdef VBM3D_HAAR_TRANSFORM
-			//! Compute Haar transform inplace
-			{
-				float *z = i_mat.groupTranspose.data();
-
-				const float isqrt2 = 1./sqrt(2.);
-				for (int s = 2, h = 1; s <= p_nSimP; s *= 2, h *= 2)
-				for (int i = 0       ; i <  r      ; i++)
-				for (int n = 0       ; n <  p_nSimP; n += s)
-				{
-					const float z0 = z[n     + i*p_nSimP]*isqrt2;
-					const float z1 = z[n + h + i*p_nSimP]*isqrt2;
-					z[n     + i*p_nSimP] = (z0 + z1);
-					z[n + h + i*p_nSimP] = (z0 - z1);
-				}
-			}
-#else
-	#ifndef DCT_DONT_CENTER1
+#ifndef DCT_DONT_CENTER1
 			//! Center 3D group
 			centerData(i_mat.groupTranspose, i_mat.baricenter, p_nSimP, sPC);
-	#endif
 #endif
 
 #if defined(SOFT_THRESHOLD1_BAYES)
@@ -3299,7 +3391,7 @@ float computeBayesEstimateStep1_externalBasisTh(
 				*z = (*z * *z) > beta_sigma2 ? *z : 0.f;
 #endif
 
-#if defined(MEAN_HYPERPRIOR_BM3D1) && !defined(VBM3D_HAAR_TRANSFORM)
+#ifdef MEAN_HYPERPRIOR_BM3D1
 			z = i_mat.baricenter.data();
 			for (unsigned k = 0; k < r  ; ++k, ++z)// if (k != 0)
  #if defined(SOFT_THRESHOLD1)
@@ -3314,35 +3406,17 @@ float computeBayesEstimateStep1_externalBasisTh(
  #endif
 #endif
 
-#ifdef VBM3D_HAAR_TRANSFORM
-			//! Invert Haar transform inplace
-			{
-				float *z = i_mat.groupTranspose.data();
-				const float isqrt2 = 1./sqrt(2.);
-				for (int s = p_nSimP, h = s/2; s >= 2; s /= 2, h /= 2)
-				for (int i = 0       ; i <  r      ; i++)
-				for (int n = 0       ; n <  p_nSimP; n += s)
-				{
-					const float z0 = z[n     + i*p_nSimP]*isqrt2;
-					const float z1 = z[n + h + i*p_nSimP]*isqrt2;
-					z[n     + i*p_nSimP] = (z0 + z1);
-					z[n + h + i*p_nSimP] = (z0 - z1);
-				}
-			}
-#else
-	#ifndef DCT_DONT_CENTER1
+#ifndef DCT_DONT_CENTER1
 			//! Add baricenter
 			z = i_mat.groupTranspose.data();
 			for (unsigned j = 0, k = 0; j < sPC; j++)
 				for (unsigned i = 0; i < p_nSimP; i++, k++, ++z)
 					*z += i_mat.baricenter[j];
-	#endif
 #endif
 
 			//! hX' = Z'*U'
 			productMatrix(io_group[c],
 			              i_mat.groupTranspose,
-//			              i_mat.patch_basis,
 			              i_mat.patch_basis_inv,
 			              p_nSimP, sPC, r,
 			              false, true);
@@ -3365,6 +3439,7 @@ float computeBayesEstimateStep1_externalBasisTh(
 	// return percentage of captured variance
 	return rank_variance / total_variance;
 }
+#endif
 
 /**
  * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
@@ -3431,7 +3506,7 @@ not_equal:
 	return
 #if (defined(THRESHOLDING1))
 		computeBayesEstimateStep1_externalBasisTh(io_group, i_mat,
-			io_nInverseFailed, p_params, p_nSimP);
+			io_nInverseFailed, p_params, p_nSimP, aggreWeights);
 #elif (defined(MEAN_HYPERPRIOR1))
 		computeBayesEstimateStep1_externalBasisHyper(io_group, i_mat,
 			io_nInverseFailed, p_params, p_nSimP);
@@ -3679,11 +3754,9 @@ float computeBayesEstimateStep2_externalBasis(
 #endif
 	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
 	                    * p_params.sizePatchTime;
-	const unsigned r    = sPC; // p_params.rank; // XXX FIXME TODO
 
-	float r_variance = 0.f;
-	float total_variance = 1.f;
-	aggreWeights.assign(p_nSimP, p_params.aggreGammaPatch ? 0.f : 1.f);
+	//! Compute variance to determine the aggregation weight
+	float variance = 0.;
 
 	for (unsigned c = 0; c < p_imSize.channels; c++)
 	{
@@ -3693,123 +3766,106 @@ float computeBayesEstimateStep2_externalBasis(
 		std::vector<float> groupBasic_c( i_groupBasic.begin() + sPC*p_nSimP * c   ,
 		                                 i_groupBasic.begin() + sPC*p_nSimP *(c+1));
 
-		if (r > 0)
+		/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
+		 * row a patch. Thus, in column-major storage it corresponds to X^T, where
+		 * each column of X contains a centered data point.
+		 *
+		 * We need to compute the noiseless estimage hX as
+		 * hX = U * W * U' * X
+		 * where U is the matrix with the eigenvectors and W is a diagonal matrix
+		 * with the filter coefficients.
+		 *
+		 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
+		 * we compute
+		 * hX' = X' * U * (W * U')
+		 */
+
+		//! Project noisy patches over basis: Z' = X'*U (to compute variances)
+		productMatrix(i_mat.groupTransposeNoisy,
+		              groupNoisy_c,
+		              i_mat.patch_basis,
+		              p_nSimP, sPC, sPC,
+		              false, false);
+
+		//! Project basic patches over basis: Z' = X'*U (to compute variances)
+		productMatrix(i_mat.groupTranspose,
+		              groupBasic_c,
+		              i_mat.patch_basis,
+		              p_nSimP, sPC, sPC,
+		              false, false);
+
+		//! Compute Haar transform inplace
 		{
-			/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
-			 * row a patch. Thus, in column-major storage it corresponds to X^T, where
-			 * each column of X contains a centered data point.
-			 *
-			 * We need to compute the noiseless estimage hX as
-			 * hX = U * W * U' * X
-			 * where U is the matrix with the eigenvectors and W is a diagonal matrix
-			 * with the filter coefficients.
-			 *
-			 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
-			 * we compute
-			 * hX' = X' * U * (W * U')
-			 */
+			float *y = i_mat.groupTranspose.data();
+			float *z = i_mat.groupTransposeNoisy.data();
 
-			//! Project noisy patches over basis: Z' = X'*U (to compute variances)
-			productMatrix(i_mat.groupTransposeNoisy,
-			              groupNoisy_c,
-			              i_mat.patch_basis,
-			              p_nSimP, sPC, sPC,
-			              false, false);
-
-			//! Project basic patches over basis: Z' = X'*U (to compute variances)
-			productMatrix(i_mat.groupTranspose,
-			              groupBasic_c,
-			              i_mat.patch_basis,
-			              p_nSimP, sPC, sPC,
-			              false, false);
-
-			//! Compute Haar transform inplace
+			const float isqrt2 = 1./sqrt(2.);
+			for (int s = 2, h = 1; s <= p_nSimP; s *= 2, h *= 2)
+ 			for (int i = 0       ; i <  sPC    ; i++)
+			for (int n = 0       ; n <  p_nSimP; n += s)
 			{
-				float *y = i_mat.groupTranspose.data();
-				float *z = i_mat.groupTransposeNoisy.data();
+				const float z0 = z[n     + i*p_nSimP]*isqrt2;
+				const float z1 = z[n + h + i*p_nSimP]*isqrt2;
+				z[n     + i*p_nSimP] = (z0 + z1);
+				z[n + h + i*p_nSimP] = (z0 - z1);
 
-				const float isqrt2 = 1./sqrt(2.);
-				for (int s = 2, h = 1; s <= p_nSimP; s *= 2, h *= 2)
- 				for (int i = 0       ; i <  r      ; i++)
-				for (int n = 0       ; n <  p_nSimP; n += s)
-				{
-					const float z0 = z[n     + i*p_nSimP]*isqrt2;
-					const float z1 = z[n + h + i*p_nSimP]*isqrt2;
-					z[n     + i*p_nSimP] = (z0 + z1);
-					z[n + h + i*p_nSimP] = (z0 - z1);
-
-					const float y0 = y[n     + i*p_nSimP]*isqrt2;
-					const float y1 = y[n + h + i*p_nSimP]*isqrt2;
-					y[n     + i*p_nSimP] = (y0 + y1);
-					y[n + h + i*p_nSimP] = (y0 - y1);
-				}
+				const float y0 = y[n     + i*p_nSimP]*isqrt2;
+				const float y1 = y[n + h + i*p_nSimP]*isqrt2;
+				y[n     + i*p_nSimP] = (y0 + y1);
+				y[n + h + i*p_nSimP] = (y0 - y1);
 			}
-
-			//! Wiener filter
-			{
-				const float *y = i_mat.groupTranspose.data();
-				float *z = i_mat.groupTransposeNoisy.data();
-
-				for (int i = 0; i < r; ++i)
-				for (int n = 0; n <  p_nSimP; ++n, ++y, ++z)
-					*z *= *y**y / ( *y**y + beta_sigma2);
-			}
-
-			//! Invert Haar transform inplace
-			{
-				float *z = i_mat.groupTransposeNoisy.data();
-
-				const float isqrt2 = 1./sqrt(2.);
-				for (int s = p_nSimP, h = s/2; s >= 2; s /= 2, h /= 2)
-				for (int i = 0       ; i <  r      ; i++)
-				for (int n = 0       ; n <  p_nSimP; n += s)
-				{
-					const float z0 = z[n     + i*p_nSimP]*isqrt2;
-					const float z1 = z[n + h + i*p_nSimP]*isqrt2;
-					z[n     + i*p_nSimP] = (z0 + z1);
-					z[n + h + i*p_nSimP] = (z0 - z1);
-				}
-			}
-
-			//! invert DCT transform
-			productMatrix(groupNoisy_c,
-			              i_mat.groupTransposeNoisy,
-			              i_mat.patch_basis_inv,
-			              p_nSimP, sPC, r,
-			              false, true);
-
 		}
+
+		//! Wiener filter
+		{
+			const float *y = i_mat.groupTranspose.data();
+			float *z = i_mat.groupTransposeNoisy.data();
+
+			for (int i = 0; i < sPC; ++i)
+			for (int n = 0; n < p_nSimP; ++n, ++y, ++z)
+			{
+				const float w = *y**y / ( *y**y + beta_sigma2);
+				*z *= w;
+				variance += w*w;
+			}
+		}
+
+		//! Invert Haar transform inplace
+		{
+			float *z = i_mat.groupTransposeNoisy.data();
+
+			const float isqrt2 = 1./sqrt(2.);
+			for (int s = p_nSimP, h = s/2; s >= 2; s /= 2, h /= 2)
+			for (int i = 0       ; i <  sPC    ; i++)
+			for (int n = 0       ; n <  p_nSimP; n += s)
+			{
+				const float z0 = z[n     + i*p_nSimP]*isqrt2;
+				const float z1 = z[n + h + i*p_nSimP]*isqrt2;
+				z[n     + i*p_nSimP] = (z0 + z1);
+				z[n + h + i*p_nSimP] = (z0 - z1);
+			}
+		}
+
+		//! invert DCT transform
+		productMatrix(groupNoisy_c,
+		              i_mat.groupTransposeNoisy,
+		              i_mat.patch_basis_inv,
+		              p_nSimP, sPC, sPC,
+		              false, true);
 
 		//! Copy channel back into vector
 		std::copy(groupNoisy_c.begin(), groupNoisy_c.end(),
 		          io_groupNoisy.begin() + sPC*p_nSimP*c);
-
 	}
 
-	// compute group aggregation weights
-	if (p_params.aggreGammaGroup)
-	{
-		const float aggreSigma = p_params.aggreGammaGroup*p_params.sigma;
+	// aggregation weights
+	variance = 1./sigma2/variance;
+	for (unsigned n = 0; n < p_nSimP; n++)
+		aggreWeights[n] = variance;
 
-#ifdef GAUSSIAN_GROUP_AGGREGATION_WEIGHTS
-		// Gaussian decay
-		float tmp;
-		const float group_weight = std::exp(-total_variance/2.f/aggreSigma/aggreSigma);
-#else
-		// logistic decay
-		float total_stddev = sqrtf(total_variance);
-		const float group_weight = 1.f - 1.f/(1.f + std::exp(-(total_stddev - aggreSigma)));
-#endif
-
-		for (int n = 0; n < p_nSimP; ++n)
-			aggreWeights[n] *= group_weight;
-
-		// XXX this is for visualization
-		total_variance = group_weight;
-	}
 
 	// return percentage of captured variance
-	return total_variance;
+	return variance;
 }
 #else
 /**
