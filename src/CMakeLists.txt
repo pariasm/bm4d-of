@@ -15,6 +15,7 @@ add_executable(nldct main_vnlb.cpp)
 target_link_libraries(nldct vnldct ${CBLAS_LIBRARIES})
 
 configure_file(scripts/nldct-mp4.sh ${EXECUTABLE_OUTPUT_PATH}/nldct-mp4.sh COPYONLY)
+configure_file(scripts/train.sh     ${EXECUTABLE_OUTPUT_PATH}/train.sh     COPYONLY)
 
 # These are not necessary
 # ${IIO_LIBRARIES})
