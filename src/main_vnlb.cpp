@@ -203,6 +203,8 @@ int main(int argc, char **argv)
 		if (num_patches_f2  >= 0) prms2.nSimilarPatchesPred = num_patches_f2;
 		if (dsub1           >= 0) prms1.dsub = dsub1;
 		if (dsub2           >= 0) prms2.dsub = dsub2;
+		if (tau1            >= 0) prms1.tau = tau1;
+		if (tau2            >= 0) prms2.tau = tau2;
 #endif
 		if (agg_win1) prms1.agg_window = true;
 		if (agg_win2) prms2.agg_window = true;

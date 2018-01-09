@@ -479,8 +479,6 @@ void printNlbParameters(
 	printf("\t\tGroup aggre. weights decay  = %g\n"       , p.aggreGammaGroup);
 	printf("\t\tAggregation window          = %s\n"       , p.agg_window ? "yes" : "no");
 	printf("\n");
-
-	printf("\t\tadded border          = %d\n"       , p.boundary);
 }
 
 /**
