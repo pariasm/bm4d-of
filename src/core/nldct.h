@@ -21,6 +21,17 @@
 //#define DEBUG_COMPUTE_GROUP_ERROR
 //#define DEBUG_SHOW_PATCH_GROUPS
 
+/* Use VBM3D predictive search. */
+#define VBM3D_SEARCH
+
+/* Use VBM3D 3D transform. */
+#define VBM3D_HAAR_TRANSFORM
+
+/* Emulate the full VBM3D algorithm (defines the previous VBM3D_* flags) */
+#define VBM3D
+
+
+
 namespace VideoNLB
 {
 
@@ -69,8 +80,14 @@ struct nlbParams
 	bool isFirstStep;
 	bool doPasteBoost;
 	bool verbose;
-	Transform transform;
 	ColorSpace colorSpace;
+
+	Transform transform;           // VBM3D: patch transform
+	unsigned sizeSearchWindowPred; // VBM3D: search window for predictive search
+	unsigned nSimilarPatchesPred;  // VBM3D: number of sim patches for pred. search
+	float dsub;                    // VBM3D: patch distance bias towards zero motion
+	bool agg_window;               // VBM3D: aggregation window (for the moment only Kaiser)
+
 };
 
 /**

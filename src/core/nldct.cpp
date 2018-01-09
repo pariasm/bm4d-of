@@ -38,7 +38,7 @@
 #include <omp.h>
 #endif
 
-#define DCT_BASIS
+
 //#define DCT_DONT_CENTER1
 //#define DCT_DONT_CENTER2
 
@@ -47,8 +47,8 @@
 /* Shrinks the mean to 0 with an empirical hyper-Bayesian approach. */
 //#define MEAN_HYPERPRIOR1
 //#define MEAN_HYPERPRIOR2
-#define MEAN_HYPERPRIOR_BM3D1
-#define MEAN_HYPERPRIOR_BM3D2
+//#define MEAN_HYPERPRIOR_BM3D1
+//#define MEAN_HYPERPRIOR_BM3D2
 
 /* Avoid negative weights in the empirical Wiener filter. When the estimated
  * variance of a certain component is lower than the noise variance, the filter
@@ -117,6 +117,32 @@
 
 //#define CENTRED_SEARCH
 
+#ifdef VBM3D
+	#undef DCT_DONT_CENTER1
+	#undef DCT_DONT_CENTER2
+	#undef USE_FFTW
+	#undef MEAN_HYPERPRIOR1
+	#undef MEAN_HYPERPRIOR2
+	#undef MEAN_HYPERPRIOR_BM3D1
+	#undef MEAN_HYPERPRIOR_BM3D2
+	#undef THRESHOLD_WEIGHTS1
+	#undef THRESHOLD_WEIGHTS2
+	#undef LI_ZHANG_DAI1
+	#undef LI_ZHANG_DAI2
+	#undef THRESHOLDING1
+	#undef SOFT_THRESHOLD1
+	#undef SOFT_THRESHOLD1_BAYES
+	#undef THRESHOLDING2
+	#undef SOFT_THRESHOLD2
+	#undef SOFT_THRESHOLD2_BAYES
+	#undef LINEAR_THRESHOLDING1
+	#undef LINEAR_HARD_THRESHOLDING2
+	#undef LINEAR_SOFT_THRESHOLDING2
+	#undef BARICENTER_BASIC
+	#undef NOISY_COVARIANCE2
+	#undef GAUSSIAN_GROUP_AGGREGATION_WEIGHTS
+#endif
+
 // colors
 #define ANSI_BLK  "\x1b[30m"
 #define ANSI_RED  "\x1b[31m"
@@ -172,8 +198,7 @@ void initializeNlbParameters(
 ){
 	const bool s1 = (p_step == 1);
 
-	o_params.transform = (p_step == 1) ? bior1_5 : dct;
-//	o_params.transform = dct;
+	o_params.transform = dct;
 
 	//! Standard deviation of the noise
 	o_params.sigma = p_sigma;
@@ -263,8 +288,7 @@ void initializeNlbParameters(
 	//  Differs from manuscript (tau = 4) because (1) this threshold is to be used 
 	//  with the squared distance and (2) the distance is not normalized
 	if(s1) o_params.tau = 0; // not used
-//	else   o_params.tau = 16.f * o_params.sizePatch * o_params.sizePatch * p_size.channels;
-	else   o_params.tau = 0;
+	else   o_params.tau = 16.f * o_params.sizePatch * o_params.sizePatch * p_size.channels;
 
 	//! Print information?
 	o_params.verbose = p_verbose;
@@ -277,6 +301,29 @@ void initializeNlbParameters(
 
 	//! Color space to be used
 	o_params.colorSpace = YUV;
+
+	//! If VBM3D, we use the following parameters
+#ifdef VBM3D
+	o_params.transform = s1 ? bior1_5 : dct;
+	o_params.sizePatch = (s1 || p_sigma >= 30) ? 8 : 7; 
+	o_params.sizePatchTime = 1;
+	o_params.nSimilarPatches = 8;
+	o_params.sizeSearchWindow = 7;
+	o_params.sizeSearchWindowPred = 5;
+	o_params.sizeSearchTimeRangeFwd = 4;
+	o_params.sizeSearchTimeRangeBwd = 4;
+	o_params.nSimilarPatchesPred = 2;
+	o_params.offSet = s1 ? 6 : 4;
+	o_params.offSetTime = 1;
+	o_params.beta = s1 ? 2.7 : 1.;
+	o_params.tau = s1 ? 4500 : 3000; // TODO this is only true for high noise
+	o_params.isFirstStep = s1;
+	o_params.doPasteBoost = false;
+	o_params.dsub = s1 ? 7 : 3;
+	o_params.agg_window = true;
+	o_params.boundary = 2*(o_params.sizeSearchWindow/2) + (o_params.sizePatch - 1);
+#endif
+
 }
 
 /*	depend on sigma:
@@ -391,37 +438,49 @@ void setTau(nlbParams& prms, const VideoSize &size, float tau)
  * @return none.
  **/
 void printNlbParameters(
-	const nlbParams &i_prms
+	const nlbParams &p
 ){
 //	printf("\nVideo NLBayes parameters\n");
 //	printf("------------------------\n\n");
 //	printf("Noise sigma = %g\n", i_prms1.sigma);
 
-	printf("\x1b[37;01m" "Parameters for step %d:" ANSI_RST "\n" , i_prms.isFirstStep ? 1 : 2);
+	int px = p.sizePatch, pt = p.sizePatchTime;
+	int wtb = p.sizeSearchTimeRangeBwd, wtf = p.sizeSearchTimeRangeBwd;
+	int wx  = p.sizeSearchWindow;
+	int wxpred = p.sizeSearchWindowPred;
+
+	printf("\x1b[37;01m" "Parameters for step %d:" ANSI_RST "\n" , p.isFirstStep ? 1 : 2);
 	printf("\tPatch search:\n");
-	printf("\t\tPatch size                  = %d\n"       , i_prms.sizePatch);
-	printf("\t\tPatch size temporal         = %d\n"       , i_prms.sizePatchTime);
-	printf("\t\tNumber of patches           = %d\n"       , i_prms.nSimilarPatches);
-	printf("\t\tDistance threshold (tau)    = %g\n"       , i_prms.tau);
-	printf("\t\tSpatial search window       = %dx%d\n"    , i_prms.sizeSearchWindow, i_prms.sizeSearchWindow);
-	printf("\t\tTemporal search range       = [-%d,%d]\n" , i_prms.sizeSearchTimeRangeBwd, i_prms.sizeSearchTimeRangeBwd);
-	printf("\t\tSpatial border added        = %d\n"       , i_prms.boundary);
-	printf("\tGroup filtering:\n");
-	printf("\t\tBeta                        = %g\n"       , i_prms.beta);
-	printf("\t\tRank                        = %d\n"       , i_prms.rank);
-	printf("\t\tPatch aggre. weights decay  = %g\n"       , i_prms.aggreGammaPatch);
-	printf("\t\tGroup aggre. weights decay  = %g\n"       , i_prms.aggreGammaGroup);
-#if defined(MEAN_HYPERPRIOR1) || defined(MEAN_HYPERPRIOR2)
-	printf("\t\tBeta (mean)                 = %g\n"       , i_prms.betaMean);
+	printf("\t\tPatch size                  = %dx%dx%d\n" , px, px, pt);
+	printf("\t\tNumber of patches           = %d\n"       , p.nSimilarPatches);
+	printf("\t\tSpatial search window       = %dx%d\n"    , wx, wx);
+	printf("\t\tTemporal search window      = [-%d,%d]\n" , wtb, wtf);
+	printf("\t\tDistance threshold (tau)    = %g\n"       , p.tau);
+#ifdef VBM3D_SEARCH
+	printf("\t\tPred. spatial search window = %dx%d\n"    , wxpred, wxpred);
+	printf("\t\tPred. distance bias (dsub)  = %g\n"       , p.dsub);
+	printf("\t\tSimilar patches per frame   = %d\n"       , p.nSimilarPatchesPred);
 #endif
-	if (i_prms.useHomogeneousArea)
-		printf("\t\tFlat area trick with gamma  = %g\n"       , i_prms.gamma);
-	else
-		printf("\t\tFlat area trick             = inactive\n");
-	printf("\tSpeed-ups:\n");
-	printf("\t\tOffset                      = %d\n"       , i_prms.offSet);
-	printf("\t\tOffsetTime                  = %d\n"       , i_prms.offSetTime);
-	printf("\t\tPasteBoost                  = %s\n\n"     , i_prms.doPasteBoost ? "active" : "inactive");
+	printf("\tGroup filtering:\n");
+	printf("\t\tTransform                   = %s\n"       , p.transform == dct ? "dct" : "bior1.5");
+	printf("\t\tBeta                        = %g\n"       , p.beta);
+//	printf("\t\tRank                        = %d\n"       , p.rank);
+#if defined(MEAN_HYPERPRIOR1) || defined(MEAN_HYPERPRIOR2)
+	printf("\t\tBeta (mean)                 = %g\n"       , p.betaMean);
+#endif
+	if (p.useHomogeneousArea)
+		printf("\t\tFlat area trick with gamma  = %g\n"       , p.gamma);
+	printf("\tAggregation:\n");
+	printf("\t\tOffset                      = %d\n"       , p.offSet);
+//	printf("\t\tOffsetTime                  = %d\n"       , p.offSetTime);
+	printf("\t\tPasteBoost                  = %s\n"       , p.doPasteBoost
+			? "active" : "inactive");
+	printf("\t\tPatch aggre. weights decay  = %g\n"       , p.aggreGammaPatch);
+	printf("\t\tGroup aggre. weights decay  = %g\n"       , p.aggreGammaGroup);
+	printf("\t\tAggregation window          = %s\n"       , p.agg_window ? "yes" : "no");
+	printf("\n");
+
+	printf("\t\tadded border          = %d\n"       , p.boundary);
 }
 
 /**
@@ -562,10 +621,17 @@ std::vector<float> runNlBayes(
 	//! Print compiler options
 	if (p_prms1.verbose)
 	{
-#ifdef DCT_BASIS
-		printf(ANSI_BCYN "DCT_BASIS > Using DCT basis\n" ANSI_RST);
+#ifdef VBM3D
+		printf(ANSI_BCYN "VBM3D > Emulating VBM3D (grayscale)\n" ANSI_RST);
+#else
+	#ifdef VBM3D_SEARCH
+		printf(ANSI_BCYN "VBM3D_SEARCH > Using VBM3D predictive patch search\n" ANSI_RST);
+	#endif
+	#ifdef VBM3D_HAAR_TRANSFORM
+		printf(ANSI_BCYN "VBM3D_HAAR_TRANSFORM > Using VBM3D 3D transform\n" ANSI_RST);
+	#endif
 #endif
-#ifdef USE_FFTW 
+#ifdef USE_FFTW
 		printf(ANSI_BCYN "USE_FFTW > \n" ANSI_RST);
 #endif
 #ifdef DCT_DONT_CENTER1
@@ -1325,7 +1391,7 @@ unsigned processNlBayes(
 
 	mat.agg_window.resize(patch_dim);
 	{
-		if (sPx == 8) // use BM3D's Kaiser window
+		if (p_params.agg_window && sPx == 8) // use BM3D's Kaiser window
 		{
 			float *z = mat.agg_window.data();
 
@@ -1588,7 +1654,6 @@ unsigned processNlBayes(
 	return group_counter;
 }
 
-#define VBM3D_SEARCH
 #ifdef VBM3D_SEARCH
 /**
  * @brief Estimate the best similar patches to a reference one.
@@ -1620,10 +1685,9 @@ unsigned estimateSimilarPatchesStep1(
 
 	if (params.nSimilarPatches > 1)
 	{
-		const unsigned nSimPFrame = 2; // number of similar patches per frame
-//		const float dsub = 7*7*sPx*sPx*sPt*255;
-		const float dsub = 7*7*255;
-		const float tau_match = 4500*sPx*sPx*sPt;
+		const unsigned nSimPFrame = params.nSimilarPatchesPred;
+		const float dsub = params.dsub * params.dsub * 255;
+		const float tau_match = params.tau * sPx*sPx*sPt;
 
 		const VideoSize sz = im.sz;
 		const bool use_flow = (fflow.sz.width > 0);
@@ -1682,8 +1746,8 @@ unsigned estimateSimilarPatchesStep1(
 			if (dir != 0)
 			{
 				// use a smaller search window
-				sWx = round((float)params.sizeSearchWindow / 7. * 5.); //FIXME
-				sWy = round((float)params.sizeSearchWindow / 7. * 5.); //FIXME
+				sWx = params.sizeSearchWindowPred;
+				sWy = params.sizeSearchWindowPred;
 				for (int i = 0; i < nSimPFrame; i++)
 				{
 					int cx = traj_cx[i][dt - dir];
@@ -2123,11 +2187,9 @@ unsigned estimateSimilarPatchesStep2(
 
 	if (params.nSimilarPatches > 1)
 	{
-		unsigned nSimPFrame = 2; // number of similar patches per frame
-//		const float dsub = 3*3*sPx*sPx*sPt*255;
-//		const float dsub = 3*3*sPx*sPx*sPt;
-		const float dsub = 3*3*255;
-		const float tau_match = 3000*sPx*sPx*sPt;
+		const unsigned nSimPFrame = params.nSimilarPatchesPred;
+		const float dsub = params.dsub*params.dsub*255;
+		const float tau_match = params.tau*sPx*sPx*sPt;
 
 		const bool use_flow = (fflow.sz.width > 0);
 
@@ -2185,8 +2247,8 @@ unsigned estimateSimilarPatchesStep2(
 			if (dir != 0)
 			{
 				// use a smaller search window
-				sWx = round((float)params.sizeSearchWindow / 7. * 5.); //FIXME
-				sWy = round((float)params.sizeSearchWindow / 7. * 5.); //FIXME
+				sWx = params.sizeSearchWindowPred;
+				sWy = params.sizeSearchWindowPred;
 				for (int i = 0; i < nSimPFrame; i++)
 				{
 					int cx = traj_cx[i][dt - dir];
@@ -3181,8 +3243,6 @@ float computeBayesEstimateStep1_externalBasisHyper(
 	return rank_variance / total_variance;
 }
 
-#define VBM3D_HAAR_TRANSFORM
-#ifdef VBM3D_HAAR_TRANSFORM
 /**
  * @brief Implementation of computeBayesEstimateStep1 using an 
  * external basis provided by the user in the workspace i_mat.covEigVecs.
@@ -3190,7 +3250,7 @@ float computeBayesEstimateStep1_externalBasisHyper(
  *
  * See computeBayesEstimateStep1 for information about the arguments.
  **/
-float computeBayesEstimateStep1_externalBasisTh(
+float computeBayesEstimateStep1_vbm3d(
 	std::vector<std::vector<float> > &io_group
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
@@ -3290,7 +3350,7 @@ float computeBayesEstimateStep1_externalBasisTh(
 	// return percentage of captured variance
 	return variance;
 }
-#else
+
 /**
  * @brief Implementation of computeBayesEstimateStep1 using an 
  * external basis provided by the user in the workspace i_mat.covEigVecs.
@@ -3439,7 +3499,6 @@ float computeBayesEstimateStep1_externalBasisTh(
 	// return percentage of captured variance
 	return rank_variance / total_variance;
 }
-#endif
 
 /**
  * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
@@ -3504,7 +3563,10 @@ float computeBayesEstimateStep1(
 not_equal:
 	//! Not all patches are equal ~ denoise
 	return
-#if (defined(THRESHOLDING1))
+#if (defined(VBM3D_HAAR_TRANSFORM))
+		computeBayesEstimateStep1_vbm3d(io_group, i_mat,
+			io_nInverseFailed, p_params, p_nSimP, aggreWeights);
+#elif (defined(THRESHOLDING1))
 		computeBayesEstimateStep1_externalBasisTh(io_group, i_mat,
 			io_nInverseFailed, p_params, p_nSimP, aggreWeights);
 #elif (defined(MEAN_HYPERPRIOR1))
@@ -3726,7 +3788,6 @@ float computeBayesEstimateStep2_externalBasisFFTW(
 }
 #endif
 
-#ifdef VBM3D_HAAR_TRANSFORM
 /**
  * @brief Implementation of computeBayesEstimateStep2 computing the
  * principal directions of the a priori covariance matrix. This functions
@@ -3734,7 +3795,7 @@ float computeBayesEstimateStep2_externalBasisFFTW(
  *
  * See computeBayesEstimateStep2 for information about the arguments.
  **/
-float computeBayesEstimateStep2_externalBasis(
+float computeBayesEstimateStep2_vbm3d(
 	std::vector<float> &io_groupNoisy
 ,	std::vector<float>  &i_groupBasic
 ,	matWorkspace &i_mat
@@ -3867,7 +3928,7 @@ float computeBayesEstimateStep2_externalBasis(
 	// return percentage of captured variance
 	return variance;
 }
-#else
+
 /**
  * @brief Implementation of computeBayesEstimateStep2 computing the
  * principal directions of the a priori covariance matrix. This functions
@@ -4125,7 +4186,6 @@ float computeBayesEstimateStep2_externalBasis(
 //	return sqrtf(total_variance);
 	return total_variance;
 }
-#endif
 
 /**
  * @brief Implementation of computeBayesEstimateStep2 using an 
@@ -4508,7 +4568,10 @@ float computeBayesEstimateStep2(
 not_equal:
 	//! Not all patches are equal ~ denoise
 	return
-#if defined(THRESHOLDING2)
+#if defined(VBM3D_HAAR_TRANSFORM)
+		computeBayesEstimateStep2_vbm3d(io_groupNoisy, i_groupBasic, i_mat,
+			io_nInverseFailed, p_size, p_params, p_nSimP, aggreWeights);
+#elif defined(THRESHOLDING2)
 		computeBayesEstimateStep2_externalBasisTh(io_groupNoisy, i_groupBasic,
 			i_mat, io_nInverseFailed, p_size, p_params, p_nSimP);
 #elif defined(MEAN_HYPERPRIOR2)

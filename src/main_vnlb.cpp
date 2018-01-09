@@ -77,14 +77,22 @@ int main(int argc, char **argv)
 	const int patch_sizet2  = clo_option("-pt2", 1  , "> Temporal patch size, step 2");
 	const int num_patches1  = clo_option("-np1",-1  , "> Number of similar patches, step 1");
 	const int num_patches2  = clo_option("-np2",-1  , "> Number of similar patches, step 2");
-	const int rank1         = clo_option("-r1" , 4  , "> Rank or covariance matrix, step 1");
-	const int rank2         = clo_option("-r2" , 4  , "> Rank or covariance matrix, step 2");
-	const float beta1       = clo_option("-b1" ,-1.f, "> Noise correction factor beta, step 1");
-	const float beta2       = clo_option("-b2" ,-1.f, "> Noise correction factor beta, step 2");
-	const float beta_mean1  = clo_option("-bm1",-1.f, "> Noise correction factor beta for mean, step 1");
-	const float beta_mean2  = clo_option("-bm2",-1.f, "> Noise correction factor beta for mean, step 2");
 	const float tau1        = clo_option("-t1" ,-1.f, "> Step 1 distance threshold");
 	const float tau2        = clo_option("-t2" ,-1.f, "> Step 2 distance threshold");
+	const float beta1       = clo_option("-b1" ,-1.f, "> Noise correction factor beta, step 1");
+	const float beta2       = clo_option("-b2" ,-1.f, "> Noise correction factor beta, step 2");
+#ifdef VBM3D_SEARCH
+	const int space_search_f1= clo_option("-wxf1",-1  , "> Search window for predictive search, step 1");
+	const int space_search_f2= clo_option("-wxf2",-1  , "> Search window for predictive search, step 2");
+	const int num_patches_f1 = clo_option("-npf1",-1  , "> Number of similar patches per frame, step 1");
+	const int num_patches_f2 = clo_option("-npf2",-1  , "> Number of similar patches per frame, step 2");
+	const float dsub1        = clo_option("-dsub1" ,-1.f, "> Distance bias, step 1");
+	const float dsub2        = clo_option("-dsub2" ,-1.f, "> Distance bias, step 2");
+#endif
+	const float beta_mean1  = clo_option("-bm1",-1.f, "> Noise correction factor beta for mean, step 1");
+	const float beta_mean2  = clo_option("-bm2",-1.f, "> Noise correction factor beta for mean, step 2");
+	const int rank1         = clo_option("-r1" , 4  , "> Rank or covariance matrix, step 1");
+	const int rank2         = clo_option("-r2" , 4  , "> Rank or covariance matrix, step 2");
 	const float p_aggre1    = clo_option("-pag1", 0.f, "> Decay of per-patch aggregation weights, step 1");
 	const float p_aggre2    = clo_option("-pag2", 0.f, "> Decay of per-patch aggregation weights, step 2");
 	const float g_aggre1    = clo_option("-gag1", 0.f, "> Decay of per-group aggregation weights, step 1");
@@ -95,6 +103,9 @@ int main(int argc, char **argv)
 	const bool no_paste2  = (bool) clo_option("-no-paste2", false , "> disable paste trick, step 2");
 	const bool no_step1   = (bool) clo_option("-no-step1" , false , "> disable patch skipping, step 1");
 	const bool no_step2   = (bool) clo_option("-no-step2" , false , "> disable patch skipping, step 2");
+	const bool agg_win1   = (bool) clo_option("-agg-win1" , false , "> aggregation window, step 1");
+	const bool agg_win2   = (bool) clo_option("-agg-win2" , false , "> aggregation window, step 2");
+
 
 	//! Check inputs
 	if (input_path == "")
@@ -184,6 +195,17 @@ int main(int argc, char **argv)
 		if (beta_mean2    >= 0) prms2.betaMean = beta_mean2;
 		if (tau1          >= 0) VideoNLB::setTau(prms1, tmp, tau1);
 		if (tau2          >= 0) VideoNLB::setTau(prms2, tmp, tau2);
+
+#ifdef VBM3D_SEARCH
+		if (space_search_f1 >= 0) prms1.sizeSearchWindowPred = space_search_f1;
+		if (space_search_f2 >= 0) prms2.sizeSearchWindowPred = space_search_f2;
+		if (num_patches_f1  >= 0) prms1.nSimilarPatchesPred = num_patches_f1;
+		if (num_patches_f2  >= 0) prms2.nSimilarPatchesPred = num_patches_f2;
+		if (dsub1           >= 0) prms1.dsub = dsub1;
+		if (dsub2           >= 0) prms2.dsub = dsub2;
+#endif
+		if (agg_win1) prms1.agg_window = true;
+		if (agg_win2) prms2.agg_window = true;
 
 		prms1.rank = rank1;
 		prms2.rank = rank2;
