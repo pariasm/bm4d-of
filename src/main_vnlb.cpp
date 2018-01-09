@@ -332,6 +332,9 @@ int main(int argc, char **argv)
 	    printf("basic PSNR =\t%f\tRMSE =\t%f\n", basic_psnr, basic_rmse);
 	    printf("final PSNR =\t%f\tRMSE =\t%f\n", final_psnr, final_rmse);
 	}
+	else if (mode != NISY_ONLY)
+		printf("%f\n", mode == BSIC_ONLY ? basic_psnr : final_psnr);
+
 
 	//! Write measures
 	writingMeasures("measures.txt", sigma, basic_psnr, basic_rmse, groupsRatio[0], true  , "_basic");
