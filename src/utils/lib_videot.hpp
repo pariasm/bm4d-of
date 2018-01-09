@@ -17,8 +17,9 @@
 #include <stdexcept>
 #include <cassert>
 #include <climits>
-//#include <cstdio>
+#include <cstdio>
 #include <cmath>
+#include <unistd.h>
 
 
 #include "mt19937ar.h"
@@ -487,9 +488,10 @@ namespace VideoUtils
 
 		//! Initialization
 		o_vidNoisy = i_vid;
-//		mt_init_genrand((unsigned long int) time (NULL) +
-//		                (unsigned long int) getpid());
-		mt_init_genrand(0); printf("\x1b[33;1mWarning:\x1b[0m random generator seed is 0\n");
+		mt_init_genrand((unsigned long int) time (NULL) +
+		                (unsigned long int) getpid());
+//		mt_init_genrand(0);
+//		fprintf(stderr, "\x1b[33;1mWarning:\x1b[0m random generator seed is 0\n");
 
 		//! Add noise
 		for (unsigned k = 0; k < i_vid.sz.whcf; k++)
