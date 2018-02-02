@@ -89,17 +89,8 @@ void initializeNlbParameters(
 
 	if (size.frames == 1)
 	{
-		// default parameters for BM3D (normal profile)
-		params.sizePatchTime = 1;
-		params.sizeSearchTimeRangeFwd = 0;
-		params.sizeSearchTimeRangeBwd = 0;
-		params.sizeSearchWindowPred = 5;
-		params.offSetTime = 1;
-		params.dsub = 0;
-		params.nSimilarPatchesPred = 2;
-		params.sizeSearchWindow = 39;
-
-		if (sigma <= 40)
+		// default parameters for BM3D
+		if (sigma <= 40) // normal profile
 		{
 			params.sizePatch = 8; 
 			params.nSimilarPatches = s1 ? 16 : 32;
@@ -107,7 +98,7 @@ void initializeNlbParameters(
 			params.beta = s1 ? 2.7 : 1.; // FIXME: beta here means the threshold
 			params.tau = s1 ? 3000 : 400;
 		}
-		else
+		else // vn profile
 		{
 			params.sizePatch = s1 ? 8 : 11; 
 			params.nSimilarPatches = 32;
@@ -115,6 +106,15 @@ void initializeNlbParameters(
 			params.beta = s1 ? 2.8 : 1.;
 			params.tau = s1 ? 25000 : 3500;
 		}
+
+		params.sizePatchTime = 1;
+		params.sizeSearchTimeRangeFwd = 0;
+		params.sizeSearchTimeRangeBwd = 0;
+		params.sizeSearchWindowPred = 0;
+		params.offSetTime = 1;
+		params.dsub = 0;
+		params.nSimilarPatchesPred = params.nSimilarPatches;
+		params.sizeSearchWindow = 39;
 	}
 	else
 	{
