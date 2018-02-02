@@ -11,16 +11,6 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/**
- * @file nldct.cpp
- * @brief NL-DCT image & video denoising functions
- *
- * @author Pablo Arias <pariasm@gmail.com>
- *
- * Based on NL-Bayes code from
- * Marc Lebrun <marc.lebrun.ik@gmail.com>
- **/
-
 #include <stdexcept>
 #include <iostream>
 #include <stdlib.h>
@@ -39,59 +29,6 @@
 #endif
 
 
-//#define DCT_DONT_CENTER1
-//#define DCT_DONT_CENTER2
-
-//#define USE_FFTW
-
-/* Shrinks the mean to 0 with an empirical hyper-Bayesian approach. */
-//#define MEAN_HYPERPRIOR1
-//#define MEAN_HYPERPRIOR2
-//#define MEAN_HYPERPRIOR_BM3D1
-//#define MEAN_HYPERPRIOR_BM3D2
-
-/* Avoid negative weights in the empirical Wiener filter. When the estimated
- * variance of a certain component is lower than the noise variance, the filter
- * coefficient is set to zero. This applies whenever the Gaussian model is
- * estimated from the noisy patches: in the first step, or in the second step
- * if NOISY_COVARIANCE2 option is defined. */
-#define THRESHOLD_WEIGHTS1
-//#define THRESHOLD_WEIGHTS2
-
-/* Uses an adaptation of Li,Zhand,Dai fixed point iteration to estimate the
- * signal power in the empirical Wiener filter. It applies whenever the Gaussian
- * model is learnt from the noisy patches, but currently it is implemented only 
- * in the second step (it should always be used together with the NOISY_COVARIANCE2
- * option defined). */
-//#define LI_ZHANG_DAI1
-//#define LI_ZHANG_DAI2
-
-/* Use nonlinear coefficient thresholding instead of empirical Wiener filter in
- * Step 1. Parameter beta is used to control the threshold beta*sigma². */
-#define THRESHOLDING1
-//#define SOFT_THRESHOLD1
-//#define SOFT_THRESHOLD1_BAYES 
-
-/* Use nonlinear coefficient thresholding instead of empirical Wiener filter in
- * Step 2. Parameter beta is used to control the threshold beta*sigma². */
-//#define THRESHOLDING2
-//#define SOFT_THRESHOLD2
-//#define SOFT_THRESHOLD2_BAYES 
-
-/* Use a linear coefficient thresholding instead of empirical Wiener filter in
- * Step 1. The thresholding is applied to a certain coefficient based on its 
- * sample variance over the group of similar patches. The threshold is linear
- * since it is actually a 0-1 filter. Each patch is processed with the same
- * threshold. Parameter beta is used to control the threshold beta*sigma².
- * This option is disabled if THRESHOLDING1 is defined. */
-//#define LINEAR_THRESHOLDING1
-//#define LINEAR_HARD_THRESHOLDING2
-//#define LINEAR_SOFT_THRESHOLDING2
-
-/* Corrects the 'centering bug' discovered by Nicola. In the second step, basic
- * and noisy patches are centered using the basic baricenter. If left undefined,
- * each set of patches (noisy and basic) are centered using their own baricenter. */
-//#define BARICENTER_BASIC
 
 /* The parameter beta is used as a noise correction factor. It provides a way 
  * to control the thresholding/filtering strength of the algorithm, by modifying
@@ -102,46 +39,8 @@
  * of beta. However, the resultng method seems much more sensitive to beta. 
  */
 //#define USE_BETA_FOR_VARIANCE
-//TODO The Bayes estimation with non-fixed DCT basis uses by default the modified
-//TODO beta in the variance. We should test if applying it only to the filter is
-//TODO better.
-
-/* Compute the 2nd step covariance matrix from the noisy patches. In this way,
- * the basic estimate is used only in the computation of the patch distances.*/
-//#define NOISY_COVARIANCE2
-
-/* Use Gaussian (of the group variance) decay for the group aggregation weights.
- * The default is a logistic threshold. */
-//#define GAUSSIAN_GROUP_AGGREGATION_WEIGHTS
-
 
 //#define CENTRED_SEARCH
-
-#ifdef VBM3D
-	#undef DCT_DONT_CENTER1
-	#undef DCT_DONT_CENTER2
-	#undef USE_FFTW
-	#undef MEAN_HYPERPRIOR1
-	#undef MEAN_HYPERPRIOR2
-	#undef MEAN_HYPERPRIOR_BM3D1
-	#undef MEAN_HYPERPRIOR_BM3D2
-	#undef THRESHOLD_WEIGHTS1
-	#undef THRESHOLD_WEIGHTS2
-	#undef LI_ZHANG_DAI1
-	#undef LI_ZHANG_DAI2
-	#undef THRESHOLDING1
-	#undef SOFT_THRESHOLD1
-	#undef SOFT_THRESHOLD1_BAYES
-	#undef THRESHOLDING2
-	#undef SOFT_THRESHOLD2
-	#undef SOFT_THRESHOLD2_BAYES
-	#undef LINEAR_THRESHOLDING1
-	#undef LINEAR_HARD_THRESHOLDING2
-	#undef LINEAR_SOFT_THRESHOLDING2
-	#undef BARICENTER_BASIC
-	#undef NOISY_COVARIANCE2
-	#undef GAUSSIAN_GROUP_AGGREGATION_WEIGHTS
-#endif
 
 // colors
 #define ANSI_BLK  "\x1b[30m"
@@ -165,11 +64,6 @@
 namespace VideoNLB
 {
 
-#ifdef USE_FFTW
-// define global dct thread handler
-DCTThreadsHandler globalDCT;
-#endif
-
 /**
  * @brief Initialize Parameters of the NL-Bayes algorithm.
  *
@@ -189,121 +83,16 @@ void initializeNlbParameters(
 ,	const unsigned p_step
 ,	const float p_sigma
 ,	const VideoSize &p_size
-,	const bool p_flatArea
 ,	const bool p_verbose
 ,	const unsigned timeSearchRangeFwd
 ,	const unsigned timeSearchRangeBwd
 ,	const unsigned sizePatchTime
-,	const unsigned rank
 ){
 	const bool s1 = (p_step == 1);
-
-	o_params.transform = dct;
-
-	//! Standard deviation of the noise
 	o_params.sigma = p_sigma;
-
-	//! Patch size, spatial dimension
-	if (p_size.channels == 1)
-	{
-		if(s1) o_params.sizePatch = (p_sigma < 30.f ? 5 : 7);
-		else   o_params.sizePatch = 5;
-	}
-	else
-	{
-		if(s1) o_params.sizePatch = (p_sigma < 20.f ? 3 : (p_sigma < 50.f ? 5 : 7));
-		else   o_params.sizePatch = (p_sigma < 50.f ? 3 : (p_sigma < 70.f ? 5 : 7));
-	}
-
-	//! Patch size, temporal dimension
-	o_params.sizePatchTime = sizePatchTime;
-
-	//! Number of similar patches
-	if (p_size.channels == 1)
-	{
-		if(s1) o_params.nSimilarPatches = (p_sigma < 10.f ?  35 : 
-		                                  (p_sigma < 30.f ?  45 : 
-		                                  (p_sigma < 80.f ?  90 : 
-		                                                    100))); // ASK MARC differs from manuscript
-		else   o_params.nSimilarPatches = (p_sigma < 20.f ?  15 : 
-		                                  (p_sigma < 40.f ?  25 :
-		                                  (p_sigma < 80.f ?  30 :
-		                                                     45))); // ASK MARC differs from manuscript
-	}
-	else
-		o_params.nSimilarPatches = o_params.sizePatch * o_params.sizePatch * 3;
-
-	//! Offset: step between two similar patches
-	o_params.offSet = (p_step == 2) ? std::max((unsigned)1, 3 * o_params.sizePatch / 4)
-	                                : std::max((unsigned)1, 2 * o_params.sizePatch / 4);
-
-//	o_params.offSetTime = std::max((unsigned)1, o_params.sizePatchTime / 2);
-	o_params.offSetTime = 1;
-
-	//! Use the homogeneous area detection trick
-	o_params.useHomogeneousArea = p_flatArea;
-
-	//! Size of the search window around the reference patch (must be odd)
-	o_params.sizeSearchWindow = o_params.nSimilarPatches / 2; // ASK MARC and 7*sizePatch1 in IPOL manuscript
-	if (o_params.sizeSearchWindow % 2 == 0) o_params.sizeSearchWindow++;
-
-	//! Search window, temporal search radii
-	o_params.sizeSearchTimeRangeFwd = timeSearchRangeFwd;
-	o_params.sizeSearchTimeRangeBwd = timeSearchRangeBwd;
-	o_params.nSimilarPatches *= timeSearchRangeFwd + timeSearchRangeBwd + 1;
-
-	//! Size of boundaries used during the sub division
-	o_params.boundary = 2*(o_params.sizeSearchWindow/2) + (o_params.sizePatch - 1);
-
-	//! Parameter used to determine if an area is homogeneous
-	o_params.gamma = 1.05f;
-
-	//! Parameter used to estimate the covariance matrix
-	if (p_size.channels == 1)
-	{
-		o_params.beta = 1.f;
-//		if(s1) o_params.beta = (p_sigma < 15.f ? 1.1f : (p_sigma < 70.f ? 1.f : 0.9f));
-//		else   o_params.beta = (p_sigma < 15.f ? 1.1f : (p_sigma < 35.f ? 1.f : 0.9f));
-	}
-	else
-	{
-		o_params.beta = 1.f;
-//		if(s1) o_params.beta = 1.f;
-//		else   o_params.beta = (p_sigma < 50.f ? 1.2f : 1.f);
-	}
-
-	//! Noise correction factor in case of filtering the group baricenter
-	o_params.betaMean = 1.f;
-
-	//! Maximum rank of covariance matrix
-	o_params.rank = rank;
-
-	//! Decay of per-patch aggregation weights
-	o_params.aggreGammaPatch = 0.f;
-
-	//! Decay of per-group aggregation weights
-	o_params.aggreGammaGroup = 0.f;
-
-	//! Parameter used to determine similar patches
-	//  Differs from manuscript (tau = 4) because (1) this threshold is to be used 
-	//  with the squared distance and (2) the distance is not normalized
-	if(s1) o_params.tau = 0; // not used
-	else   o_params.tau = 16.f * o_params.sizePatch * o_params.sizePatch * p_size.channels;
-
-	//! Print information?
 	o_params.verbose = p_verbose;
-
-	//! Is first step?
 	o_params.isFirstStep = (p_step == 1);
-
-	//! Boost the paste trick
-	o_params.doPasteBoost = true;
-
-	//! Color space to be used
 	o_params.colorSpace = YUV;
-
-	//! If VBM3D, we use the following parameters
-#ifdef VBM3D
 	o_params.transform = s1 ? bior1_5 : dct;
 	o_params.sizePatch = (s1 || p_sigma >= 30) ? 8 : 7; 
 	o_params.sizePatchTime = 1;
@@ -322,31 +111,8 @@ void initializeNlbParameters(
 	o_params.dsub = s1 ? 7 : 3;
 	o_params.agg_window = true;
 	o_params.boundary = 2*(o_params.sizeSearchWindow/2) + (o_params.sizePatch - 1);
-#endif
-
+	o_params.beta = 1.f; // noise multiplier factor
 }
-
-/*	depend on sigma:
- *		  sizePatch
- *		  nSimilarPatches
- *		  beta
- *
- * depend on sizePatch:
- *		  nSimilarPatches (if channels == 3)
- *		  sizeSearchWindow
- *		  offSet
- *		  tau
- *
- * depend on nSimilarPatches
- *		  sizeSearchWindow
- *
- * depend on sizeSearchWindow
- *		  boundary
- *		  nSimilarPatches (cannot be more than total number of searchable patches)
- *
- * depend on sizeSearchTimeRangeFwd/Bwd
- *		  nSimilarPatches
- */
 
 /**
  * @brief Sets size of spatial search window. It sets the border width accordingly,
@@ -382,20 +148,6 @@ void setSizePatch(nlbParams& prms, const VideoSize &size, unsigned sizePatch)
 	int sizePatch_old = prms.sizePatch;
 	prms.sizePatch = sizePatch;
 	prms.boundary = 2*(prms.sizeSearchWindow/2) + (prms.sizePatch - 1);
-	prms.offSet = sizePatch/2;
-	prms.offSet = (prms.isFirstStep) ? std::max((unsigned)1, 3 * sizePatch / 4)
-	                                 : std::max((unsigned)1, 2 * sizePatch / 4);
-
-	//! Update number of similar patches, only if it is less than recommended value
-	if (size.channels == 3)
-//		prms.nSimilarPatches = std::max(prms.sizePatch * prms.sizePatch * 3, prms.nSimilarPatches);
-		prms.nSimilarPatches = prms.sizePatch * prms.sizePatch * 3 * 
-		                      (prms.sizeSearchTimeRangeFwd + 
-		                       prms.sizeSearchTimeRangeBwd + 1);
-
-	if (!prms.isFirstStep)
-		prms.tau *= (float)(prms.sizePatch * prms.sizePatch) 
-		          / (float)( sizePatch_old *  sizePatch_old);
 }
 
 /**
@@ -417,20 +169,6 @@ void setNSimilarPatches(nlbParams& prms, unsigned nSimilarPatches)
 }
 
 /**
- * @brief Sets the distance threshold relative to the patch size.
- *
- * @param prms : nlbParams for first or second step of the algorithm;
- * @param tau  : distance threshold;
- *
- * @return none.
- **/
-void setTau(nlbParams& prms, const VideoSize &size, float tau)
-{
-	prms.tau = tau * tau * prms.sizePatch * prms.sizePatch * 
-	           prms.sizePatchTime * (prms.isFirstStep ? 1 : size.channels);
-}
-
-/**
  * @brief Display parameters of the NL-Bayes algorithm.
  *
  * @param i_params : nlbParams for first or second step of the algorithm;
@@ -440,10 +178,6 @@ void setTau(nlbParams& prms, const VideoSize &size, float tau)
 void printNlbParameters(
 	const nlbParams &p
 ){
-//	printf("\nVideo NLBayes parameters\n");
-//	printf("------------------------\n\n");
-//	printf("Noise sigma = %g\n", i_prms1.sigma);
-
 	int px = p.sizePatch, pt = p.sizePatchTime;
 	int wtb = p.sizeSearchTimeRangeBwd, wtf = p.sizeSearchTimeRangeBwd;
 	int wx  = p.sizeSearchWindow;
@@ -464,19 +198,10 @@ void printNlbParameters(
 	printf("\tGroup filtering:\n");
 	printf("\t\tTransform                   = %s\n"       , p.transform == dct ? "dct" : "bior1.5");
 	printf("\t\tBeta                        = %g\n"       , p.beta);
-//	printf("\t\tRank                        = %d\n"       , p.rank);
-#if defined(MEAN_HYPERPRIOR1) || defined(MEAN_HYPERPRIOR2)
-	printf("\t\tBeta (mean)                 = %g\n"       , p.betaMean);
-#endif
-	if (p.useHomogeneousArea)
-		printf("\t\tFlat area trick with gamma  = %g\n"       , p.gamma);
 	printf("\tAggregation:\n");
 	printf("\t\tOffset                      = %d\n"       , p.offSet);
-//	printf("\t\tOffsetTime                  = %d\n"       , p.offSetTime);
 	printf("\t\tPasteBoost                  = %s\n"       , p.doPasteBoost
 			? "active" : "inactive");
-	printf("\t\tPatch aggre. weights decay  = %g\n"       , p.aggreGammaPatch);
-	printf("\t\tGroup aggre. weights decay  = %g\n"       , p.aggreGammaGroup);
 	printf("\t\tAggregation window          = %s\n"       , p.agg_window ? "yes" : "no");
 	printf("\n");
 }
@@ -590,10 +315,6 @@ std::vector<float> runNlBayes(
 ,	Video<float> & i_imClean
 #endif
 ){
-//	printf("Noisy video: %dx%dx%d channels %d\n", i_imNoisy.sz.width,
-//	                                              i_imNoisy.sz.height,
-//	                                              i_imNoisy.sz.frames,
-//	                                              i_imNoisy.sz.channels);
 	//! Only 1, 3 or 4-channels images can be processed.
 	const unsigned chnls = i_imNoisy.sz.channels;
 	if (! (chnls == 1 || chnls == 3 || chnls == 4))
@@ -629,74 +350,8 @@ std::vector<float> runNlBayes(
 		printf(ANSI_BCYN "VBM3D_HAAR_TRANSFORM > Using VBM3D 3D transform\n" ANSI_RST);
 	#endif
 #endif
-#ifdef USE_FFTW
-		printf(ANSI_BCYN "USE_FFTW > \n" ANSI_RST);
-#endif
-#ifdef DCT_DONT_CENTER1
-		printf(ANSI_BCYN "DCT_DONT_CENTER1 > Centering DCT step 1\n" ANSI_RST);
-#endif
-#ifdef DCT_DONT_CENTER2
-		printf(ANSI_BCYN "DCT_DONT_CENTER2 > Centering DCT step 2\n" ANSI_RST);
-#endif
-#ifdef NOISY_COVARIANCE2
-		printf(ANSI_BCYN "NOISY_COVARIANCE2 > Computing 2nd step cov. matrix from noisy patches.\n" ANSI_RST);
-#endif
-#ifdef LI_ZHANG_DAI1
-		printf(ANSI_BCYN "LI_ZHANG_DAI1 > Using Li-Zhang-Dai's empirical Wiener, step 1.\n" ANSI_RST);
-#endif
-#if defined(LI_ZHANG_DAI2) && defined(NOISY_COVARIANCE2)
-		printf(ANSI_BCYN "LI_ZHANG_DAI2 > Using Li-Zhang-Dai's empirical Wiener, step 2.\n" ANSI_RST);
-#endif
-#ifdef BARICENTER_BASIC
-		printf(ANSI_BCYN "BARICENTER_BASIC > Centering noisy patches with basic baricenter.\n" ANSI_RST);
-#endif
-#if defined(THRESHOLD_WEIGHTS1) && !(defined(LINEAR_THRESHOLDING1) || defined(THRESHOLDING1))
-		printf(ANSI_BCYN "THRESHOLD_WEIGHTS1 > Thresholding step 1 negative Wiener weights\n" ANSI_RST);
-#endif
-#ifdef THRESHOLDING1
-		printf(ANSI_BCYN "THRESHOLDING1 > Coefficient thresholding step 1 instead of Wiener weights\n" ANSI_RST);
-#endif
 #ifdef USE_BETA_FOR_VARIANCE
 		printf(ANSI_BCYN "USE_BETA_FOR_VARIANCE > Noise correction in step 1 applied both MAP and variances.\n" ANSI_RST);
-#endif
-#if defined(THRESHOLDING1) && defined(SOFT_THRESHOLD1)
-		printf(ANSI_BCYN "SOFT_THRESHOLD1 > Coefficient thresholding step 1 is soft\n" ANSI_RST);
-#endif
-#if defined(THRESHOLDING1) && defined(SOFT_THRESHOLD1_BAYES)
-		printf(ANSI_BCYN "SOFT_THRESHOLD1_BAYES > Coefficient thresholding step 1 is soft, Bayesian\n" ANSI_RST);
-#endif
-#if defined(LINEAR_THRESHOLDING1) && !defined(THRESHOLDING1) 
-		printf(ANSI_BCYN "LINEAR_THRESHOLDING1 > Variances thresholding step 1 instead of Wiener weights\n" ANSI_RST);
-#endif
-#ifdef THRESHOLDING2
-		printf(ANSI_BCYN "THRESHOLDING2 > Coefficient thresholding step 2 instead of Wiener weights\n" ANSI_RST);
-#endif
-#if defined(THRESHOLDING2) && defined(SOFT_THRESHOLD2)
-		printf(ANSI_BCYN "SOFT_THRESHOLD2 > Coefficient thresholding step 2 is soft\n" ANSI_RST);
-#endif
-#if defined(THRESHOLDING2) && defined(SOFT_THRESHOLD2_BAYES)
-		printf(ANSI_BCYN "SOFT_THRESHOLD2_BAYES > Coefficient thresholding step 2 is soft, Bayesian\n" ANSI_RST);
-#endif
-#if defined(LINEAR_SOFT_THRESHOLDING2) && !defined(THRESHOLDING2) 
-		printf(ANSI_BCYN "LINEAR_SOFT_THRESHOLDING2 > Variances soft thresholding step 2 instead of Wiener weights\n" ANSI_RST);
-#endif
-#if defined(LINEAR_HARD_THRESHOLDING2) && !defined(THRESHOLDING2) 
-		printf(ANSI_BCYN "LINEAR_HARD_THRESHOLDING2 > Variances hard thresholding step 2 instead of Wiener weights\n" ANSI_RST);
-#endif
-#if defined(THRESHOLD_WEIGHTS2) && defined(NOISY_COVARIANCE2)
-		printf(ANSI_BCYN "THRESHOLD_WEIGHTS2 > Thresholding step 2 negative Wiener weights\n" ANSI_RST);
-#endif
-#if defined(MEAN_HYPERPRIOR1) && !defined(MEAN_HYPERPRIOR_BM3D1)
-		printf(ANSI_BCYN "MEAN_HYPERPRIOR1 > Assuming a Bayesian prior over the sample mean, step 1\n" ANSI_RST);
-#endif
-#if defined(MEAN_HYPERPRIOR1) && defined(MEAN_HYPERPRIOR_BM3D1)
-		printf(ANSI_BCYN "MEAN_HYPERPRIOR_BM3D1 > Assuming a BM3D prior over the sample mean, step 1\n" ANSI_RST);
-#endif
-#if defined(MEAN_HYPERPRIOR2) && !defined(MEAN_HYPERPRIOR_BM3D2)
-		printf(ANSI_BCYN "MEAN_HYPERPRIOR2 > Assuming a Bayesian prior over the sample mean, step 2\n" ANSI_RST);
-#endif
-#if defined(MEAN_HYPERPRIOR2) && defined(MEAN_HYPERPRIOR_BM3D2)
-		printf(ANSI_BCYN "MEAN_HYPERPRIOR_BM3D2 > Assuming a BM3D prior over the sample mean, step 2\n" ANSI_RST);
 #endif
 	}
 
@@ -770,15 +425,6 @@ std::vector<float> runNlBayes(
 		VideoUtils::subDivideTight(i_imClean, imCleanSub, imCrops, p_prms1.boundary, nParts);
 #endif
 
-#ifdef USE_FFTW
-		//! Initialize DCT algorithms
-		globalDCT.init(p_prms1.sizePatch,
-		               p_prms1.sizePatch,
-		               p_prms1.sizePatchTime,
-		               p_prms1.nSimilarPatches,
-		               nThreads);
-#endif
-
 		//! Process all sub-images
 		std::vector<Video<float> > imBasicSub(nParts);
 		std::vector<Video<float> > imFinalSub(nParts);
@@ -800,11 +446,6 @@ std::vector<float> runNlBayes(
 				processNlBayes(imNoisySub[n], fflowSub[n], bflowSub[n],
 				               imBasicSub[n], imFinalSub[n], imCleanSub[n],
 				               p_prms1, imCrops[n]);
-#endif
-
-#ifdef USE_FFTW
-		//! Destroy DCT algorithms
-		globalDCT.destroy();
 #endif
 
 		//! Get the basic estimate
@@ -943,15 +584,6 @@ std::vector<float> runNlBayes(
 		VideoUtils::subDivideTight(i_imClean, imCleanSub, imCrops, p_prms2.boundary, nParts);
 #endif
 
-#ifdef USE_FFTW
-		//! Initialize DCT algorithms
-		globalDCT.init(p_prms2.sizePatch,
-		               p_prms2.sizePatch,
-		               p_prms2.sizePatchTime,
-		               p_prms2.nSimilarPatches,
-		               nThreads);
-#endif
-
 		//! Process all sub-images
 		std::vector<Video<float> > imFinalSub(nParts);
 		std::vector<float> groupsProcessedSub(nParts);
@@ -975,11 +607,6 @@ std::vector<float> runNlBayes(
 				               p_prms2, imCrops[n]);
 #endif
 		}
-
-#ifdef USE_FFTW
-		//! Destroy DCT algorithms
-		globalDCT.destroy();
-#endif
 
 		//! Get the final result
 		VideoUtils::subBuildTight(imFinalSub, o_imFinal, p_prms2.boundary);
@@ -1115,8 +742,6 @@ unsigned processNlBayes(
 	const VideoSize sz = i_imNoisy.sz;
 
 	unsigned nInverseFailed = 0;
-	const float threshold = p_params.sigma * p_params.sigma * p_params.gamma *
-	                       (p_params.isFirstStep ? i_imNoisy.sz.channels : 1.f);
 
 	//! Weight sum per pixel
 	Video<float> weight(sz.width, sz.height, sz.frames, 1, 0.f);
@@ -1133,43 +758,6 @@ unsigned processNlBayes(
 	bool border_y1 = p_crop.ending_y < p_crop.source_sz.height;
 	bool border_t1 = p_crop.ending_t < p_crop.source_sz.frames;
 
-#ifdef SCRAMBLED_REFERENCE_PATCHES
-	//! Only pixels of the center of the image must be processed (not the boundaries)
-	int n_groups = 0;
-	unsigned stepx = p_params.offSet;
-	unsigned stepy = p_params.offSet;
-	unsigned stepf = p_params.offSetTime;
-	int ori_x =                        border_x0 ? sPx-1 + sWx/2 : 0 ;
-	int ori_y =                        border_y0 ? sPx-1 + sWx/2 : 0 ;
-	int ori_f =                        border_t0 ? sPt-1 + sWt/2 : 0 ;
-	int end_x = (int)sz.width  - (int)(border_x1 ? sPx-1 + sWx/2 : sPx-1);
-	int end_y = (int)sz.height - (int)(border_y1 ? sPx-1 + sWx/2 : sPx-1);
-	int end_f = (int)sz.frames - (int)(border_t1 ? sPt-1 + sWt/2 : sPt-1);
-	for (int f = ori_f, df = 0; f < end_f; f++, df++)
-	for (int y = ori_y, dy = 0; y < end_y; y++, dy++)
-	for (int x = ori_x, dx = 0; x < end_x; x++, dx++)
-	{
-		if ( (df % stepf == 0) || (!border_t1 && f == end_f - 1))
-		{
-			int phasey = (!border_t1 && f == end_f - 1) ? 0 : f/stepf;
-
-			if ( (dy % stepy == phasey % stepy) ||
-			     (!border_y1 && y == end_y - 1) ||
-				  (!border_y0 && y == ori_y    ) )
-			{
-				int phasex = (!border_y1 && y == end_y - 1) ? 0 : (phasey + y/stepy);
-
-				if ( (dx % stepx == phasex % stepx) ||
-				     (!border_x1 && x == end_x - 1) ||
-				     (!border_x0 && x == ori_x    ) )
-				{
-					mask(x,y,f) = true;
-					n_groups++;
-				}
-			}
-		}
-	}
-#else
 	//! Only pixels of the center of the image must be processed (not the boundaries)
 	int n_groups = 0;
 	unsigned stepx = p_params.offSet;
@@ -1197,9 +785,6 @@ unsigned processNlBayes(
 			n_groups++;
 		}
 	}
-#endif
-
-//	printf("Processing at most %d groups of similar patches\n", n_groups);
 
 
 #ifdef DEBUG_SHOW_WEIGHT
@@ -1289,36 +874,6 @@ unsigned processNlBayes(
 			for (unsigned nc = 0    ; nc < sPc; nc++)
 			for (unsigned nt = 0    ; nt < sPt; nt++, i++) // patch positions
 				mat.patch_basis_t[i] = (nc == kc) ? cost[kt * sPt + nt] : 0;
-	
-		/*! Verify
-		for (unsigned kx = 0, i = 0; kx < sPx; kx++)
-		{
-			float norm = 0.;
-			for (unsigned nx = 0; nx < sPx; nx++, i++) norm += cosx[i]*cosx[i];
-			printf("|cosx[%d]| = %f\n",kx,norm);
-		}
-
-		for (unsigned kt = 0, i = 0; kt < sPt; kt++)
-		{
-			float norm = 0.;
-			for (unsigned nt = 0; nt < sPt; nt++, i++) norm += cost[i]*cost[i];
-			printf("|cost[%d]| = %f\n",kt,norm);
-		}
-
-		for (unsigned kc = 0, i = 0; kc < sPc; kc++)
-		for (unsigned kt = 0       ; kt < sPt; kt++) // triplets (kt,ky,kx) are
-		for (unsigned ky = 0       ; ky < sPx; ky++) // frequencies and index
-		for (unsigned kx = 0       ; kx < sPx; kx++) // basis vectors
-		{
-			float norm = 0.;
-			for (unsigned nc = 0; nc < sPc; nc++)
-			for (unsigned nt = 0; nt < sPt; nt++)
-			for (unsigned ny = 0; ny < sPx; ny++)      // triplets (nt,ny,nx) are
-			for (unsigned nx = 0; nx < sPx; nx++, i++) // patch positions
-				norm += mat.covEigVecs[i]*mat.covEigVecs[i];
-
-			printf("|v[%d,%d,%d,%d]| = %f\n",kc,kt,ky,kx,norm);
-		}*/
 	}
 	else
 	{
@@ -1469,16 +1024,9 @@ unsigned processNlBayes(
 						group, index, ij3, p_params, i_imClean, groupClean);
 #endif
 
-				//! If we use the homogeneous area trick
-				bool doBayesEstimate = true;
-				if (p_params.useHomogeneousArea)
-					doBayesEstimate = !computeHomogeneousAreaStep1(group, sPx,
-							patch_num, threshold, sz);
-
-				//! Else, use Bayes' estimate
-				if (doBayesEstimate)
-					variance(ij) = computeBayesEstimateStep1(group, mat,
-							nInverseFailed, p_params, nSimP, aggreWeights);
+				//! Bayes' estimate
+				variance(ij) = computeBayesEstimateStep1(group, mat,
+						nInverseFailed, p_params, nSimP, aggreWeights);
 
 #ifdef DEBUG_COMPUTE_GROUP_ERROR
 				{
@@ -1567,16 +1115,9 @@ unsigned processNlBayes(
 						i_imClean, groupClean);
 #endif
 
-				//! If we use the homogeneous area trick
-				bool doBayesEstimate = true;
-				if (p_params.useHomogeneousArea)
-					doBayesEstimate = !computeHomogeneousAreaStep2(groupNoisy,
-							groupBasic, sPx, nSimP, threshold, sz);
-
-				//! Else, use Bayes' estimate
-				if (doBayesEstimate)
-					variance(ij) = computeBayesEstimateStep2(groupNoisy, groupBasic,
-							mat, nInverseFailed, sz, p_params, nSimP, aggreWeights);
+				//! Bayes' estimate
+				variance(ij) = computeBayesEstimateStep2(groupNoisy, groupBasic,
+						mat, nInverseFailed, sz, p_params, nSimP, aggreWeights);
 
 #ifdef DEBUG_COMPUTE_GROUP_ERROR
 				{
@@ -1685,7 +1226,7 @@ unsigned estimateSimilarPatchesStep1(
 	{
 		const unsigned nSimPFrame = params.nSimilarPatchesPred;
 		const float dsub = params.dsub * params.dsub * 255;
-		const float tau_match = params.tau * sPx*sPx*sPt;
+		const float tau_match = params.tau * sPx * sPx * sPt;
 
 		const VideoSize sz = im.sz;
 		const bool use_flow = (fflow.sz.width > 0);
@@ -1880,21 +1421,12 @@ unsigned estimateSimilarPatchesStep1(
 	const unsigned w   = im.sz.width;
 	const unsigned wh  = im.sz.wh;
 	const unsigned whc = im.sz.whc;
-#ifdef USE_FFTW
-	for (unsigned c  = 0; c < im.sz.channels; c++)
-	for (unsigned n  = 0, k = 0; n < nSimP; n++)
-	for (unsigned ht = 0;        ht < sPt; ht++)
-	for (unsigned hy = 0;        hy < sPx; hy++)
-	for (unsigned hx = 0;        hx < sPx; hx++, k++)
-		group[c][k] = im(c * wh + index[n] + ht * whc + hy * w + hx);
-#else
 	for (unsigned c  = 0; c < im.sz.channels; c++)
 	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
 	for (unsigned hy = 0;        hy < sPx; hy++)
 	for (unsigned hx = 0;        hx < sPx; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
 		group[c][k] = im(c * wh + index[n] + ht * whc + hy * w + hx);
-#endif
 
 	/* 000  pixels from all patches
 	 * 001  pixels from all patches
@@ -1903,21 +1435,12 @@ unsigned estimateSimilarPatchesStep1(
 	 */
 
 #ifdef DEBUG_COMPUTE_GROUP_ERROR
-#ifdef USE_FFTW
-	for (unsigned c  = 0; c < im.sz.channels; c++)
-	for (unsigned n  = 0, k = 0; n < nSimP; n++)
-	for (unsigned ht = 0;        ht < sPt; ht++)
-	for (unsigned hy = 0;        hy < sPx; hy++)
-	for (unsigned hx = 0;        hx < sPx; hx++, k++)
-		groupClean[c][k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
-#else
 	for (unsigned c  = 0; c < im.sz.channels; c++)
 	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
 	for (unsigned hy = 0;        hy < sPx; hy++)
 	for (unsigned hx = 0;        hx < sPx; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
 		groupClean[c][k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
-#endif
 #endif
 
 	return nSimP;
@@ -1953,6 +1476,7 @@ unsigned estimateSimilarPatchesStep1(
 
 	if (params.nSimilarPatches > 1)
 	{
+		const float tau = params.tau * sPx * sPx * sPt;
 		const VideoSize sz = im.sz;
 		const bool use_flow = (fflow.sz.width > 0);
 
@@ -2071,7 +1595,7 @@ unsigned estimateSimilarPatchesStep1(
 		                  distance.end(), comparaisonFirst);
 
 		//! Add more patches if their distance is below a threshold
-		const float threshold = std::max(params.tau, distance[nSimP - 1].first);
+		const float threshold = std::max(tau, distance[nSimP - 1].first);
 		nSimP = 0;
 		for (unsigned n = 0; n < distance.size(); n++)
 			if (distance[n].first <= threshold)
@@ -2101,21 +1625,12 @@ unsigned estimateSimilarPatchesStep1(
 	const unsigned w   = im.sz.width;
 	const unsigned wh  = im.sz.wh;
 	const unsigned whc = im.sz.whc;
-#ifdef USE_FFTW
-	for (unsigned c  = 0; c < im.sz.channels; c++)
-	for (unsigned n  = 0, k = 0; n < nSimP; n++)
-	for (unsigned ht = 0;        ht < sPt; ht++)
-	for (unsigned hy = 0;        hy < sPx; hy++)
-	for (unsigned hx = 0;        hx < sPx; hx++, k++)
-		group[c][k] = im(c * wh + index[n] + ht * whc + hy * w + hx);
-#else
 	for (unsigned c  = 0; c < im.sz.channels; c++)
 	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
 	for (unsigned hy = 0;        hy < sPx; hy++)
 	for (unsigned hx = 0;        hx < sPx; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
 		group[c][k] = im(c * wh + index[n] + ht * whc + hy * w + hx);
-#endif
 
 	/* 000  pixels from all patches
 	 * 001  pixels from all patches
@@ -2124,21 +1639,12 @@ unsigned estimateSimilarPatchesStep1(
 	 */
 
 #ifdef DEBUG_COMPUTE_GROUP_ERROR
-#ifdef USE_FFTW
-	for (unsigned c  = 0; c < im.sz.channels; c++)
-	for (unsigned n  = 0, k = 0; n < nSimP; n++)
-	for (unsigned ht = 0;        ht < sPt; ht++)
-	for (unsigned hy = 0;        hy < sPx; hy++)
-	for (unsigned hx = 0;        hx < sPx; hx++, k++)
-		groupClean[c][k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
-#else
 	for (unsigned c  = 0; c < im.sz.channels; c++)
 	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
 	for (unsigned hy = 0;        hy < sPx; hy++)
 	for (unsigned hx = 0;        hx < sPx; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
 		groupClean[c][k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
-#endif
 #endif
 
 	return nSimP;
@@ -2376,20 +1882,6 @@ unsigned estimateSimilarPatchesStep2(
 	const unsigned w   = sz.width;
 	const unsigned wh  = sz.wh;
 	const unsigned whc = sz.whc;
-#ifdef USE_FFTW
-	for (unsigned c  = 0, k = 0; c < chnls; c++)
-	for (unsigned n  = 0; n < nSimP; n++)
-	for (unsigned ht = 0; ht < sPt; ht++)
-	for (unsigned hy = 0; hy < sPx; hy++)
-	for (unsigned hx = 0; hx < sPx; hx++, k++)
-	{
-		groupNoisy[k] = imNoisy(c * wh + index[n] + ht * whc + hy * w + hx);
-		groupBasic[k] = imBasic(c * wh + index[n] + ht * whc + hy * w + hx);
- #ifdef DEBUG_COMPUTE_GROUP_ERROR
-		groupClean[k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
- #endif
-	}
-#else
 	for (unsigned c = 0, k = 0; c < chnls; c++)
 	for (unsigned ht = 0; ht < sPt; ht++)
 	for (unsigned hy = 0; hy < sPx; hy++)
@@ -2402,7 +1894,6 @@ unsigned estimateSimilarPatchesStep2(
 		groupClean[k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
  #endif
 	}
-#endif
 
 	return nSimP;
 }
@@ -2585,20 +2076,6 @@ unsigned estimateSimilarPatchesStep2(
 	const unsigned w   = sz.width;
 	const unsigned wh  = sz.wh;
 	const unsigned whc = sz.whc;
-#ifdef USE_FFTW
-	for (unsigned c  = 0, k = 0; c < chnls; c++)
-	for (unsigned n  = 0; n < nSimP; n++)
-	for (unsigned ht = 0; ht < sPt; ht++)
-	for (unsigned hy = 0; hy < sPx; hy++)
-	for (unsigned hx = 0; hx < sPx; hx++, k++)
-	{
-		groupNoisy[k] = imNoisy(c * wh + index[n] + ht * whc + hy * w + hx);
-		groupBasic[k] = imBasic(c * wh + index[n] + ht * whc + hy * w + hx);
- #ifdef DEBUG_COMPUTE_GROUP_ERROR
-		groupClean[k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
- #endif
-	}
-#else
 	for (unsigned c = 0, k = 0; c < chnls; c++)
 	for (unsigned ht = 0; ht < sPt; ht++)
 	for (unsigned hy = 0; hy < sPx; hy++)
@@ -2611,635 +2088,10 @@ unsigned estimateSimilarPatchesStep2(
 		groupClean[k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
  #endif
 	}
-#endif
 
 	return nSimP;
 }
 #endif
-
-/**
- * @brief Detect if we are in an homogeneous area. In this case, compute the mean.
- *
- * @param io_group: contains for each channels values of similar patches. If an homogeneous area
- *			is detected, will contain the average of all pixels in similar patches;
- * @param p_sP2: size of each patch (sP x sP);
- * @param p_nSimP: number of similar patches;
- * @param p_threshold: threshold below which an area is declared homogeneous;
- * @param p_doLinearRegression: if true, apply a linear regression to average value of pixels;
- * @param p_imSize: size of the image.
- *
- * @return 1 if an homogeneous area is detected, 0 otherwise.
- **/
-int computeHomogeneousAreaStep1(
-	std::vector<std::vector<float> > &io_group
-,	const unsigned p_sP
-,	const unsigned p_nSimP
-,	const float p_threshold
-,	const VideoSize &p_imSize
-){
-	//! Initialization
-	const unsigned N = p_sP * p_sP * p_nSimP;
-
-	//! Compute the standard deviation of the set of patches
-	float stdDev = 0.f;
-	for (unsigned c = 0; c < p_imSize.channels; c++)
-		stdDev += computeStdDeviation(io_group[c], p_sP * p_sP, p_nSimP, 1);
-
-	//! If we are in an homogeneous area
-	if (stdDev < p_threshold)
-	{
-		for (unsigned c = 0; c < p_imSize.channels; c++)
-		{
-			float mean = 0.f;
-
-			for (unsigned k = 0; k < N; k++) mean += io_group[c][k];
-			mean /= (float) N;
-
-			for (unsigned k = 0; k < N; k++) io_group[c][k] = mean;
-		}
-		return 1;
-	}
-	else return 0;
-}
-
-/**
- * @brief Detect if we are in an homogeneous area. In this case, compute the mean.
- *
- * @param io_groupNoisy: inputs values of similar patches for the noisy video;
- *                         if the area is classified as homogeneous, outputs the
- *                         average of all pixels in all patches.
- * @param i_groupBasic: contains values of similar patches for the basic video.
- * @param p_sP2: size of each patch (sP x sP);
- * @param p_nSimP: number of similar patches;
- * @param p_threshold: threshold below which an area is declared homogeneous;
- * @param p_imSize: size of the video.
- *
- * @return 1 if an homogeneous area is detected, 0 otherwise.
- **/
-int computeHomogeneousAreaStep2(
-	std::vector<float> &io_groupNoisy
-,	std::vector<float> const &i_groupBasic
-,	const unsigned p_sP
-,	const unsigned p_nSimP
-,	const float p_threshold
-,	const VideoSize &p_imSize
-){
-	//! Parameters
-	const unsigned sP2 = p_sP * p_sP;
-	const unsigned sPC = sP2 * p_imSize.channels;
-
-	//! Compute the standard deviation of the set of patches
-	const float stdDev = computeStdDeviation(io_groupNoisy, sP2, p_nSimP, p_imSize.channels);
-
-	//! If we are in an homogeneous area
-	if (stdDev < p_threshold)
-	{
-		for (unsigned c = 0; c < p_imSize.channels; c++)
-		{
-				float mean = 0.f;
-				for (unsigned n = 0; n < p_nSimP; n++)
-				for (unsigned k = 0; k < sP2; k++)
-					mean += i_groupBasic[n * sPC + c * sP2 + k];
-
-				mean /= float(sP2 * p_nSimP);
-
-				for (unsigned n = 0; n < p_nSimP; n++)
-				for (unsigned k = 0; k < sP2; k++)
-					io_groupNoisy[n * sPC + c * sP2 + k] = mean;
-		}
-		return 1;
-	}
-	else return 0;
-}
-
-#ifdef USE_FFTW
-/**
- * @brief Implementation of computeBayesEstimateStep1 using an 
- * external basis provided by the user in the workspace i_mat.covEigVecs.
- *
- * See computeBayesEstimateStep1 for information about the arguments.
- **/
-float computeBayesEstimateStep1_externalBasisFFTW(
-	std::vector<std::vector<float> > &io_group
-,	matWorkspace &i_mat
-,	unsigned &io_nInverseFailed
-,	nlbParams const& p_params
-,	const unsigned p_nSimP
-,	std::vector<std::vector<float> > &aggreWeights 
-){
-	//! Parameters initialization
-	const float beta_sigma = p_params.beta * p_params.sigma;
-	const float beta_sigma2 = beta_sigma * beta_sigma;
-#ifndef USE_BETA_FOR_VARIANCE
-	const float sigma2 = p_params.sigma * p_params.sigma;
-#else
-	const float sigma2 = beta_sigma2;
-#endif
-	const unsigned sPC = p_params.sizePatch * p_params.sizePatch
-	                   * p_params.sizePatchTime;
-	const unsigned r   = p_params.rank ? sPC : 0; // XXX FIXME TODO
-
-	const float inSimP = 1.f/(float)p_nSimP;
-
-	//! Variances
-	float  rank_variance = 0.f;
-	float total_variance = 0.f;
-
-//	float entropy = 0;
-//	float total_weights = 0;
-
-	for (unsigned c = 0; c < io_group.size(); c++)
-	{
-#ifndef DCT_DONT_CENTER1
-		//! Center 3D group
-		i_mat.baricenter.assign(sPC, 0.f);
-		for (int i = 0; i < p_nSimP; ++i)
-		for (int k = 0; k < sPC; ++k)
-			i_mat.baricenter[k] += io_group[c][i*sPC + k] * inSimP;
-
-		for (int i = 0; i < p_nSimP; ++i)
-		for (int k = 0; k < sPC; ++k)
-			io_group[c][i*sPC + k] -= i_mat.baricenter[k];
-#endif
-
-		if (r > 0)
-		{
-			//! Forward DCT
-			globalDCT.forward(io_group[c]);
-
-			//! Compute variance over each component
-			i_mat.covEigVals.assign(sPC, 0.f);
-			for (int i = 0; i < p_nSimP; ++i)
-			for (int k = 0; k < sPC; ++k)
-				i_mat.covEigVals[k] += io_group[c][i*sPC + k]
-				                     * io_group[c][i*sPC + k];
-
-			for (int k = 0; k < sPC; ++k)
-			{
-				i_mat.covEigVals[k] *= inSimP;
-				total_variance += i_mat.covEigVals[k]/(float)sPC/(float)io_group.size();
-			}
-
-//			// XXX DEBUG - compute entropy of variances
-//			{ 
-//				float normalization = 0;
-//				for (int k = 0; k < sPC; ++k)
-//					normalization += i_mat.covEigVals[k];
-//
-//				for (int k = 0; k < sPC; ++k)
-//					entropy -= (i_mat.covEigVals[k]/normalization) * log(i_mat.covEigVals[k]/normalization);
-//			}
-
-			//! Compute aggregation weights
-			if (p_params.aggreGammaPatch)
-			{
-				aggreWeights[c].assign(p_nSimP, 0.f);
-
-				//! Mahalanobis distance
-				float tmp;
-				for (int n = 0; n < p_nSimP; ++n)
-				for (int i = 0; i < sPC    ; ++i)
-						aggreWeights[c][n] += (tmp = io_group[c][n*sPC + i])
-						                    *  tmp / std::max(i_mat.covEigVals[i],sigma2);
-
-				//! Exponentiate
-				float igamma = 1.f/2.f/p_params.aggreGammaPatch;
-				for(int n = 0; n < p_nSimP; ++n)
-					aggreWeights[c][n] = std::exp(-igamma * aggreWeights[c][n]);
-			}
-			else
-				aggreWeights[c].assign(p_nSimP, 1.f);
-
-			//! Compute eigenvalues-based coefficients of Bayes' filter
-			for (unsigned k = 0; k < r; ++k)
-			{
-				if (i_mat.covEigVals[k] == 0) continue;
-
-				rank_variance += i_mat.covEigVals[k];
-				float var = i_mat.covEigVals[k] - sigma2;
-
-#if defined(THRESHOLD_WEIGHTS1)
-				var = std::max(0.f, var);
-#elif defined(LI_ZHANG_DAI1)
-				var += sigma2; // add back sigma2
-				var = (var < 4.f*sigma2) ? 0.f
-				    : (var - 2.f*sigma2 + sqrtf(var*(var - 4.f*sigma2)))*.5f;
-#endif
-
-#ifndef LINEAR_THRESHOLDING1
-				i_mat.covEigVals[k] = (fabs(var + beta_sigma2) > 1e-8f) ? 
-					                   var / ( var + beta_sigma2 ) : 
-											 0.f;
-#else
-				// this doesn't make sense for Li-Zhang-Dai's variance
-				i_mat.covEigVals[k] = (var > 0.f) ? 1.f : 0.f;
-#endif
-			}
-
-//			// XXX DEBUG compute total weights
-//			for (int k = 0; k < sPC; ++k)
-//				total_weights += i_mat.covEigVals[k]/(float)sPC/(float)io_group.size();
-
-			//! W*Z
-			for (int i = 0; i < p_nSimP; ++i)
-			for (int k = 0; k < sPC; ++k)
-				io_group[c][i*sPC + k] *= i_mat.covEigVals[k];
-
-			//! Inverse DCT
-			globalDCT.inverse(io_group[c]);
-
-#ifndef DCT_DONT_CENTER1
-			//! Add baricenter
-			for (int i = 0; i < p_nSimP; ++i)
-			for (int k = 0; k < sPC; ++k)
-				io_group[c][i*sPC + k] += i_mat.baricenter[k];
-#endif
-		}
-		else
-		{
-#ifndef DCT_DONT_CENTER1
-			//! rank = 0: set as baricenter
-			for (int i = 0; i < p_nSimP; ++i)
-			for (int k = 0; k < sPC; ++k)
-				io_group[c][i*sPC + k] = i_mat.baricenter[k];
-#endif
-
-			//! Avoid 0/0 in return statement
-			total_variance = 1.f;
-		}
-	}
-
-	// compute group aggregation weights
-	if (p_params.aggreGammaGroup)
-	{
-		const float aggreSigma = p_params.aggreGammaGroup*p_params.sigma;
-
-#ifdef GAUSSIAN_GROUP_AGGREGATION_WEIGHTS
-		// Gaussian decay
-		float tmp;
-		const float group_weight = std::exp(-total_variance/2.f/aggreSigma/aggreSigma);
-#else
-		// logistic decay
-		float total_stddev = sqrtf(total_variance);
-		const float group_weight = 1.f - 1.f/(1.f + 1e-4f + std::exp(-(total_stddev - aggreSigma)));
-#endif
-
-		for (int c = 0; c < io_group.size(); ++c)
-		for (int n = 0; n < p_nSimP; ++n)
-			aggreWeights[c][n] *= group_weight;
-
-		// XXX this is for visualization
-		total_variance = group_weight;
-	}
-
-
-
-	// return percentage of captured variance
-//	return rank_variance / total_variance;
-//	return entropy;
-//	return total_weights;
-//	return sqrtf(total_variance);
-	return total_variance;
-}
-#endif
-
-/**
- * @brief Implementation of computeBayesEstimateStep1 using an 
- * external basis provided by the user in the workspace i_mat.covEigVecs.
- *
- * See computeBayesEstimateStep1 for information about the arguments.
- **/
-float computeBayesEstimateStep1_externalBasis(
-	std::vector<std::vector<float> > &io_group
-,	matWorkspace &i_mat
-,	unsigned &io_nInverseFailed
-,	nlbParams const& p_params
-,	const unsigned p_nSimP
-,	std::vector<std::vector<float> > &aggreWeights
-){
-	//! Parameters initialization
-	const float beta_sigma = p_params.beta * p_params.sigma;
-	const float beta_sigma2 = beta_sigma * beta_sigma;
-#ifndef USE_BETA_FOR_VARIANCE
-	const float sigma2 = p_params.sigma * p_params.sigma;
-#else
-	const float sigma2 = beta_sigma2;
-#endif
-	const unsigned sPC = p_params.sizePatch * p_params.sizePatch
-	                   * p_params.sizePatchTime;
-	const unsigned r   = sPC; // p_params.rank; // XXX FIXME TODO
-
-	//! Variances
-	float  rank_variance = 0.f;
-	float total_variance = 0.f;
-
-	for (unsigned c = 0; c < io_group.size(); c++)
-	{
-#ifndef DCT_DONT_CENTER1
-		//! Center 3D group
-		centerData(io_group[c], i_mat.baricenter, p_nSimP, sPC);
-#endif
-
-		if (r > 0)
-		{
-			/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
-			 * row a patch. Thus, in column-major storage it corresponds to X^T, where
-			 * each column of X contains a centered data point.
-			 *
-			 * We need to compute the noiseless estimage hX as 
-			 * hX = U * W * U' * X
-			 * where U is the matrix with the eigenvectors and W is a diagonal matrix
-			 * with the filter coefficients.
-			 *
-			 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
-			 * we compute 
-			 * hX' = X' * U * (W * U')
-			 */
-
-			//! Project over basis: Z' = X'*U
-			productMatrix(i_mat.groupTranspose,
-			              io_group[c],
-			              i_mat.patch_basis,
-			              p_nSimP, sPC, sPC,
-			              false, false);
-
-			//! Compute variance over each component
-			//  TODO: compute r leading components
-			i_mat.covEigVals.resize(sPC);
-			for (int k = 0; k < sPC; ++k)
-			{
-				float  comp_k_var = 0.f;
-				float *comp_k = i_mat.groupTranspose.data() + k * p_nSimP;
-
-				for (int i = 0; i < p_nSimP; ++i)
-					comp_k_var += comp_k[i] * comp_k[i];
-
-				i_mat.covEigVals[k] = comp_k_var / (float)p_nSimP;
-				total_variance += i_mat.covEigVals[k];
-			}
-
-			//! Compute aggregation weights
-			if (p_params.aggreGammaPatch)
-			{
-				aggreWeights[c].assign(p_nSimP, 0.f);
-
-				//! Mahalanobis distance
-				float tmp;
-				for (int i = 0; i < sPC; ++i)
-				{
-					const float iEigVal = 1.f/std::max(i_mat.covEigVals[i],sigma2);
-					for (int n = 0; n < p_nSimP; ++n)
-						aggreWeights[c][n] += (tmp = i_mat.groupTranspose[i*p_nSimP + n])
-						                   *  tmp * iEigVal ;
-				}
-
-				//! Exponentiate
-				float igamma = 1.f/2.f/p_params.aggreGammaPatch;
-				for(int n = 0; n < p_nSimP; ++n)
-					aggreWeights[c][n] = std::exp(-igamma * aggreWeights[c][n]);
-			}
-
-			//! Compute eigenvalues-based coefficients of Bayes' filter
-			for (unsigned k = 0; k < r; ++k)
-			{
-				rank_variance  += i_mat.covEigVals[k];
-				float var = i_mat.covEigVals[k] - sigma2;
-
-#if defined(THRESHOLD_WEIGHTS1)
-				var = std::max(0.f, var);
-#elif defined(LI_ZHANG_DAI1)
-				var += sigma2; // add back sigma2
-				var = (var < 4.f*sigma2) ? 0.f
-				    : (var - 2.f*sigma2 + sqrtf(var*(var - 4.f*sigma2)))*.5f;
-#endif
-
-#ifndef LINEAR_THRESHOLDING1
-				i_mat.covEigVals[k] = (fabs(var + beta_sigma2) > 1e-8f) ? 
-					                   var / ( var + beta_sigma2 ) : 
-											 0.f;
-#else
-				// this doesn't make sense for Li-Zhang-Dai's variance
-				i_mat.covEigVals[k] = (var > 0.f) ? 1.f : 0.f;
-#endif
-			}
-
-			//! U * W
-			i_mat.covEigVecs.resize(sPC* sPC);
-			float *eigVecs = i_mat.covEigVecs .data();
-			float *basis   = i_mat.patch_basis.data();
-			for (unsigned k = 0; k < r  ; ++k)
-			for (unsigned i = 0; i < sPC; ++i)
-				*eigVecs++ = *basis++ * i_mat.covEigVals[k];
-
-			//! hX' = Z'*(U*W)'
-			productMatrix(io_group[c],
-			              i_mat.groupTranspose,
-			              i_mat.covEigVecs,
-			              p_nSimP, sPC, r,
-			              false, true);
-
-#ifndef DCT_DONT_CENTER1
-			//! Add baricenter
-			for (unsigned j = 0, k = 0; j < sPC; j++)
-				for (unsigned i = 0; i < p_nSimP; i++, k++)
-					io_group[c][k] += i_mat.baricenter[j];
-#endif
-		}
-		else
-		{
-#ifndef DCT_DONT_CENTER1
-			//! rank = 0: set as baricenter
-			for (unsigned j = 0, k = 0; j < sPC; j++)
-				for (unsigned i = 0; i < p_nSimP; i++, k++)
-					io_group[c][k] = i_mat.baricenter[j];
-#endif
-
-			//! Avoid 0/0 in return statement
-			total_variance = 1.f;
-		}
-	}
-
-	// return percentage of captured variance
-	return rank_variance / total_variance;
-}
-
-/**
- * @brief Implementation of computeBayesEstimateStep1 using an 
- * external basis provided by the user in the workspace i_mat.covEigVecs.
- * This version implements the Bayesian hyper-prior on the mean patch.
- *
- * See computeBayesEstimateStep1 for information about the arguments.
- **/
-float computeBayesEstimateStep1_externalBasisHyper(
-	std::vector<std::vector<float> > &io_group
-,	matWorkspace &i_mat
-,	unsigned &io_nInverseFailed
-,	nlbParams const& p_params
-,	const unsigned p_nSimP
-){
-	//! Parameters initialization
-	const float sigma  = p_params.beta * p_params.sigma;
-	const float sigma2 = sigma * sigma;
-
-	const float sigmaM2   = p_params.sigma    * p_params.sigma;
-	const float betaMAPM2 = p_params.betaMean * p_params.betaMean;
-	const float betaVARM2 = 1; //betaMAPM2;
-
-	const unsigned sPC = p_params.sizePatch * p_params.sizePatch
-	                   * p_params.sizePatchTime;
-	const unsigned r   = sPC;
-
-	//! Variances
-	float  rank_variance = 0.f;
-	float total_variance = 0.f;
-
-	for (unsigned c = 0; c < io_group.size(); c++)
-	{
-		/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
-		 * row a patch. Thus, in column-major storage it corresponds to X^T, where
-		 * each column of X contains a centered data point.
-		 *
-		 * We need to compute the noiseless estimage hX as 
-		 * hX = U * W * U' * X
-		 * where U is the matrix with the eigenvectors and W is a diagonal matrix
-		 * with the filter coefficients.
-		 *
-		 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
-		 * we compute 
-		 * hX' = X' * U * (W * U')
-		 */
-
-		//! Project data over basis: Z' = X'*U
-		productMatrix(i_mat.groupTranspose,
-		              io_group[c],
-		              i_mat.patch_basis,
-		              p_nSimP, sPC, sPC,
-		              false, false);
-
-		//! Compute baricenter and center data
-		centerData(i_mat.groupTranspose, i_mat.baricenter, p_nSimP, sPC);
-
-#ifdef MEAN_HYPERPRIOR_BM3D1
-		//! Store currrent baricenter before update
-		i_mat.tmpMat = i_mat.baricenter;
-
-		//! Filter baricenter
-		for (int i = 0; i < sPC; ++i)
-		{
-			float var = std::max(0.f,
-			            (float)p_nSimP*i_mat.baricenter[i]*i_mat.baricenter[i] -
-			            betaVARM2*sigmaM2);
-			i_mat.baricenter[i] *= var / (var + betaMAPM2*sigmaM2);
-		}
-
-		//! Re-center data at filtered baricenter
-		for (unsigned j = 0, k = 0; j < sPC; j++)
-			for (unsigned i = 0; i < p_nSimP; i++, k++)
-				i_mat.groupTranspose[k] -= (i_mat.baricenter[j] - i_mat.tmpMat[j]);
-#else
-		const int MAX_BARI_ITERS = 10;
-		float bari_delta;
-		i_mat.covMat = i_mat.baricenter;
-		for (int iter = 0; iter < MAX_BARI_ITERS; ++iter)
-		{
-			//! Store currrent baricenter before update
-			i_mat.tmpMat = i_mat.baricenter;
-
-			//! Compute variance over each component
-			i_mat.covEigVals.resize(sPC);
-			for (int k = 0; k < sPC; ++k)
-			{
-				float  comp_k_var = 0.f;
-				float *comp_k = i_mat.groupTranspose.data() + k * p_nSimP;
-
-				for (int i = 0; i < p_nSimP; ++i)
-					comp_k_var += comp_k[i] * comp_k[i];
-
-				i_mat.covEigVals[k] = comp_k_var / (float)p_nSimP;
-				total_variance += i_mat.covEigVals[k];
-			}
-
-			//! Filter baricenter
-			for (int i = 0; i < sPC; ++i)
-			{
-				float var = std::max(0.f,
-				            (float)p_nSimP*i_mat.baricenter[i]*i_mat.baricenter[i] - 
-				            betaVARM2 * (sigmaM2 + i_mat.covEigVals[i]));
-				i_mat.baricenter[i] = i_mat.covMat[i] * var
-				                    / (var + betaMAPM2 * (sigmaM2 + i_mat.covEigVals[i]));
-			}
-
-			//! Re-center data at filtered baricenter
-			for (unsigned j = 0, k = 0; j < sPC; j++)
-				for (unsigned i = 0; i < p_nSimP; i++, k++)
-					i_mat.groupTranspose[k] -= (i_mat.baricenter[j] - i_mat.tmpMat[j]);
-
-			bari_delta = 0.f;
-			for (unsigned j = 0; j < sPC; j++)
-				bari_delta += (i_mat.baricenter[j] - i_mat.tmpMat[j])
-				            * (i_mat.baricenter[j] - i_mat.tmpMat[j]);
-			
-			printf("%g ", bari_delta);
-		}
-
-		printf("\n");
-#endif
-		//! Update variance over each component
-		i_mat.covEigVals.resize(sPC);
-		for (int k = 0; k < sPC; ++k)
-		{
-			float  comp_k_var = 0.f;
-			float *comp_k = i_mat.groupTranspose.data() + k * p_nSimP;
-
-			for (int i = 0; i < p_nSimP; ++i)
-				comp_k_var += comp_k[i] * comp_k[i];
-
-			i_mat.covEigVals[k] = comp_k_var / (float)p_nSimP;
-			total_variance += i_mat.covEigVals[k];
-		}
-
-
-		//! Compute filter coefficients
-		for (int i = 0; i < r; ++i)
-		{
-			float var = i_mat.covEigVals[i] - sigma2;
-#ifdef THRESHOLD_WEIGHTS1
-			var = std::max(0.f, var);
-#endif
-#ifndef LINEAR_THRESHOLDING1
-			i_mat.covEigVals[i] = var / ( var + sigma2 );
-#else
-			i_mat.covEigVals[i] = (var > 0.f) ? 1.f : 0.f;
-#endif
-			rank_variance += var;
-		}
-
-		for (int i = r; i < sPC; ++i)
-			i_mat.covEigVals[i] = 0.f;
-
-		//! Z' * W
-		float *comp = i_mat.groupTranspose.data();
-		for (unsigned k = 0; k < sPC; ++k)
-			for (unsigned i = 0; i < p_nSimP; ++i)
-				*comp++ *= i_mat.covEigVals[k];
-
-
-		//! Add baricenter
-		for (unsigned j = 0, k = 0; j < sPC; j++)
-			for (unsigned i = 0; i < p_nSimP; i++, k++)
-				i_mat.groupTranspose[k] += i_mat.baricenter[j];
-
-		//! hX' = Z'*W*U'
-		productMatrix(io_group[c],
-		              i_mat.groupTranspose,
-		              i_mat.patch_basis,
-		              p_nSimP, sPC, r,
-		              false, true);
-	}
-
-	// return percentage of captured variance
-	return rank_variance / total_variance;
-}
 
 /**
  * @brief Implementation of computeBayesEstimateStep1 using an 
@@ -3350,155 +2202,6 @@ float computeBayesEstimateStep1_vbm3d(
 }
 
 /**
- * @brief Implementation of computeBayesEstimateStep1 using an 
- * external basis provided by the user in the workspace i_mat.covEigVecs.
- * This version considers different non-linear thresholding operators.
- *
- * See computeBayesEstimateStep1 for information about the arguments.
- **/
-float computeBayesEstimateStep1_externalBasisTh(
-	std::vector<std::vector<float> > &io_group
-,	matWorkspace &i_mat
-,	unsigned &io_nInverseFailed
-,	nlbParams const& p_params
-,	const unsigned p_nSimP
-,	std::vector<std::vector<float> > &aggreWeights
-){
-	//! Parameters initialization
-	const float beta_sigma = p_params.beta * p_params.sigma;
-	const float beta_sigma2 = beta_sigma * beta_sigma;
-#ifndef USE_BETA_FOR_VARIANCE
-	const float sigma2 = p_params.sigma * p_params.sigma;
-#else
-	const float sigma2 = beta_sigma2;
-#endif
-	const unsigned sPC = p_params.sizePatch * p_params.sizePatch
-	                   * p_params.sizePatchTime;
-	const unsigned r   = sPC; // p_params.rank; // XXX FIXME TODO
-
-	//! Variances
-	float  rank_variance = 0.f;
-	float total_variance = 0.f;
-
-	for (unsigned c = 0; c < io_group.size(); c++)
-	{
-		if (r > 0)
-		{
-			/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
-			 * row a patch. Thus, in column-major storage it corresponds to X^T, where
-			 * each column of X contains a centered data point.
-			 *
-			 * We need to compute the noiseless estimage hX as 
-			 * hX = U * W * U' * X
-			 * where U is the matrix with the eigenvectors and W is a diagonal matrix
-			 * with the filter coefficients.
-			 *
-			 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
-			 * we compute 
-			 * hX' = X' * U * (W * U')
-			 */
-
-			//! Project over basis: Z' = X'*U
-			productMatrix(i_mat.groupTranspose,
-			              io_group[c],
-			              i_mat.patch_basis,
-			              p_nSimP, sPC, sPC,
-			              false, false);
-
-#ifndef DCT_DONT_CENTER1
-			//! Center 3D group
-			centerData(i_mat.groupTranspose, i_mat.baricenter, p_nSimP, sPC);
-#endif
-
-#if defined(SOFT_THRESHOLD1_BAYES)
-			//! Compute variance over each component
-			i_mat.covEigVals.resize(sPC);
-			for (int k = 0; k < sPC; ++k)
-			{
-				float  comp_k_var = 0.f;
-				float *comp_k = i_mat.groupTranspose.data() + k * p_nSimP;
-
-				for (int i = 0; i < p_nSimP; ++i)
-					comp_k_var += comp_k[i] * comp_k[i];
-
-				i_mat.covEigVals[k] = comp_k_var / (float)p_nSimP;
-				total_variance += i_mat.covEigVals[k];
-			}
-
-			//! Substract sigma2 and compute variance captured by the r leading eigenvectors
-			for (int i = 0; i < r; ++i)
-			{
-				float tmp = std::max(i_mat.covEigVals[i] - sigma2, 0.f);
-				i_mat.covEigVals[i] = (tmp < 1e-6) ? FLT_MAX
-					                 : sqrt(2.f) * beta_sigma2 / sqrt(tmp);
-				rank_variance += tmp;
-			}
-#endif
-
-			//! Thresholding
-			float *z = i_mat.groupTranspose.data();
-			for (unsigned k = 0; k < r  ; ++k)
-			for (unsigned i = 0; i < p_nSimP; ++i, ++z)
-#if defined(SOFT_THRESHOLD1)
-				*z = *z > 0 ? std::max(*z - beta_sigma, 0.f)
-				            : std::min(*z + beta_sigma, 0.f);
-#elif defined(SOFT_THRESHOLD1_BAYES)
-				*z = *z > 0 ? std::max(*z - i_mat.covEigVals[k], 0.f)
-				            : std::min(*z + i_mat.covEigVals[k], 0.f);
-#else
-				*z = (*z * *z) > beta_sigma2 ? *z : 0.f;
-#endif
-
-#ifdef MEAN_HYPERPRIOR_BM3D1
-			z = i_mat.baricenter.data();
-			for (unsigned k = 0; k < r  ; ++k, ++z)// if (k != 0)
- #if defined(SOFT_THRESHOLD1)
-				*z = *z > 0 ? std::max(*z - beta_sigma/sqrtf((float)p_nSimP), 0.f)
-				            : std::min(*z + beta_sigma/sqrtf((float)p_nSimP), 0.f);
- #elif defined(SOFT_THRESHOLD1_BAYES)
-				*z = *z > 0 ? std::max(*z - i_mat.covEigVals[k]/sqrtf((float)p_nSimP), 0.f)
-				            : std::min(*z + i_mat.covEigVals[k]/sqrtf((float)p_nSimP), 0.f);
- #else
-				*z = (*z * *z) > beta_sigma2/(float)p_nSimP ? *z : 0.f;
-//				*z = (*z * *z) > beta_sigma2/(float)p_nSimP/(float)p_nSimP ? *z : 0.f;
- #endif
-#endif
-
-#ifndef DCT_DONT_CENTER1
-			//! Add baricenter
-			z = i_mat.groupTranspose.data();
-			for (unsigned j = 0, k = 0; j < sPC; j++)
-				for (unsigned i = 0; i < p_nSimP; i++, k++, ++z)
-					*z += i_mat.baricenter[j];
-#endif
-
-			//! hX' = Z'*U'
-			productMatrix(io_group[c],
-			              i_mat.groupTranspose,
-			              i_mat.patch_basis_inv,
-			              p_nSimP, sPC, r,
-			              false, true);
-		}
-		else
-		{
-			//! Center 3D group
-			centerData(io_group[c], i_mat.baricenter, p_nSimP, sPC);
-
-			//! rank = 0: set as baricenter
-			for (unsigned j = 0, k = 0; j < sPC; j++)
-				for (unsigned i = 0; i < p_nSimP; i++, k++)
-					io_group[c][k] = i_mat.baricenter[j];
-
-			//! Avoid 0/0 in return statement
-			total_variance = 1.f;
-		}
-	}
-
-	// return percentage of captured variance
-	return rank_variance / total_variance;
-}
-
-/**
  * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
  *
  * @param io_group: contains all similar patches. Will contain estimates for all similar patches;
@@ -3542,17 +2245,10 @@ float computeBayesEstimateStep1(
 	for (unsigned c = 0; c < io_group.size(); c++)
 	for (unsigned j = 0; j < sPC; j++)
 	{
-#ifdef USE_FFTW
-		float v = io_group[c][j];
-		for (unsigned i = 1; i < p_nSimP; i++)
-			if (v != io_group[c][j + i * sPC])
-				goto not_equal;
-#else
 		float v = io_group[c][j * p_nSimP];
 		for (unsigned i = 1; i < p_nSimP; i++)
 			if (v != io_group[c][j * p_nSimP + i])
 				goto not_equal;
-#endif
 	}
 
 	//! All patches are equal ~ do nothing
@@ -3561,230 +2257,9 @@ float computeBayesEstimateStep1(
 not_equal:
 	//! Not all patches are equal ~ denoise
 	return
-#if (defined(VBM3D_HAAR_TRANSFORM))
 		computeBayesEstimateStep1_vbm3d(io_group, i_mat,
 			io_nInverseFailed, p_params, p_nSimP, aggreWeights);
-#elif (defined(THRESHOLDING1))
-		computeBayesEstimateStep1_externalBasisTh(io_group, i_mat,
-			io_nInverseFailed, p_params, p_nSimP, aggreWeights);
-#elif (defined(MEAN_HYPERPRIOR1))
-		computeBayesEstimateStep1_externalBasisHyper(io_group, i_mat,
-			io_nInverseFailed, p_params, p_nSimP);
-#else
-  #ifdef USE_FFTW
-		computeBayesEstimateStep1_externalBasisFFTW(io_group, i_mat,
-			io_nInverseFailed, p_params, p_nSimP, aggreWeights);
-  #else
-		computeBayesEstimateStep1_externalBasis(io_group, i_mat,
-			io_nInverseFailed, p_params, p_nSimP, aggreWeights);
-  #endif
-#endif
-
 }
-
-#ifdef USE_FFTW
-/**
- * @brief Implementation of computeBayesEstimateStep2 using an 
- * external basis provided by the user in the workspace i_mat.covEigVecs.
- *
- * See computeBayesEstimateStep2 for information about the arguments.
- **/
-float computeBayesEstimateStep2_externalBasisFFTW(
-	std::vector<float> &io_groupNoisy
-,	std::vector<float>  &i_groupBasic
-,	matWorkspace &i_mat
-,	unsigned &io_nInverseFailed
-,	const VideoSize &p_imSize
-,	nlbParams const& p_params
-,	const unsigned p_nSimP
-,	std::vector<float>  &aggreWeights
-){
-	//! Parameters initialization
-	const float beta_sigma = p_params.beta * p_params.sigma;
-	const float beta_sigma2 = beta_sigma * beta_sigma;
-#ifndef USE_BETA_FOR_VARIANCE
-	const float sigma2 = p_params.sigma * p_params.sigma;
-#else
-	const float sigma2 = beta_sigma2;
-#endif
-	const unsigned sPC = p_params.sizePatch * p_params.sizePatch
-	                   * p_params.sizePatchTime;
-	const unsigned r   = sPC; // p_params.rank; // XXX FIXME TODO
-
-	const float inSimP = 1.f/(float)p_nSimP;
-
-	//! Variances
-	float r_variance = 0.f;
-	float total_variance = 0.f;
-	aggreWeights.assign(p_nSimP, p_params.aggreGammaPatch ? 0.f : 1.f);
-
-	for (unsigned c = 0; c < p_imSize.channels; c++)
-	{
-		std::vector<float> groupNoisy_c(io_groupNoisy.begin() + sPC*p_nSimP * c   ,
-		                                io_groupNoisy.begin() + sPC*p_nSimP *(c+1));
-
-		std::vector<float> groupBasic_c( i_groupBasic.begin() + sPC*p_nSimP * c   ,
-		                                 i_groupBasic.begin() + sPC*p_nSimP *(c+1));
-
-#ifndef DCT_DONT_CENTER2
-		//! Center 3D groups around their baricenter
- #ifdef BARICENTER_BASIC
-		i_mat.baricenter.assign(sPC, 0.f);
-		for (int i = 0; i < p_nSimP; ++i)
-		for (int k = 0; k < sPC; ++k)
-			i_mat.baricenter[k] += groupBasic_c[i*sPC + k] * inSimP;
-
-		for (int i = 0; i < p_nSimP; ++i)
-		for (int k = 0; k < sPC; ++k)
-		{
-			groupBasic_c[i*sPC + k] -= i_mat.baricenter[k];
-			groupNoisy_c[i*sPC + k] -= i_mat.baricenter[k];
-		}
-
- #else //BARICENTER_BASIC
-		i_mat.baricenter.assign(sPC, 0.f);
-		for (int i = 0; i < p_nSimP; ++i)
-		for (int k = 0; k < sPC; ++k)
-			i_mat.baricenter[k] += groupBasic_c[i*sPC + k] * inSimP;
-
-		for (int i = 0; i < p_nSimP; ++i)
-		for (int k = 0; k < sPC; ++k)
-			groupBasic_c[i*sPC + k] -= i_mat.baricenter[k];
-
-		i_mat.baricenter.assign(sPC, 0.f);
-		for (int i = 0; i < p_nSimP; ++i)
-		for (int k = 0; k < sPC; ++k)
-			i_mat.baricenter[k] += groupNoisy_c[i*sPC + k] * inSimP;
-
-		for (int i = 0; i < p_nSimP; ++i)
-		for (int k = 0; k < sPC; ++k)
-			groupNoisy_c[i*sPC + k] -= i_mat.baricenter[k];
- #endif//BARICENTER_BASIC
-#endif//DCT_DONT_CENTER2
-
-		if (r > 0)
-		{
-			//! Forward DCT
-			globalDCT.forward(groupBasic_c);
-			globalDCT.forward(groupNoisy_c);
-
-			//! Compute variance over each component
-			i_mat.covEigVals.assign(sPC, 0.f);
-			for (int i = 0; i < p_nSimP; ++i)
-			for (int k = 0; k < sPC; ++k)
-				i_mat.covEigVals[k] += groupBasic_c[i*sPC + k]
-				                     * groupBasic_c[i*sPC + k];
-
-			for (int k = 0; k < sPC; ++k)
-			{
-				i_mat.covEigVals[k] *= inSimP;
-				total_variance += i_mat.covEigVals[k]/(float)sPC/(float)p_imSize.channels;
-			}
-
-			//! Compute Mahalanobis distance for patch aggregation weights
-			if (p_params.aggreGammaPatch)
-			{
-				float tmp;
-				for (int n = 0; n < p_nSimP; ++n)
-				for (int i = 0; i < sPC    ; ++i)
-						aggreWeights[n] += (tmp = groupBasic_c[n*sPC + i])
-						                 *  tmp / std::max(i_mat.covEigVals[i],sigma2);
-			}
-
-			//! Compute eigenvalues-based coefficients of Bayes' filter
-			for (unsigned k = 0; k < r; ++k)
-			{
-				if (i_mat.covEigVals[k] == 0) continue;
-
-				r_variance += i_mat.covEigVals[k];
-				float var = i_mat.covEigVals[k];
-
-#ifdef NOISY_COVARIANCE2
- #if defined(THRESHOLD_WEIGHTS2)
-				var -= std::min(var, sigma2);
- #elif defined(LI_ZHANG_DAI2)
-				var = (var < 4.f*sigma2) ? 0.f
-				    : (var - 2.f*sigma2 + sqrtf(var*(var - 4.f*sigma2)))*.5f;
- #endif
-#endif
-
-#if defined(LINEAR_HARD_THRESHOLDING2)
-				i_mat.covEigVals[k] = var > beta_sigma2 ? 1.f : 0.f;
-#elif defined(LINEAR_SOFT_THRESHOLDING2)
-				i_mat.covEigVals[k] = var > beta_sigma2
-				                    ? 1.f - beta_sigma2/var : 0.f;
-#else
-				i_mat.covEigVals[k] = var / ( var + beta_sigma2);
-#endif
-			}
-
-			//! W*Z
-			for (int i = 0; i < p_nSimP; ++i)
-			for (int k = 0; k < sPC; ++k)
-				groupNoisy_c[i*sPC + k] *= i_mat.covEigVals[k];
-
-			//! Inverse DCT
-			globalDCT.inverse(groupNoisy_c);
-
-#ifndef DCT_DONT_CENTER2
-			//! Add baricenter
-			for (int i = 0; i < p_nSimP; ++i)
-			for (int k = 0; k < sPC; ++k)
-				groupNoisy_c[i*sPC + k] += i_mat.baricenter[k];
-#endif
-		}
-		else
-		{
-#ifndef DCT_DONT_CENTER2
-			//! rank = 0: set as baricenter
-			for (int i = 0; i < p_nSimP; ++i)
-			for (int k = 0; k < sPC; ++k)
-				groupNoisy_c[i*sPC + k] = i_mat.baricenter[k];
-#endif
-			//! Avoid 0/0 in return statement
-			total_variance = 1.f;
-		}
-
-		//! Copy channel back into vector
-		std::copy(groupNoisy_c.begin(), groupNoisy_c.end(),
-		          io_groupNoisy.begin() + sPC*p_nSimP*c);
-	}
-
-
-	//! Exponentiate Mahalanobis distance for patch aggregation weights
-	if (p_params.aggreGammaPatch)
-	{
-		float igamma = 1.f/2.f/p_params.aggreGammaPatch;
-		for(int n = 0; n < p_nSimP; ++n)
-			aggreWeights[n] = std::exp(-igamma * aggreWeights[n]);
-	}
-
-	// compute group aggregation weights
-	if (p_params.aggreGammaGroup)
-	{
-		const float aggreSigma = p_params.aggreGammaGroup*p_params.sigma;
-
-#ifdef GAUSSIAN_GROUP_AGGREGATION_WEIGHTS
-		// Gaussian decay
-		float tmp;
-		const float group_weight = std::exp(-total_variance/2.f/aggreSigma/aggreSigma);
-#else
-		// logistic decay
-		float total_stddev = sqrtf(total_variance);
-		const float group_weight = 1.f - 1.f/(1.f + 1e-4f + std::exp(-(total_stddev - aggreSigma)));
-#endif
-
-		for (int n = 0; n < p_nSimP; ++n)
-			aggreWeights[n] *= group_weight;
-
-		// XXX this is for visualization
-		total_variance = group_weight;
-	}
-
-	// return percentage of captured variance
-	return total_variance;
-}
-#endif
 
 /**
  * @brief Implementation of computeBayesEstimateStep2 computing the
@@ -3928,584 +2403,6 @@ float computeBayesEstimateStep2_vbm3d(
 }
 
 /**
- * @brief Implementation of computeBayesEstimateStep2 computing the
- * principal directions of the a priori covariance matrix. This functions
- * computes the eigenvectors/values of the data covariance matrix using LAPACK.
- *
- * See computeBayesEstimateStep2 for information about the arguments.
- **/
-float computeBayesEstimateStep2_externalBasis(
-	std::vector<float> &io_groupNoisy
-,	std::vector<float>  &i_groupBasic
-,	matWorkspace &i_mat
-,	unsigned &io_nInverseFailed
-,	const VideoSize &p_imSize
-,	nlbParams const& p_params
-,	const unsigned p_nSimP
-,	std::vector<float>  &aggreWeights
-){
-	//! Parameters initialization
-	const float beta_sigma = p_params.beta * p_params.sigma;
-	const float beta_sigma2 = beta_sigma * beta_sigma;
-#ifndef USE_BETA_FOR_VARIANCE
-	const float sigma2 = p_params.sigma * p_params.sigma;
-#else
-	const float sigma2 = beta_sigma2;
-#endif
-	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
-	                    * p_params.sizePatchTime;
-	const unsigned r    = sPC; // p_params.rank; // XXX FIXME TODO
-
-	float r_variance = 0.f;
-	float total_variance = 1.f;
-//	float total_weights = 0.f;
-	aggreWeights.assign(p_nSimP, p_params.aggreGammaPatch ? 0.f : 1.f);
-
-	for (unsigned c = 0; c < p_imSize.channels; c++)
-	{
-		std::vector<float> groupNoisy_c(io_groupNoisy.begin() + sPC*p_nSimP * c   ,
-		                                io_groupNoisy.begin() + sPC*p_nSimP *(c+1));
-
-		std::vector<float> groupBasic_c( i_groupBasic.begin() + sPC*p_nSimP * c   ,
-		                                 i_groupBasic.begin() + sPC*p_nSimP *(c+1));
-
-		if (r > 0)
-		{
-			/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
-			 * row a patch. Thus, in column-major storage it corresponds to X^T, where
-			 * each column of X contains a centered data point.
-			 *
-			 * We need to compute the noiseless estimage hX as 
-			 * hX = U * W * U' * X
-			 * where U is the matrix with the eigenvectors and W is a diagonal matrix
-			 * with the filter coefficients.
-			 *
-			 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
-			 * we compute 
-			 * hX' = X' * U * (W * U')
-			 */
-
-			//! Project noisy patches over basis: Z' = X'*U (to compute variances)
-			productMatrix(i_mat.groupTransposeNoisy,
-			              groupNoisy_c,
-			              i_mat.patch_basis,
-			              p_nSimP, sPC, sPC,
-			              false, false);
-
-			//! Project basic patches over basis: Z' = X'*U (to compute variances)
-#ifndef NOISY_COVARIANCE2
-			productMatrix(i_mat.groupTranspose,
-			              groupBasic_c,
-			              i_mat.patch_basis,
-			              p_nSimP, sPC, sPC,
-			              false, false);
-#else
-			i_mat.groupTranspose = i_mat.groupTransposeNoisy;
-#endif
-
-#ifndef DCT_DONT_CENTER2
-			//! Center 3D groups around their baricenter
- #ifdef BARICENTER_BASIC
-
-			//! Center basic and noisy patches using basic's baricenter
-			centerData(i_mat.groupTranspose, i_mat.baricenter, p_nSimP, sPC);
-			for (unsigned j = 0, k = 0; j < sPC; j++)
-			{
-				i_mat.baricenterNoisy[j] = i_mat.baricenter[j];
-				for (unsigned i = 0; i < p_nSimP; i++, k++)
-					i_mat.groupTransposeNoisy[k] -= i_mat.baricenter[j];
-			}
-
- #else //BARICENTER_BASIC
-
-			//! Center basic noisy patches each with its own baricenter
-			centerData(i_mat.groupTranspose     , i_mat.baricenter     , p_nSimP, sPC);
-			centerData(i_mat.groupTransposeNoisy, i_mat.baricenterNoisy, p_nSimP, sPC);
-
- #endif//BARICENTER_BASIC
-#endif//DCT_DONT_CENTER2
-
-
-			//! Compute variance over each component
-			//  TODO: compute r leading components
-			i_mat.covEigVals.resize(sPC);
-			for (int k = 0; k < sPC; ++k)
-			{
-				float  comp_k_var = 0.f;
-				float *comp_k = i_mat.groupTranspose.data() + k * p_nSimP;
-
-				for (int i = 0; i < p_nSimP; ++i)
-					comp_k_var += comp_k[i] * comp_k[i];
-
-				i_mat.covEigVals[k] = comp_k_var / (float)p_nSimP;
-				total_variance += i_mat.covEigVals[k]/(float)sPC/(float)p_imSize.channels;
-			}
-
-			//! Compute Mahalanobis distance for patch aggregation weights
-			if (p_params.aggreGammaPatch)
-			{
-				float tmp;
-				for (int i = 0; i < sPC; ++i)
-				{
-					const float iEigVal = 1.f/i_mat.covEigVals[i];
-					for (int n = 0; n < p_nSimP; ++n)
-						aggreWeights[n] += (tmp = i_mat.groupTranspose[i*p_nSimP + n])
-						                 *  tmp * iEigVal ;
-				}
-			}
-
-			//! Compute eigenvalues-based coefficients of Bayes' filter
-			for (int i = 0; i < r; ++i)
-			{
-				r_variance  += i_mat.covEigVals[i];
-				float var = i_mat.covEigVals[i];
-
-#ifdef NOISY_COVARIANCE2
- #if defined(THRESHOLD_WEIGHTS2)
-				var -= std::min(var, sigma2);
- #elif defined(LI_ZHANG_DAI2)
-				var = (var < 4.f*sigma2) ? 0.f
-				    : (var - 2.f*sigma2 + sqrtf(var*(var - 4.f*sigma2)))*.5f;
- #endif
-#endif
-
-#if defined(LINEAR_HARD_THRESHOLDING2)
-				i_mat.covEigVals[i] = var > beta_sigma2 ? 1.f : 0.f;
-#elif defined(LINEAR_SOFT_THRESHOLDING2)
-				i_mat.covEigVals[i] = var > beta_sigma2
-				                    ? 1.f - beta_sigma2/var : 0.f;
-#else
-				i_mat.covEigVals[i] = var / ( var + beta_sigma2);
-#endif
-			}
-
-//			for (int k = 0; k < sPC; ++k)
-//				total_weights += i_mat.covEigVals[k]/(float)sPC/(float)p_imSize.channels;
-
-			//! U * W
-			i_mat.covEigVecs.resize(sPC*sPC);
-			float *basis   = i_mat.patch_basis.data();
-			float *eigVecs = i_mat.covEigVecs .data();
-			for (unsigned k = 0; k < r  ; ++k)
-			for (unsigned i = 0; i < sPC; ++i)
-				*eigVecs++ = *basis++ * i_mat.covEigVals[k];
-
-			//! hX' = Z'*(U*W)'
-			productMatrix(groupNoisy_c,
-			              i_mat.groupTransposeNoisy,
-			              i_mat.covEigVecs,
-			              p_nSimP, sPC, r,
-			              false, true);
-
-#ifndef DCT_DONT_CENTER2
-			//! Add baricenter
-
-#ifdef MEAN_HYPERPRIOR_BM3D2
-			float *z = i_mat.baricenterNoisy.data();
-			float *y = i_mat.baricenter.data();
-			for (unsigned k = 0; k < r  ; ++k, ++z, ++y)// if (k != 0)
-				*z *= (*y**y)/(*y**y + beta_sigma2/(float)p_nSimP);
-#endif
-
-			//! invert dct
-			productMatrix(i_mat.baricenter,
-			              i_mat.baricenterNoisy,
-			              i_mat.patch_basis,
-			              1, sPC, r,
-			              false, true);
-
-			for (unsigned j = 0, k = 0; j < sPC; j++)
-				for (unsigned i = 0; i < p_nSimP; i++, k++)
-					groupNoisy_c[k] += i_mat.baricenter[j];
-#endif
-
-//	printMatrix(i_mat.groupTranspose, sPC, p_nSimP, "/tmp/z.asc");
-//	printMatrix(io_groupNoisy       , sPC, p_nSimP, "/tmp/x_filtered.asc");
-//
-//	if (1)
-//	{
-//		// stop here
-//		printf("stopped: PRESS Ctrl-C\n");
-//		while (1) int a = 1;
-//	}
-		}
-		else
-		{
-			//! r = 0: set all patches as baricenter
- #ifdef BARICENTER_BASIC
-			centerData(groupBasic_c, i_mat.baricenter, p_nSimP, sPC);
- #else
-			centerData(groupNoisy_c, i_mat.baricenter, p_nSimP, sPC);
- #endif
-			for (unsigned j = 0, k = 0; j < sPC; j++)
-				for (unsigned i = 0; i < p_nSimP; i++, k++)
-					groupNoisy_c[k] = i_mat.baricenter[j];
-		}
-
-		//! Copy channel back into vector
-		std::copy(groupNoisy_c.begin(), groupNoisy_c.end(),
-		          io_groupNoisy.begin() + sPC*p_nSimP*c);
-
-	}
-
-	//! Exponentiate Mahalanobis distance
-	if (p_params.aggreGammaPatch)
-	{
-		float igamma = 1.f/2.f/p_params.aggreGammaPatch;
-		for(int n = 0; n < p_nSimP; ++n)
-			aggreWeights[n] = std::exp(-igamma * aggreWeights[n]);
-	}
-
-	// compute group aggregation weights
-	if (p_params.aggreGammaGroup)
-	{
-		const float aggreSigma = p_params.aggreGammaGroup*p_params.sigma;
-
-#ifdef GAUSSIAN_GROUP_AGGREGATION_WEIGHTS
-		// Gaussian decay
-		float tmp;
-		const float group_weight = std::exp(-total_variance/2.f/aggreSigma/aggreSigma);
-#else
-		// logistic decay
-		float total_stddev = sqrtf(total_variance);
-		const float group_weight = 1.f - 1.f/(1.f + std::exp(-(total_stddev - aggreSigma)));
-#endif
-
-		for (int n = 0; n < p_nSimP; ++n)
-			aggreWeights[n] *= group_weight;
-
-		// XXX this is for visualization
-		total_variance = group_weight;
-	}
-
-	// return percentage of captured variance
-//	return r_variance / total_variance;
-//	return total_weights;
-//	return sqrtf(total_variance);
-	return total_variance;
-}
-
-/**
- * @brief Implementation of computeBayesEstimateStep2 using an 
- * external basis provided by the user in the workspace i_mat.covEigVecs.
- * This version implements the Bayesian hyper-prior on the mean patch.
- *
- * See computeBayesEstimateStep2 for information about the arguments.
- **/
-float computeBayesEstimateStep2_externalBasisHyper(
-	std::vector<float> &io_groupNoisy
-,	std::vector<float>  &i_groupBasic
-,	matWorkspace &i_mat
-,	unsigned &io_nInverseFailed
-,	const VideoSize &p_imSize
-,	nlbParams const& p_params
-,	const unsigned p_nSimP
-){
-	//! Parameters initialization
-	const float sigma  = p_params.beta * p_params.sigma;
-	const float sigma2 = sigma * sigma;
-
-	const float sigmaM2 = p_params.sigma * p_params.sigma;
-	const float betaM2  = p_params.betaMean * p_params.betaMean;
-
-	const unsigned sPC = p_params.sizePatch * p_params.sizePatch
-	                   * p_params.sizePatchTime;
-	const unsigned r   = sPC; // p_params.rank; // XXX FIXME TODO
-
-	//! Variances
-	float r_variance = 0.f;
-	float total_variance = 1.f;
-
-	for (unsigned c = 0; c < p_imSize.channels; c++)
-	{
-		std::vector<float> groupNoisy_c(io_groupNoisy.begin() + sPC*p_nSimP * c   ,
-		                                io_groupNoisy.begin() + sPC*p_nSimP *(c+1));
-
-		std::vector<float> groupBasic_c( i_groupBasic.begin() + sPC*p_nSimP * c   ,
-		                                 i_groupBasic.begin() + sPC*p_nSimP *(c+1));
-
-		/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
-		 * row a patch. Thus, in column-major storage it corresponds to X^T, where
-		 * each column of X contains a centered data point.
-		 *
-		 * We need to compute the noiseless estimage hX as 
-		 * hX = U * W * U' * X
-		 * where U is the matrix with the eigenvectors and W is a diagonal matrix
-		 * with the filter coefficients.
-		 *
-		 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
-		 * we compute 
-		 * hX' = X' * U * (W * U')
-		 */
-
-		//! Learn priors from basic patches -------------------------------
-
-		//! Project basic data over basis: Z' = X'*U
-		productMatrix(i_mat.groupTranspose,
-		              groupBasic_c,
-		              i_mat.patch_basis,
-		              p_nSimP, sPC, sPC,
-		              false, false);
-
-		//! Compute baricenter and center data
-		centerData(i_mat.groupTranspose, i_mat.baricenter, p_nSimP, sPC);
-
-		//! Compute prior variance over each component
-		i_mat.covEigVals.resize(sPC);
-		for (int k = 0; k < sPC; ++k)
-		{
-			float  comp_k_var = 0.f;
-			float *comp_k = i_mat.groupTranspose.data() + k * p_nSimP;
-
-			for (int i = 0; i < p_nSimP; ++i)
-				comp_k_var += comp_k[i] * comp_k[i];
-
-			i_mat.covEigVals[k] = comp_k_var / (float)p_nSimP;
-			total_variance += i_mat.covEigVals[k];
-		}
-
-		//! Compute prior variances for baricenter
-		i_mat.covMat.resize(sPC);
-		for (int k = 0; k < sPC; ++k)
-#ifndef MEAN_HYPERPRIOR_BM3D2
-			i_mat.covMat[k] = std::max(0.f,
-			      (float)p_nSimP * i_mat.baricenter[k] * i_mat.baricenter[k]
-			      - i_mat.covEigVals[k]);
-#else
-			i_mat.covMat[k] =
-			      (float)p_nSimP * i_mat.baricenter[k] * i_mat.baricenter[k];
-#endif
-
-		//! Filter noisypatches -------------------------------------------
-
-		//! Project noisy data over basis: Z' = X'*U
-		productMatrix(i_mat.groupTranspose,
-		              groupNoisy_c,
-		              i_mat.patch_basis,
-		              p_nSimP, sPC, sPC,
-		              false, false);
-
-		//! Compute baricenter and center data
-		centerData(i_mat.groupTranspose, i_mat.baricenter, p_nSimP, sPC);
-
-		//! Store currrent baricenter before update
-		i_mat.tmpMat = i_mat.baricenter;
-
-		//! Filter baricenter
-		for (int i = 1; i < sPC; ++i) //NOTE: we dont't filter baricenters DC!!
-#ifndef MEAN_HYPERPRIOR_BM3D2
-			i_mat.baricenter[i] *= (i_mat.covMat[i] != 0) ? i_mat.covMat[i] /
-			        (i_mat.covMat[i] + betaM2 * (sigmaM2 + i_mat.covEigVals[i])) : 0;
-#else
-			i_mat.baricenter[i] /= 1 + betaM2 * sigmaM2 / i_mat.covMat[i];
-#endif
-
-		//! Re-center data at filtered baricenter
-		for (unsigned j = 0, k = 0; j < sPC; j++)
-			for (unsigned i = 0; i < p_nSimP; i++, k++)
-				i_mat.groupTranspose[k] -= (i_mat.baricenter[j] - i_mat.tmpMat[j]);
-
-		//! Compute filter coefficients
-		for (int i = 0; i < r; ++i)
-		{
-			float var = i_mat.covEigVals[i];
-#if defined(LINEAR_HARD_THRESHOLDING2)
-			i_mat.covEigVals[k] = (var > sigma2) ? 1.f : 0.f;
-#elif defined(LINEAR_SOFT_THRESHOLDING2)
-			i_mat.covEigVals[k] = (var > sigma2) ? 1.f - sigma2/var : 0.f;
-#else
-			i_mat.covEigVals[i] = var / ( var + sigma2 );
-#endif
-			r_variance += var;
-		}
-
-		for (int i = r; i < sPC; ++i)
-			i_mat.covEigVals[i] = 0.f;
-
-		//! Z' * W
-		float *comp = i_mat.groupTranspose.data();
-		for (unsigned k = 0; k < sPC; ++k)
-			for (unsigned i = 0; i < p_nSimP; ++i)
-				*comp++ *= i_mat.covEigVals[k];
-
-		//! Add baricenter
-		for (unsigned j = 0, k = 0; j < sPC; j++)
-			for (unsigned i = 0; i < p_nSimP; i++, k++)
-				i_mat.groupTranspose[k] += i_mat.baricenter[j];
-
-		//! hX' = Z'*W*U'
-		productMatrix(groupNoisy_c,
-		              i_mat.groupTranspose,
-		              i_mat.patch_basis,
-		              p_nSimP, sPC, r,
-		              false, true);
-
-		//! Copy channel back into vector
-		std::copy(groupNoisy_c.begin(), groupNoisy_c.end(),
-		          io_groupNoisy.begin() + sPC*p_nSimP*c);
-	}
-
-	// return percentage of captured variance
-	return r_variance / total_variance;
-}
-
-/**
- * @brief Implementation of computeBayesEstimateStep2 computing the
- * principal directions of the a priori covariance matrix. This functions
- * computes the eigenvectors/values of the data covariance matrix using LAPACK.
- *
- * See computeBayesEstimateStep2 for information about the arguments.
- **/
-float computeBayesEstimateStep2_externalBasisTh(
-	std::vector<float> &io_groupNoisy
-,	std::vector<float>  &i_groupBasic
-,	matWorkspace &i_mat
-,	unsigned &io_nInverseFailed
-,	const VideoSize &p_imSize
-,	nlbParams const& p_params
-,	const unsigned p_nSimP
-){
-	//! Parameters initialization
-	const float sigma2 = p_params.beta * p_params.sigma * p_params.sigma;
-	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
-	                    * p_params.sizePatchTime;
-	const unsigned r    = sPC; // p_params.rank; // XXX FIXME TODO
-
-	float r_variance = 0.f;
-	float total_variance = 1.f;
-
-	for (unsigned c = 0; c < p_imSize.channels; c++)
-	{
-		std::vector<float> groupNoisy_c(io_groupNoisy.begin() + sPC*p_nSimP * c   ,
-		                                io_groupNoisy.begin() + sPC*p_nSimP *(c+1));
-
-		std::vector<float> groupBasic_c( i_groupBasic.begin() + sPC*p_nSimP * c   ,
-		                                 i_groupBasic.begin() + sPC*p_nSimP *(c+1));
-
-#ifndef DCT_DONT_CENTER2
-		//! Center 3D groups around their baricenter
- #ifdef BARICENTER_BASIC
-
-		//! Center basic and noisy patches using basic's baricenter
-		centerData(groupBasic_c, i_mat.baricenter, p_nSimP, sPC);
-		for (unsigned j = 0, k = 0; j < sPC; j++)
-			for (unsigned i = 0; i < p_nSimP; i++, k++)
-				groupNoisy_c[k] -= i_mat.baricenter[j];
-
- #else //BARICENTER_BASIC
-
-		//! Center basic noisy patches each with its own baricenter
-		centerData(groupNoisy_c, i_mat.baricenter, p_nSimP, sPC);
-		centerData(groupBasic_c, i_mat.baricenter, p_nSimP, sPC);
-
- #endif//BARICENTER_BASIC
-#endif//DCT_DONT_CENTER2
-
-		if (r > 0)
-		{
-			/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
-			 * row a patch. Thus, in column-major storage it corresponds to X^T, where
-			 * each column of X contains a centered data point.
-			 *
-			 * We need to compute the noiseless estimage hX as 
-			 * hX = U * W * U' * X
-			 * where U is the matrix with the eigenvectors and W is a diagonal matrix
-			 * with the filter coefficients.
-			 *
-			 * Matrix U is stored (column-major) in i_mat.covEigVecs. Since we have X^T
-			 * we compute 
-			 * hX' = X' * U * (W * U')
-			 */
-
-			//! Project basic patches over basis: Z' = X'*U (to compute variances)
-#ifndef NOISY_COVARIANCE2
-			productMatrix(i_mat.groupTranspose,
-			              groupBasic_c,
-			              i_mat.patch_basis,
-			              p_nSimP, sPC, sPC,
-			              false, false);
-#else
-			productMatrix(i_mat.groupTranspose,
-			              groupNoisy_c,
-			              i_mat.patch_basis,
-			              p_nSimP, sPC, sPC,
-			              false, false);
-#endif
-
-#ifdef SOFT_THRESHOLD2_BAYES
-			//! Compute variance over each component
-			//  TODO: compute r leading components
-			i_mat.covEigVals.resize(sPC);
-			for (int k = 0; k < sPC; ++k)
-			{
-				float  comp_k_var = 0.f;
-				float *comp_k = i_mat.groupTranspose.data() + k * p_nSimP;
-
-				for (int i = 0; i < p_nSimP; ++i)
-					comp_k_var += comp_k[i] * comp_k[i];
-
-				i_mat.covEigVals[k] = comp_k_var / (float)p_nSimP;
-				total_variance += i_mat.covEigVals[k];
-			}
-
-			//! Substract sigma2 and compute variance captured by the r leading eigenvectors
-			for (int i = 0; i < r; ++i)
-			{
- #ifdef NOISY_COVARIANCE2
-				float tmp = std::max(i_mat.covEigVals[i] - sigma2, 0.f);
- #else
-				float tmp = i_mat.covEigVals[i];
- #endif
-				i_mat.covEigVals[i] = (tmp > 1e-6) ? sqrt(2.f) * sigma2 / sqrt(tmp) : FLT_MAX;
-			}
-#endif
-
-			//! Thresholding
-			float *z = i_mat.groupTranspose.data();
-			for (unsigned k = 0; k < r  ; ++k)
-			for (unsigned i = 0; i < p_nSimP; ++i, ++z)
- #if defined(SOFT_THRESHOLD2)
-				*z = *z > 0 ? std::max(*z - sigma, 0.f) : std::min(*z + sigma, 0.f);
- #elif defined(SOFT_THRESHOLD2_BAYES)
-				*z = *z > 0 ? std::max(*z - i_mat.covEigVals[k], 0.f)
-				            : std::min(*z + i_mat.covEigVals[k], 0.f);
- #else
-				*z = (*z * *z) > sigma2 ? *z : 0.f;
- #endif
-
-			//! hX' = Z'*U'
-			productMatrix(groupNoisy_c,
-			              i_mat.groupTranspose,
-			              i_mat.patch_basis,
-			              p_nSimP, sPC, r,
-			              false, true);
-
-#ifndef DCT_DONT_CENTER2
-			//! Add baricenter
-			for (unsigned j = 0, k = 0; j < sPC; j++)
-				for (unsigned i = 0; i < p_nSimP; i++, k++)
-					groupNoisy_c[k] += i_mat.baricenter[j];
-#endif
-		}
-		else
-			//! r = 0: set all patches as baricenter
-			for (unsigned j = 0, k = 0; j < sPC; j++)
-				for (unsigned i = 0; i < p_nSimP; i++, k++)
-					groupNoisy_c[k] = i_mat.baricenter[j];
-
-		//! Copy channel back into vector
-		std::copy(groupNoisy_c.begin(), groupNoisy_c.end(),
-		          io_groupNoisy.begin() + sPC*p_nSimP*c);
-
-	}
-
-
-	// return percentage of captured variance
-	return r_variance / total_variance;
-
-}
-
-/**
  * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
  *
  * @param io_groupNoisy: inputs all similar patches in the noisy image,
@@ -4566,25 +2463,8 @@ float computeBayesEstimateStep2(
 not_equal:
 	//! Not all patches are equal ~ denoise
 	return
-#if defined(VBM3D_HAAR_TRANSFORM)
 		computeBayesEstimateStep2_vbm3d(io_groupNoisy, i_groupBasic, i_mat,
 			io_nInverseFailed, p_size, p_params, p_nSimP, aggreWeights);
-#elif defined(THRESHOLDING2)
-		computeBayesEstimateStep2_externalBasisTh(io_groupNoisy, i_groupBasic,
-			i_mat, io_nInverseFailed, p_size, p_params, p_nSimP);
-#elif defined(MEAN_HYPERPRIOR2)
-		computeBayesEstimateStep2_externalBasisHyper(io_groupNoisy, i_groupBasic,
-			i_mat, io_nInverseFailed, p_size, p_params, p_nSimP);
-#else
-  #ifdef USE_FFTW
-		computeBayesEstimateStep2_externalBasisFFTW(io_groupNoisy, i_groupBasic, i_mat,
-			io_nInverseFailed, p_size, p_params, p_nSimP, aggreWeights);
-  #else
-		computeBayesEstimateStep2_externalBasis(io_groupNoisy, i_groupBasic, i_mat,
-			io_nInverseFailed, p_size, p_params, p_nSimP, aggreWeights);
-  #endif
-#endif
-
 }
 
 /**
@@ -4626,7 +2506,6 @@ int computeAggregationStep1(
 
 	int masked = 0;
 
-#ifndef DEBUG_SHOW_PATCH_GROUPS
 	//! Aggregate estimates
 	for (unsigned n = 0; n < p_nSimP; n++)
 	{
@@ -4640,13 +2519,8 @@ int computeAggregationStep1(
 			{
 				const unsigned ij = ind  + c * wh;
 				// XXX NOTE: we only use aggregWeights[0] to avoid color artifacts XXX
-#ifdef USE_FFTW
-				io_im(ij + pt * whc + py * w + px) += 
-					aggreWeights[0][n] * aggreWindow[i] * i_group[c][n*sPC + i];
-#else
 				io_im(ij + pt * whc + py * w + px) += 
 					aggreWeights[0][n] * aggreWindow[i] * i_group[c][i * p_nSimP + n];
-#endif
 			}
 			io_weight(ind1 + pt * wh + py * w + px) += aggreWeights[0][n] * aggreWindow[i];
 		}
@@ -4673,51 +2547,6 @@ int computeAggregationStep1(
 			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
 		}
 	}
-#else
-	for (unsigned n = 0; n < 1; n++)
-	{
-		const unsigned ind = i_index[n];
-		const unsigned ind1 = (ind / whc) * wh + ind % wh;
-		for (unsigned pt = 0; pt < sPt; pt++)
-		for (unsigned py = 0; py < sPx; py++)
-		for (unsigned px = 0; px < sPx; px++)
-		{
-			for (unsigned c = 0; c < chnls; c++)
-			{
-				const unsigned ij = ind  + c * wh;
-				io_im(ij + pt * whc + py * w + px) += 
-					aggreWeights[c][n] * i_group[c][(pt * sPx*sPx + py * sPx + px) * p_nSimP + n];
-			}
-			io_weight(ind1 + pt * wh + py * w + px) += aggreWeights[c][n];
-		}
-	}
-
-	for (unsigned n = 0; n < p_nSimP; n++)
-	{
-		const unsigned ind = i_index[n];
-		const unsigned ind1 = (ind / whc) * wh + ind % wh;
-
-		//! Use Paste Trick
-		unsigned px, py, pt;
-		io_mask.sz.coords(ind1, px, py, pt);
-
-		if (p_params.doPasteBoost)
-		{
-			if (io_mask(ind1)) masked++;
-			io_mask(ind1) = false;
-
-			if ((py >     2*sPx) && io_mask(ind1 - w)) masked++;
-			if ((py < h - 2*sPx) && io_mask(ind1 + w)) masked++;
-			if ((px >     2*sPx) && io_mask(ind1 - 1)) masked++;
-			if ((px < w - 2*sPx) && io_mask(ind1 + 1)) masked++;
-
-			if (py >     2*sPx) io_mask(ind1 - w) = false;
-			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
-			if (px >     2*sPx) io_mask(ind1 - 1) = false;
-			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
-		}
-	}
-#endif
 
 	if (!p_params.doPasteBoost) 
 	{
@@ -4772,17 +2601,6 @@ int computeAggregationStep2(
 	int masked = 0;
 	for (unsigned n = 0; n < nAgg; n++)
 	{
-#ifdef USE_FFTW
-		const unsigned ind = i_index[n];
-		for (unsigned c = 0; c < chnls; c++)
-		{
-			const unsigned ij = ind + c * wh;
-			for (unsigned pt = 0, k = 0; pt < sPt; pt++)
-			for (unsigned py = 0       ; py < sPx; py++)
-			for (unsigned px = 0       ; px < sPx; px++, k++)
-				io_im(ij + pt * whc + py * w + px) +=
-					aggreWeights[n] * aggreWindow[i] * i_group[k + (n + c * p_nSimP) * sPC];
-#else
 		const unsigned ind = i_index[n];
 		for (unsigned c = 0, k = 0; c < chnls; c++)
 		{
@@ -4792,7 +2610,6 @@ int computeAggregationStep2(
 			for (unsigned px = 0       ; px < sPx; px++, k++, i++)
 				io_im(ij + pt * whc + py * w + px) +=
 					aggreWeights[n] * aggreWindow[i] * i_group[k * p_nSimP + n];
-#endif
 		}
 
 		const unsigned ind1 = (ind / whc) * wh + ind % wh;
@@ -4841,197 +2658,6 @@ int computeAggregationStep2(
 }
 
 /**
- * @brief Aggregate estimates of all similar patches contained in the 3D
- * group. This version is for a test: in the original version, all patches
- * in the group are marked as processed, and cannot be origins of a patch
- * group. In this version we only mark as processed the patches of the 
- * group which are nearby frames to the group origin.
- *
- * @param io_im: update the image with estimate values;
- * @param io_weight: update corresponding weight, used later in the weighted aggregation;
- * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group: contains estimated values of all similar patches in the 3D group;
- * @param i_index: contains index of all similar patches contained in i_group;
- * @param p_imSize: size of io_im;
- * @param p_params: see processStep1 for more explanation.
- * @param p_nSimP: number of similar patches.
- *
- * @return none.
- **/
-void computeTemporalAggregationStep1(
-	Video<float> &io_im
-,	Video<float> &io_weight
-,	Video<char>  &io_mask
-,	std::vector<std::vector<float> > const& i_group
-,	std::vector<unsigned> const& i_index
-,	const nlbParams &p_params
-,	const unsigned p_nSimP
-){
-	//! Parameters initializations
-	const unsigned chnls  = io_im.sz.channels;
-	const unsigned width  = io_im.sz.width;
-	const unsigned height = io_im.sz.height;
-	const unsigned sP     = p_params.sizePatch;
-
-	//! Compute coordinates of group origin
-	int FRAME_STEP = 2;
-	unsigned ox, oy, ot, oc;
-	io_im.sz.coords(i_index[0], ox, oy, ot, oc);
-	
-#ifndef DEBUG_SHOW_PATCH_GROUPS
-	//! Aggregate estimates
-	for (unsigned n = 0; n < p_nSimP; n++)
-	{
-		const unsigned ind = i_index[n];
-		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
-		for (unsigned p = 0; p < sP; p++)
-		for (unsigned q = 0; q < sP; q++)
-		{
-			for (unsigned c = 0; c < chnls; c++)
-			{
-				const unsigned ij = ind  + c * width * height;
-				io_im(ij + p * width + q) += i_group[c][(p * sP + q) * p_nSimP + n];
-			}
-			io_weight(ind1 + p * width + q)++;
-		}
-
-		// compute coordinates of current pixel
-		unsigned px, py, pt, pc;
-		io_im.sz.coords(ind, px, py, pt, pc);
-
-		if (abs((int)pt - (int)ot) < FRAME_STEP)
-		{
-			//! Use Paste Trick
-			io_mask(ind1) = false;
-
-			if (p_params.doPasteBoost)
-			{
-				io_mask(ind1 - width) = false;
-				io_mask(ind1 + width) = false;
-				io_mask(ind1 - 1    ) = false;
-				io_mask(ind1 + 1    ) = false;
-			}
-		}
-	}
-#else
-	for (unsigned n = 0; n < 1; n++)
-	{
-		const unsigned ind = i_index[n];
-		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
-		for (unsigned p = 0; p < 1; p++)
-		for (unsigned q = 0; q < 1; q++)
-		{
-			for (unsigned c = 0; c < chnls; c++)
-			{
-				const unsigned ij = ind  + c * width * height;
-				io_im(ij + p * width + q) += i_group[c][(p * sP + q) * p_nSimP + n];
-			}
-			io_weight(ind1 + p * width + q)++;
-		}
-	}
-
-	for (unsigned n = 0; n < p_nSimP; n++)
-	{
-		const unsigned ind = i_index[n];
-		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
-
-		// compute coordinates of current pixel
-		unsigned px, py, pt, pc;
-		io_im.sz.coords(ind, px, py, pt, pc);
-
-		if (abs((int)pt - (int)ot) < FRAME_STEP)
-		{
-			//! Use Paste Trick
-			io_mask(ind1) = false;
-
-			if (p_params.doPasteBoost)
-			{
-				io_mask(ind1 - width) = false;
-				io_mask(ind1 + width) = false;
-				io_mask(ind1 - 1    ) = false;
-				io_mask(ind1 + 1    ) = false;
-			}
-		}
-	}
-#endif
-}
-
-/**
- * @brief Aggregate estimates of all similar patches contained in the 3D
- * group. This version is for a test: in the original version, all patches
- * in the group are marked as processed, and cannot be origins of a patch
- * group. In this version we only mark as processed the patches of the 
- * group which are nearby frames to the group origin.
- *
- * @param io_im: update the image with estimate values;
- * @param io_weight: update corresponding weight, used later in the weighted aggregation;
- * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group: contains estimated values of all similar patches in the 3D group;
- * @param i_index: contains index of all similar patches contained in i_group;
- * @param p_imSize: size of io_im;
- * @param p_params: see processStep2 for more explanation;
- * @param p_nSimP: number of similar patches.
- *
- * @return none.
- **/
-void computeTemporalAggregationStep2(
-	Video<float> &io_im
-,	Video<float> &io_weight
-,	Video<char>  &io_mask
-,	std::vector<float> const& i_group
-,	std::vector<unsigned> const& i_index
-,	const nlbParams &p_params
-,	const unsigned p_nSimP
-){
-	//! Parameters initializations
-	const unsigned chnls = io_im.sz.channels;
-	const unsigned width = io_im.sz.width;
-	const unsigned wh    = width * io_im.sz.height;
-	const unsigned sP    = p_params.sizePatch;
-
-	//! Compute coordinates of group origin
-	int FRAME_STEP = 2;
-	unsigned ox, oy, ot, oc;
-	io_im.sz.coords(i_index[0], ox, oy, ot, oc);
-	
-	//! Aggregate estimates
-	for (unsigned n = 0; n < p_nSimP; n++)
-	{
-		const unsigned ind  = i_index[n];
-		for (unsigned c = 0, k = 0; c < chnls; c++)
-		{
-			const unsigned ij = ind + c * wh;
-			for (unsigned p = 0; p < sP; p++)
-			for (unsigned q = 0; q < sP; q++, k++)
-				io_im(ij + p * width + q) += i_group[k * p_nSimP + n];
-		}
-
-		const unsigned ind1 = (ind / io_im.sz.whc) * io_im.sz.wh + ind % io_im.sz.wh;
-		for (unsigned p = 0; p < sP; p++)
-		for (unsigned q = 0; q < sP; q++)
-			io_weight(ind1 + p * width + q)++;
-
-		// compute coordinates of current pixel
-		unsigned px, py, pt, pc;
-		io_im.sz.coords(ind, px, py, pt, pc);
-
-		if (abs((int)pt - (int)ot) < FRAME_STEP)
-		{
-			//! Apply Paste Trick
-			io_mask(ind1) = false;
-
-			if (p_params.doPasteBoost)
-			{
-				io_mask(ind1 - width) = false;
-				io_mask(ind1 + width) = false;
-				io_mask(ind1 - 1    ) = false;
-				io_mask(ind1 + 1    ) = false;
-			}
-		}
-	}
-}
-
-/**
  * @brief Compute the final weighted aggregation.
  *
  * i_im: image of reference, when the weight if null;
@@ -5054,4 +2680,4 @@ void computeWeightedAggregation(
 
 }
 
-}
+} // namespace

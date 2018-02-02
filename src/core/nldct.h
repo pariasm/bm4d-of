@@ -69,14 +69,8 @@ struct nlbParams
 	unsigned boundary;         // depends on sizeSearchWindow
 	unsigned offSet;           // depends on sizePatch
 	unsigned offSetTime;       // depends on sizePatchTime
-	bool useHomogeneousArea;
-	float gamma;
-	unsigned rank;             // rank of covariance matrix
 	float beta;                // noise correction factor
-	float betaMean;            // noise correction factor for patch barycenter
 	float tau;                 // depends on sizePatch
-	float aggreGammaPatch;     // decay of per-patch aggregation weights
-	float aggreGammaGroup;     // decay of per-group aggregation weights
 	bool isFirstStep;
 	bool doPasteBoost;
 	bool verbose;
@@ -163,12 +157,10 @@ void initializeNlbParameters(
 ,	const unsigned p_step
 ,	const float p_sigma
 ,	const VideoSize &p_size
-,	const bool p_useArea
 ,	const bool p_verbose
 ,	const unsigned timeSearchRangeFwd = 0
 ,	const unsigned timeSearchRangeBwd = 0
 ,	const unsigned sizePatchTime = 1
-,	const unsigned rank = 4
 );
 
 /**

@@ -91,14 +91,6 @@ int main(int argc, char **argv)
 #endif
 	const float beta_mean1  = clo_option("-bm1",-1.f, "> Noise correction factor beta for mean, step 1");
 	const float beta_mean2  = clo_option("-bm2",-1.f, "> Noise correction factor beta for mean, step 2");
-	const int rank1         = clo_option("-r1" , 4  , "> Rank or covariance matrix, step 1");
-	const int rank2         = clo_option("-r2" , 4  , "> Rank or covariance matrix, step 2");
-	const float p_aggre1    = clo_option("-pag1", 0.f, "> Decay of per-patch aggregation weights, step 1");
-	const float p_aggre2    = clo_option("-pag2", 0.f, "> Decay of per-patch aggregation weights, step 2");
-	const float g_aggre1    = clo_option("-gag1", 0.f, "> Decay of per-group aggregation weights, step 1");
-	const float g_aggre2    = clo_option("-gag2", 0.f, "> Decay of per-group aggregation weights, step 2");
-	const bool flat_area1 = (bool) clo_option("-flat-area1", false , "> use flat area trick, step 1");
-	const bool flat_area2 = (bool) clo_option("-flat-area2", false , "> use flat area trick, step 2");
 	const bool no_paste1  = (bool) clo_option("-no-paste1", false , "> disable paste trick, step 1");
 	const bool no_paste2  = (bool) clo_option("-no-paste2", false , "> disable paste trick, step 2");
 	const bool no_step1   = (bool) clo_option("-no-step1" , false , "> disable patch skipping, step 1");
@@ -132,10 +124,9 @@ int main(int argc, char **argv)
 	}
 
 	if ((num_patches1 < 0 && num_patches1 != -1) ||
-	    (num_patches2 < 0 && num_patches2 != -1) ||
-	    (rank1 < 0 || rank2 <   0) )
+	    (num_patches2 < 0 && num_patches2 != -1) )
 	{
-		fprintf(stderr, "%s: np1, np2, r1 and r2 cannot be negative.\nTry `%s --help' for more information.\n",
+		fprintf(stderr, "%s: np1 and np2 cannot be negative.\nTry `%s --help' for more information.\n",
 				argv[0], argv[0]);
 		return EXIT_FAILURE;
 	}
@@ -179,8 +170,8 @@ int main(int argc, char **argv)
 
 		//! Compute denoising default parameters
 		VideoNLB::nlbParams prms1, prms2;
-		VideoNLB::initializeNlbParameters(prms1, 1, sigma, tmp, flat_area1, verbose, time_search1, time_search1, patch_sizet1);
-		VideoNLB::initializeNlbParameters(prms2, 2, sigma, tmp, flat_area2, verbose, time_search2, time_search2, patch_sizet2);
+		VideoNLB::initializeNlbParameters(prms1, 1, sigma, tmp, verbose, time_search1, time_search1, patch_sizet1);
+		VideoNLB::initializeNlbParameters(prms2, 2, sigma, tmp, verbose, time_search2, time_search2, patch_sizet2);
 
 		//! Override with command line parameters
 		if (space_search1 >= 0) VideoNLB::setSizeSearchWindow(prms1, (unsigned)space_search1);
@@ -191,10 +182,6 @@ int main(int argc, char **argv)
 		if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
 		if (beta1         >= 0) prms1.beta = beta1;
 		if (beta2         >= 0) prms2.beta = beta2;
-		if (beta_mean1    >= 0) prms1.betaMean = beta_mean1;
-		if (beta_mean2    >= 0) prms2.betaMean = beta_mean2;
-		if (tau1          >= 0) VideoNLB::setTau(prms1, tmp, tau1);
-		if (tau2          >= 0) VideoNLB::setTau(prms2, tmp, tau2);
 
 #ifdef VBM3D_SEARCH
 		if (space_search_f1 >= 0) prms1.sizeSearchWindowPred = space_search_f1;
@@ -208,14 +195,6 @@ int main(int argc, char **argv)
 #endif
 		if (agg_win1) prms1.agg_window = true;
 		if (agg_win2) prms2.agg_window = true;
-
-		prms1.rank = rank1;
-		prms2.rank = rank2;
-
-		prms1.aggreGammaPatch = p_aggre1;
-		prms2.aggreGammaPatch = p_aggre2;
-		prms1.aggreGammaGroup = g_aggre1;
-		prms2.aggreGammaGroup = g_aggre2;
 
 		if (no_paste1) prms1.doPasteBoost = false;
 		if (no_paste2) prms2.doPasteBoost = false;
@@ -276,8 +255,8 @@ int main(int argc, char **argv)
 
 	//! Compute denoising default parameters
 	VideoNLB::nlbParams prms1, prms2;
-	VideoNLB::initializeNlbParameters(prms1, 1, sigma, noisy.sz, flat_area1, verbose, time_search1, time_search1, patch_sizet1);
-	VideoNLB::initializeNlbParameters(prms2, 2, sigma, noisy.sz, flat_area2, verbose, time_search2, time_search2, patch_sizet2);
+	VideoNLB::initializeNlbParameters(prms1, 1, sigma, noisy.sz, verbose, time_search1, time_search1, patch_sizet1);
+	VideoNLB::initializeNlbParameters(prms2, 2, sigma, noisy.sz, verbose, time_search2, time_search2, patch_sizet2);
 
 	//! Override with command line parameters
 	if (space_search1 >= 0) VideoNLB::setSizeSearchWindow(prms1, (unsigned)space_search1);
@@ -288,18 +267,6 @@ int main(int argc, char **argv)
 	if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
 	if (beta1         >= 0) prms1.beta = beta1;
 	if (beta2         >= 0) prms2.beta = beta2;
-	if (beta_mean1    >= 0) prms1.betaMean = beta_mean1;
-	if (beta_mean2    >= 0) prms2.betaMean = beta_mean2;
-	if (tau1          >= 0) VideoNLB::setTau(prms1, noisy.sz, tau1);
-	if (tau2          >= 0) VideoNLB::setTau(prms2, noisy.sz, tau2);
-
-	prms1.rank = rank1;
-	prms2.rank = rank2;
-
-	prms1.aggreGammaPatch = p_aggre1;
-	prms2.aggreGammaPatch = p_aggre2;
-	prms1.aggreGammaGroup = g_aggre1;
-	prms2.aggreGammaGroup = g_aggre2;
 
 	if (no_paste1) prms1.doPasteBoost = false;
 	if (no_paste2) prms2.doPasteBoost = false;
