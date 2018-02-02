@@ -70,6 +70,7 @@ struct nlbParams
 	unsigned offSetTime;       // depends on sizePatchTime
 	float beta;                // noise correction factor
 	float tau;                 // depends on sizePatch
+	bool orderInvariance;
 	bool isFirstStep;
 	bool doPasteBoost;
 	bool verbose;

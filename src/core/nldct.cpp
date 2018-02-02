@@ -136,6 +136,7 @@ void initializeNlbParameters(
 	}
 
 	// these params are common for vbm3d and bm3d
+	params.orderInvariance = false;
 	params.isFirstStep = s1;
 	params.sigma = sigma;
 	params.verbose = verbose;
@@ -2152,7 +2153,7 @@ float computeBayesEstimateStep1_vbm3d(
 	                   * p_params.sizePatchTime;
 
 	//! Compute variance to determine the aggregation weight
-	int non_zero_coeffs = 0;
+	float non_zero_coeffs = 0;
 
 	for (unsigned c = 0; c < io_group.size(); c++)
 	{
@@ -2194,11 +2195,53 @@ float computeBayesEstimateStep1_vbm3d(
 		}
 
 		//! Thresholding
-		float *z = i_mat.groupTranspose.data();
-		for (unsigned k = 0; k < sPC; ++k)
-		for (unsigned i = 0; i < p_nSimP; ++i, ++z)
-			if (*z * *z > beta_sigma2 || (k == 0 && i == 0)) non_zero_coeffs++;
-			else *z = 0.f;
+		{
+			//! Impose order invariance
+			if (p_params.orderInvariance)
+			{
+				for (int i = 0; i < sPC; i++)
+				{
+					float *z = i_mat.groupTranspose.data() + i*p_nSimP;
+
+					float var_i = 0.; // variance for component i
+					for (int n = 1; n < p_nSimP; ++n) var_i += z[n] * z[n];
+					var_i /= (float)(p_nSimP - 1);
+
+//					printf("i = %d\n",i);
+//					for (int n = 0; n < p_nSimP; ++n) printf("z[n] = % 6.2f z[n] * z[n] = % 6.2f\n", z[n], z[n]*z[n]);
+//					printf("var_i = % 6.2f b*sigma2 = % 6.2f\n", var_i, beta_sigma2);
+
+					// Wiener filtering instead of thresholding
+					float var_0 = std::max(z[0]*z[0] - sigma2, 0.f);
+					float w_0 = var_0 / (var_0 + beta_sigma2);  
+					z[0] *= w_0;
+
+					var_i = std::max(var_i - sigma2, 0.f);
+					float w_i = var_i/(var_i + beta_sigma2);
+					for (int n = 1; n < p_nSimP; ++n) z[n] *= w_i;
+
+					non_zero_coeffs += w_0 * w_0 + (float)(p_nSimP - 1) * w_i * w_i;
+
+//					// threshold dc component
+//					if (z[0] * z[0] > beta_sigma2 || (i == 0)) non_zero_coeffs++;
+//					else z[0] = 0.f;
+//
+//					// threshold remaining components
+//					if (var_i > beta_sigma2) non_zero_coeffs += (p_nSimP - 1);
+//					else for (int n = 1; n < p_nSimP; ++n) z[n] = 0.f;
+				}
+
+//				while(1) int a = 1;
+			}
+			else
+			{
+				float *z = i_mat.groupTranspose.data();
+				for (unsigned k = 0; k < sPC; ++k)
+				for (unsigned i = 0; i < p_nSimP; ++i, ++z)
+					if (*z * *z > beta_sigma2 || (k == 0 && i == 0)) non_zero_coeffs += 1;
+					else *z = 0.f;
+			}
+		}
 
 		//! Invert Haar transform inplace
 		{
@@ -2384,15 +2427,40 @@ float computeBayesEstimateStep2_vbm3d(
 
 		//! Wiener filter
 		{
-			const float *y = i_mat.groupTranspose.data();
-			float *z = i_mat.groupTransposeNoisy.data();
-
-			for (int i = 0; i < sPC; ++i)
-			for (int n = 0; n < p_nSimP; ++n, ++y, ++z)
+			if (p_params.orderInvariance)
 			{
-				const float w = *y**y / ( *y**y + beta_sigma2);
-				*z *= w;
-				variance += w*w;
+				for (int i = 0; i < sPC; i++)
+				{
+					float *y = i_mat.groupTranspose.data()      + i*p_nSimP;
+					float *z = i_mat.groupTransposeNoisy.data() + i*p_nSimP;
+
+					// dc component
+					float var_0 = y[0]*y[0];
+					float w_0 = var_0 / (var_0 + beta_sigma2);  
+					z[0] *= w_0;
+
+					// rest of components
+					float var_i = 0.; // variance for component i
+					for (int n = 1; n < p_nSimP; ++n) var_i += y[n] * y[n];
+					var_i /= (float)(p_nSimP - 1);
+					float w_i = var_i/(var_i + beta_sigma2);
+					for (int n = 1; n < p_nSimP; ++n) z[n] *= w_i;
+
+					variance += w_0 * w_0 + (float)(p_nSimP - 1) * w_i * w_i;
+				}
+			}
+			else
+			{
+				const float *y = i_mat.groupTranspose.data();
+				float *z = i_mat.groupTransposeNoisy.data();
+
+				for (int i = 0; i < sPC; ++i)
+				for (int n = 0; n < p_nSimP; ++n, ++y, ++z)
+				{
+					const float w = *y**y / ( *y**y + beta_sigma2);
+					*z *= w;
+					variance += w*w;
+				}
 			}
 		}
 

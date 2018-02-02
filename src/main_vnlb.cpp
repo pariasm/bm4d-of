@@ -25,16 +25,6 @@
 
 using namespace std;
 
-/**
- * @file   main.cpp
- * @brief  Main executable file
- *
- *
- *
- * @author MARC LEBRUN  <marc.lebrun.ik@gmail.com>
- * @author PABLO ARIAS  <pariasm@gmail.com>
- **/
-
 enum Mode { BSIC_DENO, BSIC_ONLY, DENO_ONLY, NISY_ONLY };
 
 int main(int argc, char **argv)
@@ -61,9 +51,9 @@ int main(int argc, char **argv)
 
 	//! General parameters
 	const float sigma = clo_option("-sigma", 0.f, "Add noise of standard deviation sigma");
-	const bool has_noise = (bool) clo_option("-has-noise"   , false, "> input image already has noise");
-	const bool do_bias   = (bool) clo_option("-compute-bias", false, "> compute bias outputs");
-	const bool verbose   = (bool) clo_option("-verbose"     , true , "> verbose output");
+	const bool has_noise = (bool) clo_option("-has-noise", false, "> input image already has noise");
+	const bool verbose   = (bool) clo_option("-verbose"  , true , "> verbose output");
+	const bool order_inv = (bool) clo_option("-order-inv", false, "> invariance to patch order in stack");
 	const unsigned print_prms = (unsigned) clo_option("-print-prms", 0, "> prints parameters for given channels");
 
 	//! Video NLB parameters
@@ -200,6 +190,9 @@ int main(int argc, char **argv)
 		if (no_paste2) prms2.doPasteBoost = false;
 		if (no_step1)  prms1.offSet = 1;
 		if (no_step2)  prms2.offSet = 1;
+
+		if (order_inv) prms1.orderInvariance = true;
+		if (order_inv) prms2.orderInvariance = true;
  
 		VideoNLB::printNlbParameters(prms1);
 		VideoNLB::printNlbParameters(prms2);
@@ -268,10 +261,26 @@ int main(int argc, char **argv)
 	if (beta1         >= 0) prms1.beta = beta1;
 	if (beta2         >= 0) prms2.beta = beta2;
 
+#ifdef VBM3D_SEARCH
+	if (space_search_f1 >= 0) prms1.sizeSearchWindowPred = space_search_f1;
+	if (space_search_f2 >= 0) prms2.sizeSearchWindowPred = space_search_f2;
+	if (num_patches_f1  >= 0) prms1.nSimilarPatchesPred = num_patches_f1;
+	if (num_patches_f2  >= 0) prms2.nSimilarPatchesPred = num_patches_f2;
+	if (dsub1           >= 0) prms1.dsub = dsub1;
+	if (dsub2           >= 0) prms2.dsub = dsub2;
+	if (tau1            >= 0) prms1.tau = tau1;
+	if (tau2            >= 0) prms2.tau = tau2;
+#endif
+	if (agg_win1) prms1.agg_window = true;
+	if (agg_win2) prms2.agg_window = true;
+
 	if (no_paste1) prms1.doPasteBoost = false;
 	if (no_paste2) prms2.doPasteBoost = false;
 	if (no_step1)  prms1.offSet = 1;
 	if (no_step2)  prms2.offSet = 1;
+
+	if (order_inv) prms1.orderInvariance = true;
+	if (order_inv) prms2.orderInvariance = true;
 
 	//! Percentage or processed groups of patches over total number of pixels
 	std::vector<float> groupsRatio;
