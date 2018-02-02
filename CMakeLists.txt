@@ -37,7 +37,6 @@ endif()
 add_subdirectory(lib/iio)
 add_subdirectory(src/core)
 add_subdirectory(src)
-#add_subdirectory(src/tests)
 
 # configure cpack #############################################################
 
@@ -49,10 +48,8 @@ set(CPACK_SOURCE_IGNORE_FILES
 "\\\\.*\\\\.swp"
 "\\\\*\\\\.o"
 "^${PROJECT_SOURCE_DIR}/build/"
-"^${PROJECT_SOURCE_DIR}/tools/"
 "^${PROJECT_SOURCE_DIR}/results/"
 "^${PROJECT_SOURCE_DIR}/doc/"
-"^${PROJECT_SOURCE_DIR}/src/tests/"
 "git")
 
 set(CPACK_SOURCE_PACKAGE_FILE_NAME
