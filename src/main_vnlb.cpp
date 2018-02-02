@@ -170,8 +170,8 @@ int main(int argc, char **argv)
 
 		//! Compute denoising default parameters
 		VideoNLB::nlbParams prms1, prms2;
-		VideoNLB::initializeNlbParameters(prms1, 1, sigma, tmp, verbose, time_search1, time_search1, patch_sizet1);
-		VideoNLB::initializeNlbParameters(prms2, 2, sigma, tmp, verbose, time_search2, time_search2, patch_sizet2);
+		VideoNLB::initializeNlbParameters(prms1, 1, sigma, tmp, verbose);
+		VideoNLB::initializeNlbParameters(prms2, 2, sigma, tmp, verbose);
 
 		//! Override with command line parameters
 		if (space_search1 >= 0) VideoNLB::setSizeSearchWindow(prms1, (unsigned)space_search1);
@@ -255,8 +255,8 @@ int main(int argc, char **argv)
 
 	//! Compute denoising default parameters
 	VideoNLB::nlbParams prms1, prms2;
-	VideoNLB::initializeNlbParameters(prms1, 1, sigma, noisy.sz, verbose, time_search1, time_search1, patch_sizet1);
-	VideoNLB::initializeNlbParameters(prms2, 2, sigma, noisy.sz, verbose, time_search2, time_search2, patch_sizet2);
+	VideoNLB::initializeNlbParameters(prms1, 1, sigma, noisy.sz, verbose);
+	VideoNLB::initializeNlbParameters(prms2, 2, sigma, noisy.sz, verbose);
 
 	//! Override with command line parameters
 	if (space_search1 >= 0) VideoNLB::setSizeSearchWindow(prms1, (unsigned)space_search1);

@@ -140,26 +140,20 @@ struct matWorkspace
 /**
  * @brief Initialize Parameters of the NL-Bayes algorithm.
  *
- * @param o_params   : will contain the nlbParams for the first step of the algorithm;
- * @param p_step     : select first or second step;
- * @param p_sigma    : standard deviation of the noise;
- * @param p_size     : size of the video;
- * @param p_flatArea : if true, use the homogeneous area trick for the first step;
- * @param p_verbose  : if true, print some informations.
- * @param p_timeSearchRagneFwd : temporal search range forwards.
- * @param p_timeSearchRagneBwd : temporal search range backwards.
+ * @param params   : will contain the nlbParams for the first step of the algorithm;
+ * @param step     : select first or second step;
+ * @param sigma    : standard deviation of the noise;
+ * @param size     : size of the video;
+ * @param verbose  : if true, print some informations.
  *
  * @return none.
  **/
 void initializeNlbParameters(
-	nlbParams &o_params
-,	const unsigned p_step
-,	const float p_sigma
-,	const VideoSize &p_size
-,	const bool p_verbose
-,	const unsigned timeSearchRangeFwd = 0
-,	const unsigned timeSearchRangeBwd = 0
-,	const unsigned sizePatchTime = 1
+	nlbParams &params
+,	const unsigned step
+,	const float sigma
+,	const VideoSize &size
+,	const bool verbose
 );
 
 /**

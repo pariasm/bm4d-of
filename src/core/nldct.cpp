@@ -79,39 +79,71 @@ namespace VideoNLB
  * @return none.
  **/
 void initializeNlbParameters(
-	nlbParams &o_params
-,	const unsigned p_step
-,	const float p_sigma
-,	const VideoSize &p_size
-,	const bool p_verbose
-,	const unsigned timeSearchRangeFwd
-,	const unsigned timeSearchRangeBwd
-,	const unsigned sizePatchTime
+	nlbParams &params
+,	const unsigned step
+,	const float sigma
+,	const VideoSize &size
+,	const bool verbose
 ){
-	const bool s1 = (p_step == 1);
-	o_params.sigma = p_sigma;
-	o_params.verbose = p_verbose;
-	o_params.isFirstStep = (p_step == 1);
-	o_params.colorSpace = YUV;
-	o_params.transform = s1 ? bior1_5 : dct;
-	o_params.sizePatch = (s1 || p_sigma >= 30) ? 8 : 7; 
-	o_params.sizePatchTime = 1;
-	o_params.nSimilarPatches = 8;
-	o_params.sizeSearchWindow = 7;
-	o_params.sizeSearchWindowPred = 5;
-	o_params.sizeSearchTimeRangeFwd = 4;
-	o_params.sizeSearchTimeRangeBwd = 4;
-	o_params.nSimilarPatchesPred = 2;
-	o_params.offSet = s1 ? 6 : 4;
-	o_params.offSetTime = 1;
-	o_params.beta = s1 ? 2.7 : 1.;
-	o_params.tau = s1 ? 4500 : 3000; // TODO this is only true for high noise
-	o_params.isFirstStep = s1;
-	o_params.doPasteBoost = false;
-	o_params.dsub = s1 ? 7 : 3;
-	o_params.agg_window = true;
-	o_params.boundary = 2*(o_params.sizeSearchWindow/2) + (o_params.sizePatch - 1);
-	o_params.beta = 1.f; // noise multiplier factor
+	const bool s1 = (step == 1);
+
+	if (size.frames == 1)
+	{
+		// default parameters for BM3D
+		if (sigma <= 40) // normal profile
+		{
+			params.sizePatch = 8; 
+			params.nSimilarPatches = s1 ? 16 : 32;
+			params.offSet = 3;
+			params.beta = s1 ? 2.7 : 1.; // FIXME: beta here means the threshold
+			params.tau = s1 ? 3000 : 400;
+		}
+		else // vn profile
+		{
+			params.sizePatch = s1 ? 8 : 11; 
+			params.nSimilarPatches = 32;
+			params.offSet = s1 ? 4 : 6;
+			params.beta = s1 ? 2.8 : 1.;
+			params.tau = s1 ? 25000 : 3500;
+		}
+
+		params.sizePatchTime = 1;
+		params.sizeSearchTimeRangeFwd = 0;
+		params.sizeSearchTimeRangeBwd = 0;
+		params.sizeSearchWindowPred = 0;
+		params.offSetTime = 1;
+		params.dsub = 0;
+		params.nSimilarPatchesPred = params.nSimilarPatches;
+		params.sizeSearchWindow = 39;
+	}
+	else
+	{
+		// default parameters for VBM3D (only high noise profile)
+		params.transform = s1 ? bior1_5 : dct;
+		params.sizePatch = (s1 || sigma >= 30) ? 8 : 7; 
+		params.sizePatchTime = 1;
+		params.nSimilarPatches = 8;
+		params.sizeSearchWindow = 7;
+		params.sizeSearchWindowPred = 5;
+		params.sizeSearchTimeRangeFwd = 4;
+		params.sizeSearchTimeRangeBwd = 4;
+		params.nSimilarPatchesPred = 2;
+		params.offSet = s1 ? 6 : 4;
+		params.offSetTime = 1;
+		params.beta = s1 ? 2.7 : 1.;
+		params.tau = s1 ? 4500 : 3000; // TODO this is only true for high noise
+		params.dsub = s1 ? 7 : 3;
+	}
+
+	// these params are common for vbm3d and bm3d
+	params.isFirstStep = s1;
+	params.sigma = sigma;
+	params.verbose = verbose;
+	params.colorSpace = YUV;
+	params.doPasteBoost = false;
+	params.agg_window = true;
+	params.boundary = 2*(params.sizeSearchWindow/2) + (params.sizePatch - 1);
+	params.transform = s1 ? bior1_5 : dct;
 }
 
 /**
@@ -241,8 +273,8 @@ std::vector<float> runNlBayes(
 
 	//! Parameters Initialization
 	nlbParams p_prms1, p_prms2;
-	initializeNlbParameters(p_prms1, 1, p_sigma, size, p_useArea1, p_verbose);
-	initializeNlbParameters(p_prms2, 2, p_sigma, size, p_useArea2, p_verbose);
+	initializeNlbParameters(p_prms1, 1, p_sigma, size, p_verbose);
+	initializeNlbParameters(p_prms2, 2, p_sigma, size, p_verbose);
 
 	//! NL-Bayes
 #ifndef DEBUG_COMPUTE_GROUP_ERROR
