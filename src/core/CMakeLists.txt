@@ -7,7 +7,6 @@ include_directories(${FFTW_INCLUDES})
 add_library(vnldct SHARED
 	nldct.cpp
 	matrix_funs.cpp
-	dct_handler.cpp
 	../utils/lib_image.cpp
 	../utils/lib_videot.cpp
 	../utils/mt19937ar.c

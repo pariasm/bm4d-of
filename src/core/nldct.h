@@ -15,7 +15,6 @@
 
 #include "../utils/lib_videot.hpp"
 #include "../utils/utilities.h"
-#include "dct_handler.h"
 
 //#define DEBUG_SHOW_WEIGHT
 //#define DEBUG_COMPUTE_GROUP_ERROR

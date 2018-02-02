@@ -22,9 +22,6 @@ set(CMAKE_VERBOSE_MAKEFILE OFF)
 
 find_package(CBLAS REQUIRED)
 
-find_path (FFTW_INCLUDES fftw3.h)
-find_library (FFTWF_LIBRARIES NAMES fftw3f)
-
 find_package( OpenMP REQUIRED)
 if(OPENMP_FOUND)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
