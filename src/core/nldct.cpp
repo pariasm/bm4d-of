@@ -199,6 +199,10 @@ void setNSimilarPatches(nlbParams& prms, unsigned nSimilarPatches)
 	                                                 prms.sizeSearchWindow *
 	                                                (prms.sizeSearchTimeRangeFwd +
 	                                                 prms.sizeSearchTimeRangeBwd + 1));
+
+	if (prms.sizeSearchTimeRangeFwd + prms.sizeSearchTimeRangeFwd == 0)
+		prms.nSimilarPatchesPred = prms.nSimilarPatches;
+
 }
 
 /**
@@ -231,6 +235,7 @@ void printNlbParameters(
 	printf("\tGroup filtering:\n");
 	printf("\t\tTransform                   = %s\n"       , p.transform == dct ? "dct" : "bior1.5");
 	printf("\t\tBeta                        = %g\n"       , p.beta);
+	printf("\t\tOrder invariance            = %s\n"       , p.orderInvariance ? "yes" : "no");
 	printf("\tAggregation:\n");
 	printf("\t\tOffset                      = %d\n"       , p.offSet);
 	printf("\t\tPasteBoost                  = %s\n"       , p.doPasteBoost
