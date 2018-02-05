@@ -2144,6 +2144,8 @@ float computeBayesEstimateStep1_vbm3d(
 	//! Parameters initialization
 	const float beta_sigma = p_params.beta * p_params.sigma;
 	const float beta_sigma2 = beta_sigma * beta_sigma;
+	const float betaM_sigma = p_params.betaMean * p_params.sigma;
+	const float betaM_sigma2 = betaM_sigma * betaM_sigma;
 #ifndef USE_BETA_FOR_VARIANCE
 	const float sigma2 = p_params.sigma * p_params.sigma;
 #else
@@ -2213,7 +2215,7 @@ float computeBayesEstimateStep1_vbm3d(
 
 					// Wiener filtering instead of thresholding
 					float var_0 = std::max(z[0]*z[0] - sigma2, 0.f);
-					float w_0 = var_0 / (var_0 + beta_sigma2);  
+					float w_0 = var_0 / (var_0 + betaM_sigma2);  
 					z[0] *= w_0;
 
 					var_i = std::max(var_i - sigma2, 0.f);
@@ -2223,7 +2225,7 @@ float computeBayesEstimateStep1_vbm3d(
 					non_zero_coeffs += w_0 * w_0 + (float)(p_nSimP - 1) * w_i * w_i;
 
 //					// threshold dc component
-//					if (z[0] * z[0] > beta_sigma2 || (i == 0)) non_zero_coeffs++;
+//					if (z[0] * z[0] > betaM_sigma2 || (i == 0)) non_zero_coeffs++;
 //					else z[0] = 0.f;
 //
 //					// threshold remaining components
@@ -2356,6 +2358,8 @@ float computeBayesEstimateStep2_vbm3d(
 	//! Parameters initialization
 	const float beta_sigma = p_params.beta * p_params.sigma;
 	const float beta_sigma2 = beta_sigma * beta_sigma;
+	const float betaM_sigma = p_params.betaMean * p_params.sigma;
+	const float betaM_sigma2 = betaM_sigma * betaM_sigma;
 #ifndef USE_BETA_FOR_VARIANCE
 	const float sigma2 = p_params.sigma * p_params.sigma;
 #else
@@ -2436,7 +2440,7 @@ float computeBayesEstimateStep2_vbm3d(
 
 					// dc component
 					float var_0 = y[0]*y[0];
-					float w_0 = var_0 / (var_0 + beta_sigma2);  
+					float w_0 = var_0 / (var_0 + betaM_sigma2);  
 					z[0] *= w_0;
 
 					// rest of components

@@ -172,6 +172,10 @@ int main(int argc, char **argv)
 		if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
 		if (beta1         >= 0) prms1.beta = beta1;
 		if (beta2         >= 0) prms2.beta = beta2;
+		if (beta1         >= 0) prms1.betaMean = beta1;
+		if (beta2         >= 0) prms2.betaMean = beta2;
+		if (beta_mean1    >= 0) prms1.betaMean = beta_mean1;
+		if (beta_mean2    >= 0) prms2.betaMean = beta_mean2;
 
 #ifdef VBM3D_SEARCH
 		if (space_search_f1 >= 0) prms1.sizeSearchWindowPred = space_search_f1;
@@ -260,6 +264,10 @@ int main(int argc, char **argv)
 	if (num_patches2  >= 0) VideoNLB::setNSimilarPatches(prms2, (unsigned)num_patches2);
 	if (beta1         >= 0) prms1.beta = beta1;
 	if (beta2         >= 0) prms2.beta = beta2;
+	if (beta1         >= 0) prms1.betaMean = beta1;
+	if (beta2         >= 0) prms2.betaMean = beta2;
+	if (beta_mean1    >= 0) prms1.betaMean = beta_mean1;
+	if (beta_mean2    >= 0) prms2.betaMean = beta_mean2;
 
 #ifdef VBM3D_SEARCH
 	if (space_search_f1 >= 0) prms1.sizeSearchWindowPred = space_search_f1;

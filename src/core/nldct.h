@@ -69,6 +69,7 @@ struct nlbParams
 	unsigned offSet;           // depends on sizePatch
 	unsigned offSetTime;       // depends on sizePatchTime
 	float beta;                // noise correction factor
+	float betaMean;            // noise correction factor
 	float tau;                 // depends on sizePatch
 	bool orderInvariance;
 	bool isFirstStep;
