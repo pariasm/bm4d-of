@@ -317,7 +317,7 @@ int main(int argc, char **argv)
 	    printf("final PSNR =\t%f\tRMSE =\t%f\n", final_psnr, final_rmse);
 	}
 	else if (mode != NISY_ONLY)
-		printf("%f\n", mode == BSIC_ONLY ? basic_psnr : final_psnr);
+		printf("%f %f\n", final_rmse * final_rmse, basic_rmse * basic_rmse);
 
 
 	//! Write measures
