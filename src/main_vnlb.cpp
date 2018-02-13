@@ -177,6 +177,9 @@ int main(int argc, char **argv)
 		if (beta_mean1    >= 0) prms1.betaMean = beta_mean1;
 		if (beta_mean2    >= 0) prms2.betaMean = beta_mean2;
 
+		if (patch_sizet1  >= 0) prms1.sizePatchTime = patch_sizet1;
+		if (patch_sizet2  >= 0) prms2.sizePatchTime = patch_sizet2;
+
 #ifdef VBM3D_SEARCH
 		if (space_search_f1 >= 0) prms1.sizeSearchWindowPred = space_search_f1;
 		if (space_search_f2 >= 0) prms2.sizeSearchWindowPred = space_search_f2;
@@ -268,6 +271,9 @@ int main(int argc, char **argv)
 	if (beta2         >= 0) prms2.betaMean = beta2;
 	if (beta_mean1    >= 0) prms1.betaMean = beta_mean1;
 	if (beta_mean2    >= 0) prms2.betaMean = beta_mean2;
+
+	if (patch_sizet1  >= 0) prms1.sizePatchTime = patch_sizet1;
+	if (patch_sizet2  >= 0) prms2.sizePatchTime = patch_sizet2;
 
 #ifdef VBM3D_SEARCH
 	if (space_search_f1 >= 0) prms1.sizeSearchWindowPred = space_search_f1;

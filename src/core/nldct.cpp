@@ -2275,6 +2275,7 @@ float computeBayesEstimateStep1_vbm3d(
 
 	// aggregation weights
 	const float variance = 1/sigma2/(float)non_zero_coeffs;
+//	const float variance = 1.;
 	for (unsigned c = 0; c < io_group.size(); c++)
 	for (unsigned n = 0; n < p_nSimP; n++)
 		aggreWeights[c][n] = variance;
@@ -2503,6 +2504,7 @@ float computeBayesEstimateStep2_vbm3d(
 
 	// aggregation weights
 	variance = 1./sigma2/variance;
+//	variance = 1.;
 	for (unsigned n = 0; n < p_nSimP; n++)
 		aggreWeights[n] = variance;
 
