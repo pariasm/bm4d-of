@@ -96,7 +96,7 @@ void initializeNlbParameters(
 			params.nSimilarPatches = s1 ? 16 : 32;
 			params.offSet = 3;
 			params.beta = s1 ? 2.7 : 1.; // FIXME: beta here means the threshold
-			params.tau = s1 ? 3000 : 400;
+			params.tau = s1 ? 54.8 : 20.;
 		}
 		else // vn profile
 		{
@@ -104,7 +104,7 @@ void initializeNlbParameters(
 			params.nSimilarPatches = 32;
 			params.offSet = s1 ? 4 : 6;
 			params.beta = s1 ? 2.8 : 1.;
-			params.tau = s1 ? 25000 : 3500;
+			params.tau = s1 ? 158. : 59.2;
 		}
 
 		params.sizePatchTime = 1;
@@ -131,7 +131,7 @@ void initializeNlbParameters(
 		params.offSet = s1 ? 6 : 4;
 		params.offSetTime = 1;
 		params.beta = s1 ? 2.7 : 1.;
-		params.tau = s1 ? 4500 : 3000; // TODO this is only true for high noise
+		params.tau = s1 ? 67.1 : 54.8; // TODO this is only true for high noise
 		params.dsub = s1 ? 7 : 3;
 	}
 
@@ -1264,7 +1264,7 @@ unsigned estimateSimilarPatchesStep1(
 	{
 		const unsigned nSimPFrame = params.nSimilarPatchesPred;
 		const float dsub = params.dsub * params.dsub * 255;
-		const float tau_match = params.tau * sPx * sPx * sPt;
+		const float tau_match = params.tau * params.tau * sPx * sPx * sPt;
 
 		const VideoSize sz = im.sz;
 		const bool use_flow = (fflow.sz.width > 0);
@@ -1514,7 +1514,7 @@ unsigned estimateSimilarPatchesStep1(
 
 	if (params.nSimilarPatches > 1)
 	{
-		const float tau = params.tau * sPx * sPx * sPt;
+		const float tau = params.tau * params.tau * sPx * sPx * sPt;
 		const VideoSize sz = im.sz;
 		const bool use_flow = (fflow.sz.width > 0);
 
@@ -1731,7 +1731,7 @@ unsigned estimateSimilarPatchesStep2(
 	{
 		const unsigned nSimPFrame = params.nSimilarPatchesPred;
 		const float dsub = params.dsub*params.dsub*255;
-		const float tau_match = params.tau*sPx*sPx*sPt;
+		const float tau_match = params.tau * params.tau * sPx * sPx * sPt;
 
 		const bool use_flow = (fflow.sz.width > 0);
 
@@ -2097,8 +2097,9 @@ unsigned estimateSimilarPatchesStep2(
 		                  distance.end(), comparaisonFirst);
 
 		//! Add more patches if their distance is bellow the threshold
-		const float threshold = (params.tau > distance[nSimP - 1].first ?
-		                         params.tau : distance[nSimP - 1].first);
+		const float tau = params.tau * params.tau * sPx * sPx * sPt;
+		const float threshold = (tau > distance[nSimP - 1].first ?
+		                         tau : distance[nSimP - 1].first);
 		nSimP = 0;
 		for (unsigned n = 0; n < distance.size(); n++)
 			if (distance[n].first <= threshold)
