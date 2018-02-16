@@ -50,8 +50,8 @@ do
 	n2=$(printf "%03d" $n2)
 	b1=$(printf "%3.1f" $b1)
 	b2=$(printf "%3.1f" $b2)
-	t1=$(printf "%4.1f" $t1)
-	t2=$(printf "%4.1f" $t2)
+	t1=$(printf "%04.1f" $t1)
+	t2=$(printf "%04.1f" $t2)
 
 	trialfolder="$output/s$s-$n1-$n2-$b1-$b2-$t1-$t2"
 
