@@ -166,6 +166,7 @@ static jmp_buf global_jump_buffer;
 
 #ifdef I_CAN_HAS_LINUX
 #  include <unistd.h>
+#include <sys/types.h> // for pid_t
 static const char *emptystring = "";
 static const char *myname(void)
 {

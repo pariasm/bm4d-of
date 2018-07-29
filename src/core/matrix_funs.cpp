@@ -24,8 +24,11 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
+#include <cstring>
 
+extern "C" {
 #include <cblas.h>
+}
 
 using namespace std;
 
