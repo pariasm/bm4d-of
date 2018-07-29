@@ -39,7 +39,6 @@ int main(int argc, char **argv)
 	const string  noisy_path = clo_option("-nisy" , ""              , "> noisy sequence");
 	const string  final_path = clo_option("-deno" , "deno_%03d.png" , "> denoised sequence");
 	const string  basic_path = clo_option("-bsic" , "bsic_%03d.png" , "> basic denoised sequence");
-	const string   diff_path = clo_option("-diff" , "diff_%03d.png" , "> difference sequence");
 
 	const unsigned firstFrame = clo_option("-f", 0, "first frame");
 	const unsigned lastFrame  = clo_option("-l", 0, "last frame");
@@ -209,7 +208,7 @@ int main(int argc, char **argv)
 
 
 	//! Declarations
-	Video<float> original, noisy, basic, final, diff;
+	Video<float> original, noisy, basic, final;
 	Video<float> fflow, bflow;
 
 	//! Load input videos
@@ -330,14 +329,10 @@ int main(int argc, char **argv)
 	writingMeasures("measures.txt", sigma, basic_psnr, basic_rmse, groupsRatio[0], true  , "_basic");
 	writingMeasures("measures.txt", sigma, final_psnr, final_rmse, groupsRatio[1], false , "_final");
 
-	//! Compute Difference
-	if (prms2.sizePatch) VideoUtils::computeDiff(original, final, diff, sigma);
-
 	//! Save output sequences
 	if (verbose) printf("\nSaving output sequences\n");
 
 	if (prms2.sizePatch) final.saveVideo(final_path, firstFrame, frameStep);
-	if (prms2.sizePatch) diff .saveVideo( diff_path, firstFrame, frameStep);
 	                     basic.saveVideo(basic_path, firstFrame, frameStep);
 
 	if (verbose) printf("Done\n");
