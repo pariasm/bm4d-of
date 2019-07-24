@@ -1,7 +1,8 @@
+cmake_minimum_required(VERSION 2.8)
 cmake_policy(SET CMP0048 NEW) # avoid annoing warnings
 
-project(nldct VERSION 1.0 LANGUAGES C CXX)
-message(STATUS "Configuring main project: " ${PROJECT_NAME})
+project(bm4d-of VERSION 1.0 LANGUAGES C CXX)
+message(STATUS "Configuring main project: " ${CMAKE_PROJECT_NAME})
 
 # flags #######################################################################
 
@@ -32,8 +33,10 @@ endif()
 # add project directories #####################################################
 
 add_subdirectory(lib/iio)
+add_subdirectory(lib/tvl1flow)
 add_subdirectory(src/core)
 add_subdirectory(src)
+add_subdirectory(scripts)
 
 # configure cpack #############################################################
 

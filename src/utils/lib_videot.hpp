@@ -533,6 +533,36 @@ namespace VideoUtils
 
 		return;
 	}
+
+	/* Compute PSNR and RMSE between vid1 and vid2 for each frame
+	 * vid1: video 1;
+	 * vid2: video 2;
+	 * psnr: vector with PSNR of each frame
+	 * rmse: vector with RMSE of each frame
+	 */
+	template <class T>
+	void computePSNR(Video<T> const& vid1, Video<T> const& vid2,
+			std::vector<float> &psnr, std::vector<float> &rmse)
+	{
+		if (vid1.sz != vid2.sz)
+			throw std::runtime_error("VideoUtils::computeFramesPSNR: videos have different sizes");
+
+		psnr.resize(vid1.sz.frames);
+		rmse.resize(vid1.sz.frames);
+
+		for (unsigned f = 0, i = 0; f < vid1.sz.frames; ++f)
+		{
+			double sum = 0.f;
+			for (unsigned k = 0; k < vid1.sz.whc; k++, i++)
+				sum += ((double)vid1(i) - (double)vid2(i)) *
+						 ((double)vid1(i) - (double)vid2(i));
+
+			rmse[f] = sqrtf(sum / (double) vid1.sz.whc);
+			psnr[f] = 20.f * log10f(255.f / rmse[f]);
+		}
+
+		return;
+	}
 	
 	/**
 	 * @brief Compute a difference image between i_vid1 and i_vid2.

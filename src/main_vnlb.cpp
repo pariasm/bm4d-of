@@ -50,7 +50,7 @@ int main(int argc, char **argv)
 
 	//! General parameters
 	const float sigma = clo_option("-sigma", 0.f, "Add noise of standard deviation sigma");
-	const bool has_noise = (bool) clo_option("-has-noise", false, "> input image already has noise");
+	const bool has_noise = (bool) clo_option("-has-noise", true, "> input image already has noise");
 	const bool verbose   = (bool) clo_option("-verbose"  , true , "> verbose output");
 	const bool order_inv = (bool) clo_option("-order-inv", false, "> invariance to patch order in stack");
 	const unsigned print_prms = (unsigned) clo_option("-print-prms", 0, "> prints parameters for given channels");

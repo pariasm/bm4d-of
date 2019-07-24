@@ -1,23 +1,22 @@
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin)
 
-# internal includes
-include_directories(${CMAKE_SOURCE_DIR})
-include_directories(${CMAKE_SOURCE_DIR}/utils)
-include_directories(${CMAKE_SOURCE_DIR}/core)
+add_executable(bm4d-of main_vnlb.cpp)
+add_executable(awgn awgn.cpp)
+add_executable(psnr psnr.cpp)
 
-# external excludes
-#include_directories(${CBLAS_INCLUDE_DIR})
-include_directories(${IIO_INCLUDE_DIR})
-
-add_executable(nldct main_vnlb.cpp)
-
-#link_directories(${CMAKE_BINARY_DIR}/lib)
-target_link_libraries(nldct vnldct ${CBLAS_LIBRARIES})
-
-configure_file(scripts/nldct-mp4.sh   ${EXECUTABLE_OUTPUT_PATH}/nldct-mp4.sh   COPYONLY)
-configure_file(scripts/train.sh       ${EXECUTABLE_OUTPUT_PATH}/train.sh       COPYONLY)
-configure_file(scripts/train-video.sh ${EXECUTABLE_OUTPUT_PATH}/train-video.sh COPYONLY)
+target_link_libraries(bm4d-of vnldct ${CBLAS_LIBRARIES})
+target_link_libraries(awgn vnldct ${CBLAS_LIBRARIES})
+target_link_libraries(psnr vnldct ${CBLAS_LIBRARIES})
 
 # These are not necessary
 # ${IIO_LIBRARIES})
+
+### # internal includes
+### include_directories(${CMAKE_SOURCE_DIR})
+### include_directories(${CMAKE_SOURCE_DIR}/utils)
+### include_directories(${CMAKE_SOURCE_DIR}/core)
+
+# external excludes
+#include_directories(${CBLAS_INCLUDE_DIR})
+#include_directories(${IIO_INCLUDE_DIR})
 
