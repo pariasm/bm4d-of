@@ -257,87 +257,6 @@ void printNlbParameters(
  * processNlBayes on the subimage. The subimages are then assembled
  * into the final image.
  *
- * @param i_noisy: contains the noisy image;
- * @param o_basic: will contain the basic estimate image after the first step;
- * @param o_final: will contain the final denoised image after the second step;
- * @param p_useArea1 : if true, use the flat area trick for the first step;
- * @param p_useArea2 : if true, use the flat area trick for the second step;
- * @param p_sigma : standard deviation of the noise;
- * @param p_verbose : if true, print some informations.
- *
- * @return Percentage of processed groups over number of pixels.
- **/
-std::vector<float> runNlBayes(
-	Video<float> const& i_noisy
-,	Video<float> &o_basic
-,	Video<float> &o_final
-,	const bool p_useArea1
-,	const bool p_useArea2
-,	const float p_sigma
-,	const bool p_verbose
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-,	Video<float> & i_imClean
-#endif
-){
-	//! Video size
-	VideoSize size = i_noisy.sz;
-
-	//! Parameters Initialization
-	nlbParams p_prms1, p_prms2;
-	initializeNlbParameters(p_prms1, 1, p_sigma, size, p_verbose);
-	initializeNlbParameters(p_prms2, 2, p_sigma, size, p_verbose);
-
-	//! NL-Bayes
-#ifndef DEBUG_COMPUTE_GROUP_ERROR
-	return runNlBayes(i_noisy, o_basic, o_final, p_prms1, p_prms2);
-#else
-	return runNlBayes(i_noisy, o_basic, o_final, p_prms1, p_prms2, i_imClean);
-#endif
-}
-
-/**
- * @brief Main function to process the whole NL-Bayes algorithm.
- *
- * This function splits the image in several subimages when using
- * OpenMP. Each subimage is then assinged to a thread, which runs
- * processNlBayes on the subimage. The subimages are then assembled
- * into the final image.
- *
- * @param i_imNoisy: contains the noisy image;
- * @param o_imBasic: will contain the basic estimate image after the first step;
- * @param o_imFinal: will contain the final denoised image after the second step;
- * @param p_prms1  : parameters for first  step;
- * @param p_prms2  : parameters for second step;
- *
- * @return Percentage of processed groups over number of pixels.
- **/
-std::vector<float> runNlBayes(
-	Video<float> const &i_imNoisy
-,	Video<float> &o_imBasic
-,	Video<float> &o_imFinal
-,	const nlbParams p_prms1
-,	const nlbParams p_prms2
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-,  Video<float> &i_imClean
-#endif
-){
-#ifndef DEBUG_COMPUTE_GROUP_ERROR
-	return runNlBayes(i_imNoisy, Video<float>(), Video<float>(), 
-			o_imBasic, o_imFinal, p_prms1, p_prms2);
-#else
-	return runNlBayes(i_imNoisy, Video<float>(), Video<float>(), 
-			o_imBasic, o_imFinal, p_prms1, p_prms2, i_imClean);
-#endif
-}
-
-/**
- * @brief Main function to process the whole NL-Bayes algorithm.
- *
- * This function splits the image in several subimages when using
- * OpenMP. Each subimage is then assinged to a thread, which runs
- * processNlBayes on the subimage. The subimages are then assembled
- * into the final image.
- *
  * @param i_imNoisy: contains the noisy image;
  * @param o_imBasic: will contain the basic estimate image after the first step;
  * @param o_imFinal: will contain the final denoised image after the second step;
@@ -348,15 +267,12 @@ std::vector<float> runNlBayes(
  **/
 std::vector<float> runNlBayes(
 	Video<float> const& i_imNoisy
-,  Video<float> const& i_fflow
-,  Video<float> const& i_bflow
+,	Video<float> const& i_fflow
+,	Video<float> const& i_bflow
 ,	Video<float> &o_imBasic
 ,	Video<float> &o_imFinal
 ,	const nlbParams p_prms1
 ,	const nlbParams p_prms2
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-,	Video<float> & i_imClean
-#endif
 ){
 	//! Only 1, 3 or 4-channels images can be processed.
 	const unsigned chnls = i_imNoisy.sz.channels;
@@ -366,15 +282,15 @@ std::vector<float> runNlBayes(
 
 	//! Check if optical flow is valid
 	const bool use_oflow = (i_fflow.sz.width > 0);
-	if (use_oflow && 
-		(i_fflow.sz.channels != 2 || 
+	if (use_oflow &&
+		(i_fflow.sz.channels != 2 ||
 		 i_fflow.sz.width  != i_imNoisy.sz.width  ||
 		 i_fflow.sz.height != i_imNoisy.sz.height ||
 		 i_fflow.sz.frames != i_imNoisy.sz.frames))
 		throw std::runtime_error("VideoNLB::runNlBayes: Wrong size of fwd optical flow.");
 
-	if (use_oflow && 
-		(i_bflow.sz.channels != 2 || 
+	if (use_oflow &&
+		(i_bflow.sz.channels != 2 ||
 		 i_bflow.sz.width  != i_imNoisy.sz.width  ||
 		 i_bflow.sz.height != i_imNoisy.sz.height ||
 		 i_bflow.sz.frames != i_imNoisy.sz.frames))
@@ -461,13 +377,6 @@ std::vector<float> runNlBayes(
 			VideoUtils::subDivideTight(i_bflow, bflowSub, oflowCrops, p_prms1.boundary, nParts);
 		}
 
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-		if (p_prms1.colorSpace == YUV)
-			VideoUtils::transformColorSpace(i_imClean, true);
-		std::vector<Video<float> > imCleanSub(nParts);
-		VideoUtils::subDivideTight(i_imClean, imCleanSub, imCrops, p_prms1.boundary, nParts);
-#endif
-
 		//! Process all sub-images
 		std::vector<Video<float> > imBasicSub(nParts);
 		std::vector<Video<float> > imFinalSub(nParts);
@@ -482,14 +391,8 @@ std::vector<float> runNlBayes(
 #endif
 		for (int n = 0; n < (int)nParts; n++)
 			groupsProcessedSub[n] = 
-#ifndef DEBUG_COMPUTE_GROUP_ERROR
 				processNlBayes(imNoisySub[n], fflowSub[n], bflowSub[n],
 				               imBasicSub[n], imFinalSub[n], p_prms1, imCrops[n]);
-#else
-				processNlBayes(imNoisySub[n], fflowSub[n], bflowSub[n],
-				               imBasicSub[n], imFinalSub[n], imCleanSub[n],
-				               p_prms1, imCrops[n]);
-#endif
 
 		//! Get the basic estimate
 		VideoUtils::subBuildTight(imBasicSub, o_imBasic, p_prms1.boundary);
@@ -498,90 +401,8 @@ std::vector<float> runNlBayes(
 		if (p_prms1.colorSpace == YUV)
 			VideoUtils::transformColorSpace(o_imBasic, false);
 
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-		if (p_prms1.colorSpace == YUV)
-			VideoUtils::transformColorSpace(i_imClean, false);
-#endif
-
 		for (int n = 0; n < (int)nParts; n++)
 			groupsRatio[0] += 100.f * (float)groupsProcessedSub[n]/(float)imSize.whf;
-
-#ifdef DEBUG_SHOW_WEIGHT
-		{
-			std::vector<Video<float> > subWeights(nParts);
-
-			// First load all weight sequences
-			for (int n = 0; n < (int)nParts; n++)
-			{
-				// Build file name
-				int part_x = imCrops[n].tile_x;
-				int part_y = imCrops[n].tile_y;
-				int part_t = imCrops[n].tile_t;
-				char name[1024];
-				sprintf(name, "dump/weight_step1_%d.%d.%d_%%03d.tif", part_x, part_y, part_t);
-
-				int part_frames = imCrops[n].ending_t - part_t;
-				subWeights[n].loadVideo(name, 1, part_frames, 1);
-			}
-
-			// Call set build
-			Video<float> weight(imSize.width, imSize.height, imSize.frames);
-			VideoUtils::subBuildTight(subWeights, weight, p_prms1.boundary);
-
-			// Write to disk
-			weight.saveVideo("wei1_%03d.tif", 1);
-		}
-		{
-			std::vector<Video<float> > subVars(nParts);
-
-			// First load all weight sequences
-			for (int n = 0; n < (int)nParts; n++)
-			{
-				// Build file name
-				int part_x = imCrops[n].tile_x;
-				int part_y = imCrops[n].tile_y;
-				int part_t = imCrops[n].tile_t;
-				char name[1024];
-				sprintf(name, "dump/var_step1_%d.%d.%d_%%03d.tif", part_x, part_y, part_t);
-
-				int part_frames = imCrops[n].ending_t - part_t;
-				subVars[n].loadVideo(name, 1, part_frames, 1);
-			}
-
-			// Call set build
-			Video<float> variance(imSize.width, imSize.height, imSize.frames);
-			VideoUtils::subBuildTight(subVars, variance, p_prms1.boundary);
-
-			// Write to disk
-			variance.saveVideo("var1_%03d.tif", 1);
-		}
- #ifdef DEBUG_COMPUTE_GROUP_ERROR
-		{
-			std::vector<Video<float> > subVars(nParts);
-
-			// First load all weight sequences
-			for (int n = 0; n < (int)nParts; n++)
-			{
-				// Build file name
-				int part_x = imCrops[n].tile_x;
-				int part_y = imCrops[n].tile_y;
-				int part_t = imCrops[n].tile_t;
-				char name[1024];
-				sprintf(name, "dump/pge_step1_%d.%d.%d_%%03d.tif", part_x, part_y, part_t);
-
-				int part_frames = imCrops[n].ending_t - part_t;
-				subVars[n].loadVideo(name, 1, part_frames, 1);
-			}
-
-			// Call set build
-			Video<float> variance(imSize.width, imSize.height, imSize.frames);
-			VideoUtils::subBuildTight(subVars, variance, p_prms1.boundary);
-
-			// Write to disk
-			variance.saveVideo("pge1_%03d.tif", 1);
-		}
- #endif
-#endif
 
 	}
 
@@ -620,13 +441,6 @@ std::vector<float> runNlBayes(
 			VideoUtils::subDivideTight(i_bflow, bflowSub, oflowCrops, p_prms2.boundary, nParts);
 		}
 
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-		if (p_prms2.colorSpace == YUV)
-			VideoUtils::transformColorSpace(i_imClean, true);
-		std::vector<Video<float> > imCleanSub(nParts);
-		VideoUtils::subDivideTight(i_imClean, imCleanSub, imCrops, p_prms2.boundary, nParts);
-#endif
-
 		//! Process all sub-images
 		std::vector<Video<float> > imFinalSub(nParts);
 		std::vector<float> groupsProcessedSub(nParts);
@@ -641,14 +455,8 @@ std::vector<float> runNlBayes(
 		for (int n = 0; n < (int) nParts; n++)
 		{
 			groupsProcessedSub[n] = 
-#ifndef DEBUG_COMPUTE_GROUP_ERROR
 				processNlBayes(imNoisySub[n], fflowSub[n], bflowSub[n],
 				               imBasicSub[n], imFinalSub[n], p_prms2, imCrops[n]);
-#else
-				processNlBayes(imNoisySub[n], fflowSub[n], bflowSub[n],
-				               imBasicSub[n], imFinalSub[n], imCleanSub[n],
-				               p_prms2, imCrops[n]);
-#endif
 		}
 
 		//! Get the final result
@@ -661,90 +469,9 @@ std::vector<float> runNlBayes(
 			VideoUtils::transformColorSpace(o_imFinal, false);
 		}
 
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-		if (p_prms2.colorSpace == YUV)
-			VideoUtils::transformColorSpace(i_imClean, false);
-#endif
-
 		for (int n = 0; n < (int)nParts; n++)
 			groupsRatio[1] += 100.f * (float)groupsProcessedSub[n]/(float)imSize.whf;
 
-#ifdef DEBUG_SHOW_WEIGHT
-		{
-			std::vector<Video<float> > subWeights(nParts);
-
-			// First load all weight sequences
-			for (int n = 0; n < (int)nParts; n++)
-			{
-				// Build file name
-				int part_x = imCrops[n].tile_x;
-				int part_y = imCrops[n].tile_y;
-				int part_t = imCrops[n].tile_t;
-				char name[1024];
-				sprintf(name, "dump/weight_step2_%d.%d.%d_%%03d.tif", part_x, part_y, part_t);
-
-				int part_frames = imCrops[n].ending_t - part_t;
-				subWeights[n].loadVideo(name, 1, part_frames, 1);
-			}
-
-			// Call set build
-			Video<float> weight(imSize.width, imSize.height, imSize.frames);
-			VideoUtils::subBuildTight(subWeights, weight, p_prms2.boundary);
-
-			// Write to disk
-			weight.saveVideo("wei2_%03d.tif", 1);
-		}
-		{
-			std::vector<Video<float> > subVars(nParts);
-
-			// First load all weight sequences
-			for (int n = 0; n < (int)nParts; n++)
-			{
-				// Build file name
-				int part_x = imCrops[n].tile_x;
-				int part_y = imCrops[n].tile_y;
-				int part_t = imCrops[n].tile_t;
-				char name[1024];
-				sprintf(name, "dump/var_step2_%d.%d.%d_%%03d.tif", part_x, part_y, part_t);
-
-				int part_frames = imCrops[n].ending_t - part_t;
-				subVars[n].loadVideo(name, 1, part_frames, 1);
-			}
-
-			// Call set build
-			Video<float> variance(imSize.width, imSize.height, imSize.frames);
-			VideoUtils::subBuildTight(subVars, variance, p_prms2.boundary);
-
-			// Write to disk
-			variance.saveVideo("var2_%03d.tif", 1);
-		}
- #ifdef DEBUG_COMPUTE_GROUP_ERROR
-		{
-			std::vector<Video<float> > subVars(nParts);
-
-			// First load all weight sequences
-			for (int n = 0; n < (int)nParts; n++)
-			{
-				// Build file name
-				int part_x = imCrops[n].tile_x;
-				int part_y = imCrops[n].tile_y;
-				int part_t = imCrops[n].tile_t;
-				char name[1024];
-				sprintf(name, "dump/pge_step2_%d.%d.%d_%%03d.tif", part_x, part_y, part_t);
-
-				int part_frames = imCrops[n].ending_t - part_t;
-				subVars[n].loadVideo(name, 1, part_frames, 1);
-			}
-
-			// Call set build
-			Video<float> variance(imSize.width, imSize.height, imSize.frames);
-			VideoUtils::subBuildTight(subVars, variance, p_prms2.boundary);
-
-			// Write to disk
-			variance.saveVideo("pge2_%03d.tif", 1);
-		}
- #endif
-#endif
 		if (p_prms2.verbose) printf("\n");
 	}
 
@@ -767,9 +494,6 @@ unsigned processNlBayes(
 ,	Video<float> const& i_bflow
 ,	Video<float> &io_imBasic
 ,	Video<float> &o_imFinal
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-,	Video<float> const& i_imClean
-#endif
 ,	nlbParams const& p_params
 ,	VideoUtils::CropPosition p_crop
 ){
@@ -829,19 +553,6 @@ unsigned processNlBayes(
 		}
 	}
 
-
-#ifdef DEBUG_SHOW_WEIGHT
-	{
-		int part_x = p_crop.tile_x;
-		int part_y = p_crop.tile_y;
-		int part_t = p_crop.tile_t;
-		char name[1024];
-		Video<float> mask_f(mask.sz);
-		for (int i = 0; i < mask.sz.whcf; ++i) mask_f(i) = 255*(float)mask(i);
-		sprintf(name, "dump/msk_step%d_%d.%d.%d_%%03d.png", step1 ? 1 : 2, part_x, part_y, part_t);
-		mask_f.saveVideo(name, 1, 1);
-	}
-#endif
 
 	//! Used matrices during Bayes' estimate
 	const unsigned patch_dim = step1 ? sPx * sPx * sPt : sPx * sPx * sPt * sz.channels;
@@ -1029,9 +740,6 @@ unsigned processNlBayes(
 
 	//! Variance captured by the principal components
 	Video<float> variance(mask.sz);
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-	Video<float> group_error(mask.sz);
-#endif
 
 
 	//! Total number of groups of similar patches processed
@@ -1045,9 +753,6 @@ unsigned processNlBayes(
 		//! Matrices used for Bayes' estimate
 		vector<vector<float> > group(sz.channels, vector<float>(patch_num * patch_dim));
 		vector<vector<float> > aggreWeights(sz.channels, vector<float>(patch_num, 1.f));
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-		vector<vector<float> > groupClean(sz.channels, vector<float>(patch_num * patch_dim));
-#endif
 
 		int remaining_groups = n_groups;
 		for (unsigned pt = 0; pt < sz.frames; pt++)
@@ -1077,29 +782,12 @@ unsigned processNlBayes(
 				}
 
 				//! Search for similar patches around the reference one
-#ifndef DEBUG_COMPUTE_GROUP_ERROR
 				unsigned nSimP = estimateSimilarPatchesStep1(i_imNoisy, i_fflow, i_bflow,
 						group, index, ij3, p_params);
-#else
-				unsigned nSimP = estimateSimilarPatchesStep1(i_imNoisy, i_fflow, i_bflow,
-						group, index, ij3, p_params, i_imClean, groupClean);
-#endif
 
 				//! Bayes' estimate
 				variance(ij) = computeBayesEstimateStep1(group, mat,
 						nInverseFailed, p_params, nSimP, aggreWeights);
-
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-				{
-					float groupError = 0, tmp;
-					for (int c = 0; c < sz.channels; ++c)
-					for (int i = 0; i < nSimP * patch_dim; ++i)
-						groupError += (tmp = group[c][i] - groupClean[c][i])*tmp;
-
-					groupError /= (float)(sz.channels*nSimP*patch_dim);
-					group_error(ij) = sqrtf(groupError);
-				}
-#endif
 
 				//! Aggregation
 				remaining_groups -=
@@ -1135,9 +823,6 @@ unsigned processNlBayes(
 		vector<float> groupNoisy(patch_num * patch_dim);
 		vector<float> groupBasic(patch_num * patch_dim);
 		vector<float> aggreWeights(patch_num, 1.f);
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-		vector<float> groupClean(patch_num * patch_dim);
-#endif
 
 		int remaining_groups = n_groups;
 		for (unsigned pt = 0; pt < sz.frames; pt++)
@@ -1167,29 +852,12 @@ unsigned processNlBayes(
 				}
 
 				//! Search for similar patches around the reference one
-#ifndef DEBUG_COMPUTE_GROUP_ERROR
 				unsigned nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic,
 						i_fflow, i_bflow, groupNoisy, groupBasic, index, ij3, p_params);
-#else
-				unsigned nSimP = estimateSimilarPatchesStep2(i_imNoisy, io_imBasic,
-						i_fflow, i_bflow, groupNoisy, groupBasic, index, ij3, p_params,
-						i_imClean, groupClean);
-#endif
 
 				//! Bayes' estimate
 				variance(ij) = computeBayesEstimateStep2(groupNoisy, groupBasic,
 						mat, nInverseFailed, sz, p_params, nSimP, aggreWeights);
-
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-				{
-					float groupError = 0, tmp;
-					for (int i = 0; i < nSimP * patch_dim; ++i)
-						groupError += (tmp = groupNoisy[i] - groupClean[i])*tmp;
-
-					groupError /= (float)(nSimP*patch_dim);
-					group_error(ij) = sqrtf(groupError);
-				}
-#endif
 
 				//! Aggregation
 				remaining_groups -=
@@ -1219,38 +887,6 @@ unsigned processNlBayes(
 	if (nInverseFailed > 0 && p_params.verbose)
 		std::cout << "nInverseFailed = " << nInverseFailed << std::endl;
 
-#ifdef DEBUG_SHOW_WEIGHT
-	{
-		int part_x = p_crop.tile_x;
-		int part_y = p_crop.tile_y;
-		int part_t = p_crop.tile_t;
-		char name[1024];
-		sprintf(name, "dump/weight_step%d_%d.%d.%d_%%03d.tif",
-				step1 ? 1 : 2, part_x, part_y, part_t);
-		weight.saveVideo(name, 1, 1);
-	}
-	{
-		int part_x = p_crop.tile_x;
-		int part_y = p_crop.tile_y;
-		int part_t = p_crop.tile_t;
-		char name[1024];
-		sprintf(name, "dump/var_step%d_%d.%d.%d_%%03d.tif",
-				step1 ? 1 : 2, part_x, part_y, part_t);
-		variance.saveVideo(name, 1, 1);
-	}
- #ifdef DEBUG_COMPUTE_GROUP_ERROR
-	{
-		int part_x = p_crop.tile_x;
-		int part_y = p_crop.tile_y;
-		int part_t = p_crop.tile_t;
-		char name[1024];
-		sprintf(name, "dump/pge_step%d_%d.%d.%d_%%03d.tif",
-				step1 ? 1 : 2, part_x, part_y, part_t);
-		group_error.saveVideo(name, 1, 1);
-	}
- #endif
-#endif
-
 	return group_counter;
 }
 
@@ -1274,10 +910,6 @@ unsigned estimateSimilarPatchesStep1(
 ,	std::vector<unsigned> &index
 ,	const unsigned pidx
 ,	const nlbParams &params
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-,	Video<float> const& imClean
-,	std::vector<std::vector<float> > & groupClean
-#endif
 ){
 	const int sPx   = params.sizePatch;
 	const int sPt   = params.sizePatchTime;
@@ -1495,15 +1127,6 @@ unsigned estimateSimilarPatchesStep1(
 	 * spt,spx,spx pixels from all patches
 	 */
 
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-	for (unsigned c  = 0; c < im.sz.channels; c++)
-	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
-	for (unsigned hy = 0;        hy < sPx; hy++)
-	for (unsigned hx = 0;        hx < sPx; hx++)
-	for (unsigned n  = 0; n < nSimP; n++, k++)
-		groupClean[c][k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
-#endif
-
 	return nSimP;
 }
 #else
@@ -1526,10 +1149,6 @@ unsigned estimateSimilarPatchesStep1(
 ,	std::vector<unsigned> &index
 ,	const unsigned pidx
 ,	const nlbParams &params
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-,	Video<float> const& imClean
-,	std::vector<std::vector<float> > & groupClean
-#endif
 ){
 	const int sPx   = params.sizePatch;
 	const int sPt   = params.sizePatchTime;
@@ -1699,15 +1318,6 @@ unsigned estimateSimilarPatchesStep1(
 	 * spt,spx,spx pixels from all patches
 	 */
 
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-	for (unsigned c  = 0; c < im.sz.channels; c++)
-	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
-	for (unsigned hy = 0;        hy < sPx; hy++)
-	for (unsigned hx = 0;        hx < sPx; hx++)
-	for (unsigned n  = 0; n < nSimP; n++, k++)
-		groupClean[c][k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
-#endif
-
 	return nSimP;
 }
 #endif
@@ -1739,10 +1349,6 @@ unsigned estimateSimilarPatchesStep2(
 ,	std::vector<unsigned> &index
 ,	const unsigned pidx
 ,	const nlbParams &params
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-,	Video<float> const& imClean
-,	std::vector<float> & groupClean
-#endif
 ){
 	const VideoSize sz = imNoisy.sz;
 	const int sPx   = params.sizePatch;
@@ -1951,9 +1557,6 @@ unsigned estimateSimilarPatchesStep2(
 	{
 		groupNoisy[k] = imNoisy(c * wh + index[n] + ht * whc + hy * w + hx);
 		groupBasic[k] = imBasic(c * wh + index[n] + ht * whc + hy * w + hx);
- #ifdef DEBUG_COMPUTE_GROUP_ERROR
-		groupClean[k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
- #endif
 	}
 
 	return nSimP;
@@ -1985,10 +1588,6 @@ unsigned estimateSimilarPatchesStep2(
 ,	std::vector<unsigned> &index
 ,	const unsigned pidx
 ,	const nlbParams &params
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-,	Video<float> const& imClean
-,	std::vector<float> & groupClean
-#endif
 ){
 	const VideoSize sz = imNoisy.sz;
 	const int sPx   = params.sizePatch;
@@ -2146,9 +1745,6 @@ unsigned estimateSimilarPatchesStep2(
 	{
 		groupNoisy[k] = imNoisy(c * wh + index[n] + ht * whc + hy * w + hx);
 		groupBasic[k] = imBasic(c * wh + index[n] + ht * whc + hy * w + hx);
- #ifdef DEBUG_COMPUTE_GROUP_ERROR
-		groupClean[k] = imClean(c * wh + index[n] + ht * whc + hy * w + hx);
- #endif
 	}
 
 	return nSimP;
@@ -2313,11 +1909,11 @@ float computeBayesEstimateStep1_vbm3d(
  *
  * @param io_group: contains all similar patches. Will contain estimates for all similar patches;
  * @param i_mat: contains :
- *		- groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
- *		- baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
- *		- covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
- *		- covMatTmp: allocated memory. Used to process the Bayes estimate;
- *		- tmpMat: allocated memory. Used to process the Bayes estimate;
+ *    - groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
+ *    - baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
+ *    - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
+ *    - covMatTmp: allocated memory. Used to process the Bayes estimate;
+ *    - tmpMat: allocated memory. Used to process the Bayes estimate;
  * @param io_nInverseFailed: update the number of failed matrix inversion;
  * @param p_params: see processStep1 for more explanation.
  * @param p_nSimP: number of similar patches.
@@ -2778,13 +2374,6 @@ int computeAggregationStep2(
 			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
 			if (px >     2*sPx) io_mask(ind1 - 1) = false;
 			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
-
-#ifdef DEBUG_SHOW_WEIGHT
-			if (py >     2*sPx) variance(ind1 - w) = variance(ind1);
-			if (py < h - 2*sPx) variance(ind1 + w) = variance(ind1);
-			if (px >     2*sPx) variance(ind1 - 1) = variance(ind1);
-			if (px < w - 2*sPx) variance(ind1 + 1) = variance(ind1);
-#endif
 		}
 	}
 

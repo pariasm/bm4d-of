@@ -16,10 +16,6 @@
 #include "../utils/lib_videot.hpp"
 #include "../utils/utilities.h"
 
-//#define DEBUG_SHOW_WEIGHT
-//#define DEBUG_COMPUTE_GROUP_ERROR
-//#define DEBUG_SHOW_PATCH_GROUPS
-
 /* Use VBM3D predictive search. */
 #define VBM3D_SEARCH
 
@@ -231,56 +227,6 @@ void printNlbParameters(
  * @brief Main function to process the whole NL-Bayes algorithm.
  *
  * @param i_imNoisy: contains the noisy video;
- * @param o_imBasic: will contain the basic estimate image after the first step;
- * @param o_imFinal: will contain the final denoised image after the second step;
- * @param p_useArea1 : if true, use the homogeneous area trick for the first step;
- * @param p_useArea2 : if true, use the homogeneous area trick for the second step;
- * @param p_sigma : standard deviation of the noise;
- * @param p_verbose : if true, print some informations.
- *
- * @return Percentage of processed groups over number of pixels.
- **/
-std::vector<float> runNlBayes(
-	Video<float> const& i_imNoisy
-,	Video<float> &o_imBasic
-,	Video<float> &o_imFinal
-,	const bool p_useArea1
-,	const bool p_useArea2
-,	const float p_sigma
-,	const bool p_verbose
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-,	Video<float> & i_imClean
-#endif
-);
-
-/**
- * @brief Main function to process the whole NL-Bayes algorithm.
- *
- * @param i_imNoisy: contains the noisy video;
- * @param o_imBasic: will contain the basic estimate image after the first step;
- * @param o_imFinal: will contain the final denoised image after the second step;
- * @param p_sigma : standard deviation of the noise;
- * @param p_verbose : if true, print some informations.
- * @param p_params1 : parameters for first step
- * @param p_params1 : parameters for second step
- *
- * @return Percentage of processed groups over number of pixels.
- **/
-std::vector<float> runNlBayes(
-	Video<float> const& i_imNoisy
-,	Video<float> &o_imBasic
-,	Video<float> &o_imFinal
-,	const nlbParams p_params1
-,	const nlbParams p_params2
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-,	Video<float> & i_imClean
-#endif
-);
-
-/**
- * @brief Main function to process the whole NL-Bayes algorithm.
- *
- * @param i_imNoisy: contains the noisy video;
  * @param i_fflow  : forward optical flow;
  * @param i_bflow  : backward optical flow;
  * @param o_imBasic: will contain the basic estimate image after the first step;
@@ -298,9 +244,6 @@ std::vector<float> runNlBayes(
 ,	Video<float> &o_imFinal
 ,	const nlbParams p_params1
 ,	const nlbParams p_params2
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-,  Video<float> &i_imClean
-#endif
 );
 
 /**
@@ -310,17 +253,17 @@ std::vector<float> runNlBayes(
  * @param io_imBasic: will contain the denoised image after the first step (basic estimation);
  * @param o_imFinal: will contain the denoised image after the second step;
  * @param p_params: parameters of the method, contains:
- *			- sigma: standard deviation of the noise;
- *			- sizePatch: size of patches (sizePatch x sizePatch);
- *			- nSimilarPatches: number of similar patches;
- *			- sizeSearchWindow: size of the neighbourhood searching window;
- *			- useHomogeneousArea: if true, the trick of using homogeneous area will be used;
- *			- gamma: parameter used to determine if we are in an homogeneous area;
- *			- maxAvoid: parameter used to stop the paste trick;
- *			- beta: parameter used during the estimate of the denoised patch;
- *			- coefBaricenter: parameter to determine if the covariance matrix inversion is correct;
- *			- isFirstStep: true if it's the first step of the algorithm which is needed;
- *			- verbose: if true, print some informations, do nothing otherwise.
+ *    - sigma: standard deviation of the noise;
+ *    - sizePatch: size of patches (sizePatch x sizePatch);
+ *    - nSimilarPatches: number of similar patches;
+ *    - sizeSearchWindow: size of the neighbourhood searching window;
+ *    - useHomogeneousArea: if true, the trick of using homogeneous area will be used;
+ *    - gamma: parameter used to determine if we are in an homogeneous area;
+ *    - maxAvoid: parameter used to stop the paste trick;
+ *    - beta: parameter used during the estimate of the denoised patch;
+ *    - coefBaricenter: parameter to determine if the covariance matrix inversion is correct;
+ *    - isFirstStep: true if it's the first step of the algorithm which is needed;
+ *    - verbose: if true, print some informations, do nothing otherwise.
  *
  * @return Percentage of processed groups over number of pixels.
  **/
@@ -330,9 +273,6 @@ unsigned processNlBayes(
 ,	Video<float> const& i_bflow
 ,	Video<float> &io_imBasic
 ,	Video<float> &o_imFinal
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-,	Video<float> const& i_imClean
-#endif
 ,	nlbParams const& p_params
 ,	VideoUtils::CropPosition p_crop = VideoUtils::CropPosition()
 );
@@ -356,10 +296,6 @@ unsigned estimateSimilarPatchesStep1(
 ,	std::vector<unsigned> &o_index
 ,	const unsigned p_ij
 ,	const nlbParams &p_params
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-,	Video<float> const& i_imClean
-,	std::vector<std::vector<float> > & o_groupClean
-#endif
 );
 
 /**
@@ -385,17 +321,13 @@ unsigned estimateSimilarPatchesStep2(
 ,	std::vector<unsigned> &o_index
 ,	const unsigned p_ij
 ,	const nlbParams &p_params
-#ifdef DEBUG_COMPUTE_GROUP_ERROR
-,	Video<float> const& i_imClean
-,	std::vector<float> & o_groupClean
-#endif
 );
 
 /**
  * @brief Detect if we are in an homogeneous area. In this case, compute the mean.
  *
  * @param io_group: contains for each channels values of similar patches. If an homogeneous area
- *			is detected, will contain the average of all pixels in similar patches;
+ *                  is detected, will contain the average of all pixels in similar patches;
  * @param p_sP2: size of each patch (sP x sP);
  * @param p_nSimP: number of similar patches;
  * @param p_threshold: threshold below which an area is declared homogeneous;
@@ -439,11 +371,11 @@ int computeHomogeneousAreaStep2(
  *
  * @param io_group: contains all similar patches. Will contain estimates for all similar patches;
  * @param i_mat: contains :
- *		- groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
- *		- baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
- *		- covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
- *		- covMatTmp: allocated memory. Used to process the Bayes estimate;
- *		- tmpMat: allocated memory. Used to process the Bayes estimate;
+ *       - groupTranspose: allocated memory. Used to contain the transpose of io_groupNoisy;
+ *       - baricenter: allocated memory. Used to contain the baricenter of io_groupBasic;
+ *       - covMat: allocated memory. Used to contain the covariance matrix of the 3D group;
+ *       - covMatTmp: allocated memory. Used to process the Bayes estimate;
+ *       - tmpMat: allocated memory. Used to process the Bayes estimate;
  * @param io_nInverseFailed: update the number of failed matrix inversion;
  * @param p_params: see processStep1 for more explanation.
  * @param p_nSimP: number of similar patches.
