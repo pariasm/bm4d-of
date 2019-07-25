@@ -17,13 +17,13 @@
 #include "../utils/utilities.h"
 
 /* Use VBM3D predictive search. */
-#define VBM3D_SEARCH
+//#define VBM3D_SEARCH
 
 /* Use VBM3D 3D transform. */
 #define VBM3D_HAAR_TRANSFORM
 
 /* Emulate the full VBM3D algorithm (defines the previous VBM3D_* flags) */
-#define VBM3D
+//#define VBM3D
 
 
 
