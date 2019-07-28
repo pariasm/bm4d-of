@@ -99,7 +99,7 @@ int main(int argc, char **argv)
 		if ((patch_sizex1 < 0 && patch_sizex1 != -1) ||
 		    (patch_sizex2 < 0 && patch_sizex2 != -1) ||
 		    (patch_sizet1 < 0 || patch_sizet2 <   0) )
-			fprintf(stderr, "%s: px1, px2, pt1 and pt2 cannot be negative.\n"
+			return fprintf(stderr, "%s: px1, px2, pt1 and pt2 cannot be negative.\n"
 					"Try `%s --help' for more information.\n", argv[0], argv[0]), EXIT_FAILURE;
 
 		if ((num_patches1 < 0 && num_patches1 != -1) ||
@@ -169,9 +169,9 @@ int main(int argc, char **argv)
 		if (num_patches_f2  >= 0) prms2.nSimilarPatchesPred = num_patches_f2;
 		if (dsub1           >= 0) prms1.dsub = dsub1;
 		if (dsub2           >= 0) prms2.dsub = dsub2;
+#endif
 		if (tau1            >= 0) prms1.tau = tau1;
 		if (tau2            >= 0) prms2.tau = tau2;
-#endif
 		if (agg_win1) prms1.agg_window = true;
 		if (agg_win2) prms2.agg_window = true;
 

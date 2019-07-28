@@ -178,7 +178,6 @@ void setSizeSearchWindow(nlbParams& prms, unsigned sizeSearchWindow)
  **/
 void setSizePatch(nlbParams& prms, const VideoSize &size, unsigned sizePatch)
 {
-	int sizePatch_old = prms.sizePatch;
 	prms.sizePatch = sizePatch;
 	prms.boundary = 2*(prms.sizeSearchWindow/2) + (prms.sizePatch - 1);
 
@@ -223,7 +222,6 @@ void printNlbParameters(
 	int px = p.sizePatch, pt = p.sizePatchTime;
 	int wtb = p.sizeSearchTimeRangeBwd, wtf = p.sizeSearchTimeRangeBwd;
 	int wx  = p.sizeSearchWindow;
-	int wxpred = p.sizeSearchWindowPred;
 
 	printf("\x1b[37;01m" "Parameters for step %d:" ANSI_RST "\n" , p.isFirstStep ? 1 : 2);
 	printf("\tPatch search:\n");
@@ -233,6 +231,7 @@ void printNlbParameters(
 	printf("\t\tTemporal search window      = [-%d,%d]\n" , wtb, wtf);
 	printf("\t\tDistance threshold (tau)    = %g\n"       , p.tau);
 #ifdef VBM3D_SEARCH
+	int wxpred = p.sizeSearchWindowPred;
 	printf("\t\tPred. spatial search window = %dx%d\n"    , wxpred, wxpred);
 	printf("\t\tPred. distance bias (dsub)  = %g\n"       , p.dsub);
 	printf("\t\tSimilar patches per frame   = %d\n"       , p.nSimilarPatchesPred);
@@ -316,12 +315,12 @@ std::vector<float> runNlBayes(
 
 
 	//! Number of available cores
-	unsigned nThreads = 1;
+	int nThreads = 1;
 #ifdef _OPENMP
 	nThreads = omp_get_max_threads();
 	if (p_prms1.verbose) printf(ANSI_CYN "OpenMP is using %d threads\n" ANSI_RST, nThreads);
 #endif
-	const unsigned nParts = 2 * nThreads;
+	const int nParts = 2 * nThreads;
 
 	//! Video size
 	VideoSize imSize = i_imNoisy.sz;
@@ -1198,7 +1197,16 @@ unsigned estimateSimilarPatchesStep1(
 		for (int qt = pt+1; qt <= ranget[1]; ++qt) srch_ranget.push_back(qt);
 		for (int qt = pt-1; qt >= ranget[0]; --qt) srch_ranget.push_back(qt);
 
-		//! Trajectory of search center
+		//! Store reference patch
+		std::vector<float> refpatch(sPx*sPx*sPt, 0.f);
+		{
+			for (int ht = 0, k = 0; ht < sPt; ht++)
+			for (int hy = 0       ; hy < sPx; hy++)
+			for (int hx = 0       ; hx < sPx; hx++, k++)
+				refpatch[k] = im(px + hx, py + hy, pt + ht);
+		}
+
+		//! Trajectory of search region center
 		std::vector<int> cx(sWt,0), cy(sWt,0), ct(sWt,0);
 
 		//! Search
@@ -1254,13 +1262,12 @@ unsigned estimateSimilarPatchesStep1(
 			for (int qy = rangey[0], dy = 0; qy <= rangey[1]; qy++, dy++)
 			for (int qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
 			{
-				//! Squared L2 distance
 				float dist = 0.f, dif;
-				for (int ht = 0; ht < sPt; ht++)
-				for (int hy = 0; hy < sPx; hy++)
-				for (int hx = 0; hx < sPx; hx++)
-					dist += (dif = im(px + hx, py + hy, pt + ht)
-					             - im(qx + hx, qy + hy, qt + ht)) * dif;
+				//! Squared L2 distance
+				for (int ht = 0, k = 0; ht < sPt; ht++)
+				for (int hy = 0       ; hy < sPx; hy++)
+				for (int hx = 0       ; hx < sPx; hx++, k++)
+					dist += (dif = refpatch[k] - im(qx + hx, qy + hy, qt + ht)) * dif;
 
 				//! Save distance and corresponding patch index
 				distance[nsrch++] = std::make_pair(dist, sz.index(qx, qy, qt, 0));
@@ -1314,6 +1321,7 @@ unsigned estimateSimilarPatchesStep1(
 //			printf("d[%03d] = %g - p = [%02d,%02d,%02d,%2d]\n", i, distance[i].first,
 //					cx, cy, ct, cc);
 //		}
+
 	}
 	else // nSimilarPatches == 1
 		index[0] = pidx;
@@ -1322,6 +1330,7 @@ unsigned estimateSimilarPatchesStep1(
 	const unsigned w   = im.sz.width;
 	const unsigned wh  = im.sz.wh;
 	const unsigned whc = im.sz.whc;
+
 	for (unsigned c  = 0; c < im.sz.channels; c++)
 	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
 	for (unsigned hy = 0;        hy < sPx; hy++)
@@ -1632,8 +1641,8 @@ unsigned estimateSimilarPatchesStep2(
 		ranget[0] = std::max(0, (int)pt -  sWt_b);
 		ranget[1] = std::min((int)sz.frames - sPt, (int)pt + sWt_f);
 #else
-		int shift_t = std::min(0, (int)pt -  sWt_b)  
-		            + std::max(0, (int)pt +  sWt_f - (int)sz.frames + sPt); 
+		int shift_t = std::min(0, (int)pt -  sWt_b)
+		            + std::max(0, (int)pt +  sWt_f - (int)sz.frames + sPt);
 
 		ranget[0] = std::max(0, (int)pt - sWt_b - shift_t);
 		ranget[1] = std::min((int)sz.frames - sPt, (int)pt +  sWt_f - shift_t);
@@ -1697,11 +1706,11 @@ unsigned estimateSimilarPatchesStep2(
 			rangex[1] = std::min((int)sz.width  - sPx, cx[dt] + (sWx-1)/2);
 			rangey[1] = std::min((int)sz.height - sPx, cy[dt] + (sWy-1)/2);
 #else
-			int shift_x = std::min(0, cx[dt] - (sWx-1)/2); 
-			int shift_y = std::min(0, cy[dt] - (sWy-1)/2); 
+			int shift_x = std::min(0, cx[dt] - (sWx-1)/2);
+			int shift_y = std::min(0, cy[dt] - (sWy-1)/2);
 
-			shift_x += std::max(0, cx[dt] + (sWx-1)/2 - (int)sz.width  + sPx); 
-			shift_y += std::max(0, cy[dt] + (sWy-1)/2 - (int)sz.height + sPx); 
+			shift_x += std::max(0, cx[dt] + (sWx-1)/2 - (int)sz.width  + sPx);
+			shift_y += std::max(0, cy[dt] + (sWy-1)/2 - (int)sz.height + sPx);
 
 			rangex[0] = std::max(0, cx[dt] - (sWx-1)/2 - shift_x);
 			rangey[0] = std::max(0, cy[dt] - (sWy-1)/2 - shift_y);
@@ -2284,7 +2293,7 @@ int computeAggregationStep1(
 			{
 				const unsigned ij = ind  + c * wh;
 				// XXX NOTE: we only use aggregWeights[0] to avoid color artifacts XXX
-				io_im(ij + pt * whc + py * w + px) += 
+				io_im(ij + pt * whc + py * w + px) +=
 					aggreWeights[0][n] * aggreWindow[i] * i_group[c][i * p_nSimP + n];
 			}
 			io_weight(ind1 + pt * wh + py * w + px) += aggreWeights[0][n] * aggreWindow[i];
@@ -2313,7 +2322,7 @@ int computeAggregationStep1(
 		}
 	}
 
-	if (!p_params.doPasteBoost) 
+	if (!p_params.doPasteBoost)
 	{
 		masked++;
 		io_mask(i_index[0]) = false;
@@ -2406,7 +2415,7 @@ int computeAggregationStep2(
 		}
 	}
 
-	if (!p_params.doPasteBoost) 
+	if (!p_params.doPasteBoost)
 	{
 		masked++;
 		io_mask(i_index[0]) = false;
