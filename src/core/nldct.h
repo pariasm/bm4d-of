@@ -25,6 +25,8 @@
 /* Emulate the full VBM3D algorithm (defines the previous VBM3D_* flags) */
 //#define VBM3D
 
+/* Motion compensated 3D patches */
+//#define MC_PATCHES
 
 
 namespace VideoNLB
