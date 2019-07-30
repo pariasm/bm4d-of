@@ -26,7 +26,7 @@
 //#define VBM3D
 
 /* Motion compensated 3D patches */
-//#define MC_PATCHES
+#define MC_PATCHES
 
 
 namespace VideoNLB

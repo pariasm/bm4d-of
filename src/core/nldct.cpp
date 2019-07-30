@@ -1155,6 +1155,8 @@ unsigned estimateSimilarPatchesStep1(
 ,	const unsigned pidx
 ,	const nlbParams &params
 ){
+	bool mc_patches = true;
+
 	const VideoSize sz = im.sz;
 	const int sPx   = params.sizePatch;
 	const int sPt   = params.sizePatchTime;
@@ -1207,8 +1209,6 @@ unsigned estimateSimilarPatchesStep1(
 		//! Store reference patch
 		std::vector<float> refpatch(sPx*sPx*sPt, 0.f);
 		{
-			bool mc_patches = true;
-
 			//! Initial temporal slice
 			int k = 0;
 			for (int hy = 0; hy < sPx; hy++)
@@ -1298,7 +1298,6 @@ unsigned estimateSimilarPatchesStep1(
 			for (int qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
 			{
 				float dist = 0.f, dif;
-				bool mc_patches = true;
 
 				//! Initial temporal slice
 				std::vector<float>::const_iterator p_refpatch = refpatch.begin();
@@ -1316,30 +1315,32 @@ unsigned estimateSimilarPatchesStep1(
 
 				//! Remaninig temporal slices
 				float cx = qx + sPx/2, cy = qy + sPx/2;
-				int cx0 = round(cx), cy0 = round(cy);
+				int cx0 = qx, cy0 = qy;
 				for (int ht = 1; ht < sPt; ht++)
 				{
-					//! Integrate optical flow to new patch center
-					cx += (mc_patches ? fflow(cx0, cy0, qt + ht - 1, 0) : 0.f);
-					cy += (mc_patches ? fflow(cx0, cy0, qt + ht - 1, 1) : 0.f);
-					cx = std::max(float(sPx/2), std::min(float(sz.width  + sPx/2 - sPx), cx));
-					cy = std::max(float(sPx/2), std::min(float(sz.height + sPx/2 - sPx), cy));
+					if (mc_patches)
+					{
+						//! Integrate optical flow to new patch center
+						cx += fflow(cx0 + sPx/2, cy0 + sPx/2, qt + ht - 1, 0);
+						cy += fflow(cx0 + sPx/2, cy0 + sPx/2, qt + ht - 1, 1);
+						cx = std::max(float(sPx/2), std::min(float(sz.width  + sPx/2 - sPx), cx));
+						cy = std::max(float(sPx/2), std::min(float(sz.height + sPx/2 - sPx), cy));
+						cx0 = round(cx) - sPx/2; cy0 = round(cy) - sPx/2;
+					}
 
-					cx0 = round(cx); cy0 = round(cy);
 					for (int hy = 0; hy < sPx; hy++)
 					for (int hx = 0; hx < sPx; hx++, ++p_refpatch)
 					{
-						if (cx0 - sPx/2 + hx >= im.sz.width ||
-							 cy0 - sPx/2 + hy >= im.sz.height ||
-							 qt + ht          >= im.sz.frames)
-							printf("c0 = [%d,%d,%d] - h=[%d,%d,%d] - [%d,%d,%d]\n",
-									cx0, cy0, qt, hx,hy,ht, cx0 - sPx/2 + hx, cy0 - sPx/2 + hy, qt + ht);
-						dist += (dif = *p_refpatch -
-								im(cx0 - sPx/2 + hx, cy0 - sPx/2 + hy, qt + ht)) * dif;
+//						if (cx0 - sPx/2 + hx >= im.sz.width ||
+//							 cy0 - sPx/2 + hy >= im.sz.height ||
+//							 qt + ht          >= im.sz.frames)
+//							printf("c0 = [%d,%d,%d] - h=[%d,%d,%d] - [%d,%d,%d]\n",
+//									cx0, cy0, qt, hx,hy,ht, cx0 - sPx/2 + hx, cy0 - sPx/2 + hy, qt + ht);
+						dist += (dif = *p_refpatch - im(cx0 + hx, cy0 + hy, qt + ht)) * dif;
 					}
 
-					traj[ht*3 + 1] = cx0 - sPx/2;
-					traj[ht*3 + 2] = cy0 - sPx/2;
+					traj[ht*3 + 1] = cx0;
+					traj[ht*3 + 2] = cy0;
 					traj[ht*3 + 3] = qt + ht;
 				}
 
@@ -1372,8 +1373,6 @@ unsigned estimateSimilarPatchesStep1(
 	}
 	else // nSimilarPatches == 1
 	{
-		bool mc_patches = true;
-
 		//! Initial temporal slice
 		float cx = px + sPx/2, cy = py + sPx/2;
 		int cx0 = round(cx), cy0 = round(cy);
@@ -1422,18 +1421,18 @@ unsigned estimateSimilarPatchesStep1(
 	for (unsigned n  = 0; n < nSimP; n++, k++)
 	{
 		int offset = 3*sPt*n + 3*ht;
-		if (index[offset + 0] + hx >= im.sz.width ||
-		    index[offset + 1] + hy >= im.sz.height ||
-		    index[offset + 2]      >= im.sz.frames)
-			printf("n = %d - [%d,%d,%d]\n", n, index[offset + 0] + hx,
-			                                   index[offset + 1] + hy,
-								                    index[offset + 2]);
-		if (index[offset + 0] + hx < 0 ||
-		    index[offset + 1] + hy < 0 ||
-		    index[offset + 2]      < 0 )
-			printf("n = %d - [%d,%d,%d]\n", n, index[offset + 0] + hx,
-			                                   index[offset + 1] + hy,
-								                    index[offset + 2]);
+//		if (index[offset + 0] + hx >= im.sz.width ||
+//		    index[offset + 1] + hy >= im.sz.height ||
+//		    index[offset + 2]      >= im.sz.frames)
+//			printf("n = %d - [%d,%d,%d]\n", n, index[offset + 0] + hx,
+//			                                   index[offset + 1] + hy,
+//								                    index[offset + 2]);
+//		if (index[offset + 0] + hx < 0 ||
+//		    index[offset + 1] + hy < 0 ||
+//		    index[offset + 2]      < 0 )
+//			printf("n = %d - [%d,%d,%d]\n", n, index[offset + 0] + hx,
+//			                                   index[offset + 1] + hy,
+//								                    index[offset + 2]);
 		group[c][k] = im(index[offset + 0] + hx,
 		                 index[offset + 1] + hy,
 							  index[offset + 2], c);
@@ -1925,6 +1924,8 @@ unsigned estimateSimilarPatchesStep2(
 ,	const unsigned pidx
 ,	const nlbParams &params
 ){
+	bool mc_patches = true;
+
 	const VideoSize sz = imNoisy.sz;
 	const int sPx   = params.sizePatch;
 	const int sPt   = params.sizePatchTime;
@@ -1978,8 +1979,6 @@ unsigned estimateSimilarPatchesStep2(
 		//! Store reference patch
 		std::vector<float> refpatch(sPx*sPx*sPt*chnls, 0.f);
 		{
-			bool mc_patches = true;
-
 			//! Initial temporal slice
 			int k = 0;
 			for (int hy = 0; hy < sPx; hy++)
@@ -2063,7 +2062,6 @@ unsigned estimateSimilarPatchesStep2(
 			for (int qx = rangex[0], dx = 0; qx <= rangex[1]; qx++, dx++)
 			{
 				float dist = 0.f, dif;
-				bool mc_patches = true;
 
 				//! Initial temporal slice
 				std::vector<float>::const_iterator p_refpatch = refpatch.begin();
@@ -2082,31 +2080,32 @@ unsigned estimateSimilarPatchesStep2(
 
 				//! Remaninig temporal slices
 				float cx = qx + sPx/2, cy = qy + sPx/2;
-				int cx0 = round(cx), cy0 = round(cy);
+				int cx0 = qx, cy0 = qy;
 				for (int ht = 1; ht < sPt; ht++)
 				{
-					//! Integrate optical flow to new patch center
-					cx += (mc_patches ? fflow(cx0, cy0, qt + ht - 1, 0) : 0.f);
-					cy += (mc_patches ? fflow(cx0, cy0, qt + ht - 1, 1) : 0.f);
-					cx = std::max(float(sPx/2), std::min(float(sz.width  + sPx/2 - sPx), cx));
-					cy = std::max(float(sPx/2), std::min(float(sz.height + sPx/2 - sPx), cy));
-
-					cx0 = round(cx); cy0 = round(cy);
+					if (mc_patches)
+					{
+						//! Integrate optical flow to new patch center
+						cx += fflow(cx0 + sPx/2, cy0 + sPx/2, qt + ht - 1, 0);
+						cy += fflow(cx0 + sPx/2, cy0 + sPx/2, qt + ht - 1, 1);
+						cx = std::max(float(sPx/2), std::min(float(sz.width  + sPx/2 - sPx), cx));
+						cy = std::max(float(sPx/2), std::min(float(sz.height + sPx/2 - sPx), cy));
+						cx0 = round(cx) - sPx/2; cy0 = round(cy) - sPx/2;
+					}
 					for (int hy = 0; hy < sPx; hy++)
 					for (int hx = 0; hx < sPx; hx++)
 					for (int c = 0; c < chnls; c++, ++p_refpatch)
 					{
-						if (cx0 - sPx/2 + hx >= sz.width ||
-							 cy0 - sPx/2 + hy >= sz.height ||
-							 qt + ht          >= sz.frames)
-							printf("c0 = [%d,%d,%d] - h=[%d,%d,%d] - [%d,%d,%d]\n",
-									cx0, cy0, qt, hx,hy,ht, cx0 - sPx/2 + hx, cy0 - sPx/2 + hy, qt + ht);
-						dist += (dif = *p_refpatch -
-								imBasic(cx0 - sPx/2 + hx, cy0 - sPx/2 + hy, qt + ht)) * dif;
+//						if (cx0 - sPx/2 + hx >= sz.width ||
+//							 cy0 - sPx/2 + hy >= sz.height ||
+//							 qt + ht          >= sz.frames)
+//							printf("c0 = [%d,%d,%d] - h=[%d,%d,%d] - [%d,%d,%d]\n",
+//									cx0, cy0, qt, hx,hy,ht, cx0 - sPx/2 + hx, cy0 - sPx/2 + hy, qt + ht);
+						dist += (dif = *p_refpatch - imBasic(cx0 + hx, cy0 + hy, qt + ht)) * dif;
 					}
 
-					traj[ht*3 + 1] = cx0 - sPx/2;
-					traj[ht*3 + 2] = cy0 - sPx/2;
+					traj[ht*3 + 1] = cx0;
+					traj[ht*3 + 2] = cy0;
 					traj[ht*3 + 3] = qt + ht;
 				}
 
@@ -2139,8 +2138,6 @@ unsigned estimateSimilarPatchesStep2(
 	}
 	else // nSimilarPatches == 1
 	{
-		bool mc_patches = true;
-
 		//! Initial temporal slice
 		float cx = px + sPx/2, cy = py + sPx/2;
 		int cx0 = round(cx), cy0 = round(cy);
