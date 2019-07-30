@@ -785,7 +785,7 @@ unsigned processNlBayes(
 
 				//! Aggregation
 				remaining_groups -=
-					computeAggregationStep1(io_imBasic, weight, mask, groupNoisy,
+					computeAggregation(io_imBasic, weight, mask, groupNoisy,
 							aggreWeights, mat.agg_window, index, p_params, nSimP);
 			}
 
@@ -855,8 +855,8 @@ unsigned processNlBayes(
 
 				//! Aggregation
 				remaining_groups -=
-					computeAggregationStep2(o_imFinal, weight, mask, groupNoisy,
-						aggreWeights, mat.agg_window, variance, index, p_params, nSimP);
+					computeAggregation(o_imFinal, weight, mask, groupNoisy,
+						aggreWeights, mat.agg_window, index, p_params, nSimP);
 			}
 
 		//! Weighted aggregation
@@ -2099,12 +2099,12 @@ not_equal:
  * @param aggreWeights: input aggregation weights.
  * @param index: contains index of all similar patches contained in group;
  * @param imSize: size of im;
- * @param params: see processStep1 for more explanation.
+ * @param params: see processStep2 for more explanation;
  * @param nSimP: number of similar patches.
  *
  * @return masked: number of processable pixels that were flaged non-processable.
  **/
-int computeAggregationStep1(
+int computeAggregation(
 	Video<float> &im
 ,	Video<float> &weight
 ,	Video<char>  &mask
@@ -2153,9 +2153,9 @@ int computeAggregationStep1(
 		if (params.doPasteBoost)
 		{
 			unsigned offset = n*sPt*3;
-			unsigned px = index[n*sPt*3 + 0];
-			unsigned py = index[n*sPt*3 + 1];
-			unsigned pt = index[n*sPt*3 + 2];
+			unsigned px = index[offset + 0];
+			unsigned py = index[offset + 1];
+			unsigned pt = index[offset + 2];
 
 			if (mask(px,py,pt)) masked++;
 			mask(px,py,pt) = false;
@@ -2191,197 +2191,18 @@ int computeAggregationStep1(
  * @param aggreWeights: input aggregation weights.
  * @param i_index: contains index of all similar patches contained in i_group;
  * @param p_imSize: size of io_im;
- * @param p_params: see processStep1 for more explanation.
- * @param p_nSimP: number of similar patches.
- *
- * @return masked: number of processable pixels that were flaged non-processable.
- **/
-int computeAggregationStep1(
-	Video<float> &io_im
-,	Video<float> &io_weight
-,	Video<char>  &io_mask
-,	std::vector<float> const& i_group
-,	std::vector<float> const& aggreWeights
-,	std::vector<float> const& aggreWindow
-,	std::vector<unsigned> const& i_index
-,	const nlbParams &p_params
-,	const unsigned p_nSimP
-){
-	//! Parameters initializations
-	const unsigned chnls = io_im.sz.channels;
-	const unsigned sPx   = p_params.sizePatch;
-	const unsigned sPt   = p_params.sizePatchTime;
-
-	const unsigned w   = io_im.sz.width;
-	const unsigned h   = io_im.sz.height;
-	const unsigned wh  = io_im.sz.wh;
-	const unsigned whc = io_im.sz.whc;
-	const unsigned sPC = sPx*sPx*sPt;
-
-	//! Aggregate estimates
-	int masked = 0;
-	for (unsigned n = 0; n < p_nSimP; n++)
-	{
-		const unsigned ind = i_index[n];
-		for (unsigned c = 0, k = 0; c < chnls; c++)
-		{
-			const unsigned ij = ind  + c * wh;
-			for (unsigned pt = 0, i = 0; pt < sPt; pt++)
-			for (unsigned py = 0       ; py < sPx; py++)
-			for (unsigned px = 0       ; px < sPx; px++, k++, i++)
-				io_im(ij + pt * whc + py * w + px) +=
-					aggreWeights[n] * aggreWindow[i] * i_group[k * p_nSimP + n];
-		}
-
-		const unsigned ind1 = (ind / whc) * wh + ind % wh;
-		for (unsigned pt = 0, i = 0; pt < sPt; pt++)
-		for (unsigned py = 0       ; py < sPx; py++)
-		for (unsigned px = 0       ; px < sPx; px++, i++)
-			io_weight(ind1 + pt * wh + py * w + px) += aggreWeights[n] * aggreWindow[i];
-
-		//! Use Paste Trick
-		unsigned px, py, pt;
-		io_mask.sz.coords(ind1, px, py, pt);
-
-		// TODO Modify this part so that if the weight are small enough, the
-		//      patch is not deactivated
-		if (p_params.doPasteBoost)
-		{
-			if (io_mask(ind1)) masked++;
-			io_mask(ind1) = false;
-
-			if ((py >     2*sPx) && io_mask(ind1 - w)) masked++;
-			if ((py < h - 2*sPx) && io_mask(ind1 + w)) masked++;
-			if ((px >     2*sPx) && io_mask(ind1 - 1)) masked++;
-			if ((px < w - 2*sPx) && io_mask(ind1 + 1)) masked++;
-
-			if (py >     2*sPx) io_mask(ind1 - w) = false;
-			if (py < h - 2*sPx) io_mask(ind1 + w) = false;
-			if (px >     2*sPx) io_mask(ind1 - 1) = false;
-			if (px < w - 2*sPx) io_mask(ind1 + 1) = false;
-		}
-	}
-
-	if (!p_params.doPasteBoost)
-	{
-		masked++;
-		io_mask(i_index[0]) = false;
-	}
-
-	return masked;
-}
-#endif //MC_PATCHES
-
-#ifdef MC_PATCHES
-/**
- * @brief Aggregate estimates of all similar patches contained in the 3D group.
- *
- * @param im: update the image with estimate values;
- * @param weight: update corresponding weight, used later in the weighted aggregation;
- * @param mask: update values of mask: set to true the index of an used patch;
- * @param group: contains estimated values of all similar patches in the 3D group;
- * @param aggreWeights: input aggregation weights.
- * @param index: contains index of all similar patches contained in group;
- * @param imSize: size of im;
- * @param params: see processStep2 for more explanation;
- * @param nSimP: number of similar patches.
- *
- * @return masked: number of processable pixels that were flaged non-processable.
- **/
-int computeAggregationStep2(
-	Video<float> &im
-,	Video<float> &weight
-,	Video<char>  &mask
-,	std::vector<float> const& group
-,	std::vector<float> const& aggreWeights
-,	std::vector<float> const& aggreWindow
-,	Video<float> &variance
-,	std::vector<unsigned> const& index
-,	const nlbParams &params
-,	const unsigned nSimP
-){
-	//! Parameters initializations
-	const unsigned chnls = im.sz.channels;
-	const unsigned sPx   = params.sizePatch;
-	const unsigned sPt   = params.sizePatchTime;
-
-	const unsigned w   = im.sz.width;
-	const unsigned h   = im.sz.height;
-	const unsigned wh  = im.sz.wh;
-	const unsigned whc = im.sz.whc;
-	const unsigned sPC = sPx*sPx*sPt;
-
-	int masked = 0;
-
-	//! Aggregate estimates
-	for (unsigned n = 0; n < nSimP; n++)
-	{
-		for (unsigned c = 0, k = 0; c < chnls; c++)
-		for (unsigned ht = 0, i = 0; ht < sPt; ht++)
-		{
-			unsigned px = index[sPt*3*n + 3*ht + 0];
-			unsigned py = index[sPt*3*n + 3*ht + 1];
-			unsigned pt = index[sPt*3*n + 3*ht + 2];
-			for (unsigned hy = 0; hy < sPx; hy++)
-			for (unsigned hx = 0; hx < sPx; hx++, i++, k++)
-			{
-				im(px + hx, py + hy, pt, c) +=
-					aggreWeights[n] * aggreWindow[i] * group[k * nSimP + n];
-
-				if (c == 0) weight(px + hx, py + hy, pt) += aggreWeights[n] * aggreWindow[i];
-			}
-
-			//! Use Paste Trick
-			if (c == 0 && ht == 0 && params.doPasteBoost)
-			{
-				if (mask(px,py,pt)) masked++;
-				mask(px,py,pt) = false;
-
-				if ((px >     2*sPx) && mask(px - 1, py, pt)) masked++;
-				if ((px < w - 2*sPx) && mask(px + 1, py, pt)) masked++;
-				if ((py >     2*sPx) && mask(px, py - 1, pt)) masked++;
-				if ((py < h - 2*sPx) && mask(px, py + 1, pt)) masked++;
-
-				if (px >     2*sPx) mask(px - 1, py, pt) = false;
-				if (px < w - 2*sPx) mask(px + 1, py, pt) = false;
-				if (py >     2*sPx) mask(px, py - 1, pt) = false;
-				if (py < h - 2*sPx) mask(px, py + 1, pt) = false;
-			}
-		}
-	}
-
-	if (!params.doPasteBoost)
-	{
-		masked++;
-		mask(index[0], index[1], index[2]) = false;
-	}
-
-	return masked;
-}
-#else //MC_PATCHES
-/**
- * @brief Aggregate estimates of all similar patches contained in the 3D group.
- *
- * @param io_im: update the image with estimate values;
- * @param io_weight: update corresponding weight, used later in the weighted aggregation;
- * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group: contains estimated values of all similar patches in the 3D group;
- * @param aggreWeights: input aggregation weights.
- * @param i_index: contains index of all similar patches contained in i_group;
- * @param p_imSize: size of io_im;
  * @param p_params: see processStep2 for more explanation;
  * @param p_nSimP: number of similar patches.
  *
  * @return masked: number of processable pixels that were flaged non-processable.
  **/
-int computeAggregationStep2(
+int computeAggregation(
 	Video<float> &io_im
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
 ,	std::vector<float> const& i_group
 ,	std::vector<float> const& aggreWeights
 ,	std::vector<float> const& aggreWindow
-,	Video<float> &variance
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
 ,	const unsigned p_nSimP

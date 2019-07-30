@@ -17,9 +17,9 @@
 #include "../utils/utilities.h"
 
 
-#define VBM3D_SEARCH             		// Use VBM3D predictive search
+//#define VBM3D_SEARCH             		// Use VBM3D predictive search
 #define VBM3D_HAAR_TRANSFORM     		// Use VBM3D 3D transform
-//#define MC_PATCHES               		// Motion compensated 3D patches
+#define MC_PATCHES               		// Motion compensated 3D patches
 
 namespace VideoNLB
 {
@@ -357,55 +357,28 @@ float computeBayesEstimateStep2(
 /**
  * @brief Aggregate estimates of all similar patches contained in the 3D group.
  *
- * @param io_im: update the video with estimate values;
- * @param io_weight: update corresponding weight, used later in the weighted aggregation;
- * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group: contains estimated values of all similar patches in the 3D group;
+ * @param im: update the video with estimate values;
+ * @param weight: update corresponding weight, used later in the weighted aggregation;
+ * @param mask: update values of mask: set to true the index of an used patch;
+ * @param group: contains estimated values of all similar patches in the 3D group;
  * @param aggreWeights: input aggregation weights.
- * @param i_index: contains index of all similar patches contained in i_group;
- * @param p_params: see processStep1 for more explanation.
- * @param p_nSimP: number of similar patches.
- *
- * @return masked: number of processable pixels that were flaged non-processable.
- **/
-int computeAggregationStep1(
-	Video<float> &io_im
-,	Video<float> &io_weight
-,	Video<char>  &io_mask
-,	std::vector<float> const& i_group
-,	std::vector<float> const& aggreWeights
-,	std::vector<float> const& aggreWindow
-,	std::vector<unsigned> const& i_index
-,	const nlbParams& p_params
-,	const unsigned p_nSimP
-);
-
-/**
- * @brief Aggregate estimates of all similar patches contained in the 3D group.
- *
- * @param io_im: update the video with estimate values;
- * @param io_weight: update corresponding weight, used later in the weighted aggregation;
- * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group: contains estimated values of all similar patches in the 3D group;
- * @param aggreWeights: input aggregation weights.
- * @param i_index: contains index of all similar patches contained in i_group;
- * @param p_params: see processStep2 for more explanation;
- * @param p_nSimP: number of similar patches.
+ * @param index: contains index of all similar patches contained in i_group;
+ * @param params: see processStep2 for more explanation;
+ * @param nSimP: number of similar patches.
  *
  * @return masked: number of processable pixels that were flaged non-processable.
  *
  **/
-int computeAggregationStep2(
-	Video<float> &io_im
-,	Video<float> &io_weight
-,	Video<char>  &io_mask
-,	std::vector<float> const& i_group
+int computeAggregation(
+	Video<float> &im
+,	Video<float> &weight
+,	Video<char>  &mask
+,	std::vector<float> const& group
 ,	std::vector<float> const& aggreWeights
 ,	std::vector<float> const& aggreWindow
-,	Video<float> &variance
-,	std::vector<unsigned> const& i_index
-,	const nlbParams& p_params
-,	const unsigned p_nSimP
+,	std::vector<unsigned> const& index
+,	const nlbParams& params
+,	const unsigned nSimP
 );
 
 /**
