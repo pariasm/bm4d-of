@@ -298,15 +298,11 @@ std::vector<float> runNlBayes(
 	//! Print compiler options
 	if (p_prms1.verbose)
 	{
-#ifdef VBM3D
-		printf(ANSI_BCYN "VBM3D > Emulating VBM3D (grayscale)\n" ANSI_RST);
-#else
-	#ifdef VBM3D_SEARCH
+#ifdef VBM3D_SEARCH
 		printf(ANSI_BCYN "VBM3D_SEARCH > Using VBM3D predictive patch search\n" ANSI_RST);
-	#endif
-	#ifdef VBM3D_HAAR_TRANSFORM
+#endif
+#ifdef VBM3D_HAAR_TRANSFORM
 		printf(ANSI_BCYN "VBM3D_HAAR_TRANSFORM > Using VBM3D 3D transform\n" ANSI_RST);
-	#endif
 #endif
 #ifdef USE_BETA_FOR_VARIANCE
 		printf(ANSI_BCYN "USE_BETA_FOR_VARIANCE > Noise correction in step 1 applied both MAP and variances.\n" ANSI_RST);
@@ -908,7 +904,7 @@ unsigned estimateSimilarPatchesStep1(
 	Video<float> const& im
 ,	Video<float> const& fflow
 ,	Video<float> const& bflow
-,	std::vector<std::vector<float> > &group
+,	std::vector<float> &group
 ,	std::vector<unsigned> &index
 ,	const unsigned pidx
 ,	const nlbParams &params
@@ -1116,12 +1112,12 @@ unsigned estimateSimilarPatchesStep1(
 	const unsigned w   = im.sz.width;
 	const unsigned wh  = im.sz.wh;
 	const unsigned whc = im.sz.whc;
-	for (unsigned c  = 0; c < im.sz.channels; c++)
-	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
-	for (unsigned hy = 0;        hy < sPx; hy++)
-	for (unsigned hx = 0;        hx < sPx; hx++)
+	for (unsigned c  = 0, k = 0; c < im.sz.channels; c++)
+	for (unsigned ht = 0; ht < sPt; ht++)
+	for (unsigned hy = 0; hy < sPx; hy++)
+	for (unsigned hx = 0; hx < sPx; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
-		group[c][k] = im(c * wh + index[n] + ht * whc + hy * w + hx);
+		group[k] = im(c * wh + index[n] + ht * whc + hy * w + hx);
 
 	/* 000  pixels from all patches
 	 * 001  pixels from all patches
@@ -1148,7 +1144,7 @@ unsigned estimateSimilarPatchesStep1(
 	Video<float> const& im
 ,	Video<float> const& fflow
 ,	Video<float> const& bflow
-,	std::vector<std::vector<float> > &group
+,	std::vector<float> &group
 ,	std::vector<unsigned> &index
 ,	const unsigned pidx
 ,	const nlbParams &params
@@ -1412,10 +1408,10 @@ unsigned estimateSimilarPatchesStep1(
 	const unsigned wh  = im.sz.wh;
 	const unsigned whc = im.sz.whc;
 
-	for (unsigned c  = 0; c < im.sz.channels; c++)
-	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
-	for (unsigned hy = 0;        hy < sPx; hy++)
-	for (unsigned hx = 0;        hx < sPx; hx++)
+	for (unsigned c = 0, k = 0; c < im.sz.channels; c++)
+	for (unsigned ht = 0; ht < sPt; ht++)
+	for (unsigned hy = 0; hy < sPx; hy++)
+	for (unsigned hx = 0; hx < sPx; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
 	{
 		int offset = 3*sPt*n + 3*ht;
@@ -1424,16 +1420,16 @@ unsigned estimateSimilarPatchesStep1(
 //		    index[offset + 2]      >= im.sz.frames)
 //			printf("n = %d - [%d,%d,%d]\n", n, index[offset + 0] + hx,
 //			                                   index[offset + 1] + hy,
-//								                    index[offset + 2]);
+//			                                   index[offset + 2]);
 //		if (index[offset + 0] + hx < 0 ||
 //		    index[offset + 1] + hy < 0 ||
 //		    index[offset + 2]      < 0 )
 //			printf("n = %d - [%d,%d,%d]\n", n, index[offset + 0] + hx,
 //			                                   index[offset + 1] + hy,
-//								                    index[offset + 2]);
-		group[c][k] = im(index[offset + 0] + hx,
-		                 index[offset + 1] + hy,
-							  index[offset + 2], c);
+//			                                   index[offset + 2], c);
+		group[k] = im(index[offset + 0] + hx,
+		              index[offset + 1] + hy,
+		              index[offset + 2], c);
 	}
 
 	/* 000  pixels from all patches
@@ -2845,8 +2841,8 @@ int computeAggregationStep1(
 	Video<float> &im
 ,	Video<float> &weight
 ,	Video<char>  &mask
-,	std::vector<std::vector<float> > const& group
-,	std::vector<std::vector<float> > const& aggreWeights
+,	std::vector<float> const& group
+,	std::vector<float> const& aggreWeights
 ,	std::vector<float> const& aggreWindow
 ,	std::vector<unsigned> const& index
 ,	const nlbParams &params
@@ -2863,44 +2859,49 @@ int computeAggregationStep1(
 	const unsigned whc = im.sz.whc;
 	const unsigned sPC = sPx*sPx*sPt;
 
-	int masked = 0;
-
 	//! Aggregate estimates
-	unsigned offset = 0;
+	int masked = 0;
 	for (unsigned n = 0; n < nSimP; n++)
 	{
-		for (unsigned ht = 0, i = 0; ht < sPt; ht++)
+		for (unsigned c = 0, k = 0; c < chnls; c++)
 		{
-			unsigned px = index[offset++];
-			unsigned py = index[offset++];
-			unsigned pt = index[offset++];
-			for (unsigned hy = 0; hy < sPx; hy++)
-			for (unsigned hx = 0; hx < sPx; hx++, i++)
+			unsigned offset = n*sPt*3;
+			for (unsigned ht = 0, i = 0; ht < sPt; ht++)
 			{
-				// we use aggregWeights[0] to avoid color artifacts
-				for (unsigned c = 0; c < chnls; c++)
+				unsigned px = index[offset++];
+				unsigned py = index[offset++];
+				unsigned pt = index[offset++];
+				for (unsigned hy = 0; hy < sPx; hy++)
+				for (unsigned hx = 0; hx < sPx; hx++, i++, k++)
+				{
 					im(px + hx, py + hy, pt, c) +=
-						aggreWeights[0][n] * aggreWindow[i] * group[c][i * nSimP + n];
+						aggreWeights[n] * aggreWindow[i] * group[k * nSimP + n];
 
-				weight(px + hx, py + hy, pt) += aggreWeights[0][n] * aggreWindow[i];
+					if (c == 0) weight(px + hx, py + hy, pt) += aggreWeights[n] * aggreWindow[i];
+				}
 			}
+		}
 
-			//! Use Paste Trick
-			if (ht == 0 && params.doPasteBoost)
-			{
-				if (mask(px,py,pt)) masked++;
-				mask(px,py,pt) = false;
+		//! Use Paste Trick
+		if (params.doPasteBoost)
+		{
+			unsigned offset = n*sPt*3;
+			unsigned px = index[n*sPt*3 + 0];
+			unsigned py = index[n*sPt*3 + 1];
+			unsigned pt = index[n*sPt*3 + 2];
 
-				if ((px >     2*sPx) && mask(px - 1, py, pt)) masked++;
-				if ((px < w - 2*sPx) && mask(px + 1, py, pt)) masked++;
-				if ((py >     2*sPx) && mask(px, py - 1, pt)) masked++;
-				if ((py < h - 2*sPx) && mask(px, py + 1, pt)) masked++;
+			if (mask(px,py,pt)) masked++;
+			mask(px,py,pt) = false;
 
-				if (px >     2*sPx) mask(px - 1, py, pt) = false;
-				if (px < w - 2*sPx) mask(px + 1, py, pt) = false;
-				if (py >     2*sPx) mask(px, py - 1, pt) = false;
-				if (py < h - 2*sPx) mask(px, py + 1, pt) = false;
-			}
+			if ((px >     2*sPx) && mask(px - 1, py, pt)) masked++;
+			if ((px < w - 2*sPx) && mask(px + 1, py, pt)) masked++;
+			if ((py >     2*sPx) && mask(px, py - 1, pt)) masked++;
+			if ((py < h - 2*sPx) && mask(px, py + 1, pt)) masked++;
+
+			if (px >     2*sPx) mask(px - 1, py, pt) = false;
+			if (px < w - 2*sPx) mask(px + 1, py, pt) = false;
+			if (py >     2*sPx) mask(px, py - 1, pt) = false;
+			if (py < h - 2*sPx) mask(px, py + 1, pt) = false;
 		}
 	}
 

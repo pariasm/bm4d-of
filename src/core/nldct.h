@@ -16,18 +16,10 @@
 #include "../utils/lib_videot.hpp"
 #include "../utils/utilities.h"
 
-/* Use VBM3D predictive search. */
-//#define VBM3D_SEARCH
 
-/* Use VBM3D 3D transform. */
-#define VBM3D_HAAR_TRANSFORM
-
-/* Emulate the full VBM3D algorithm (defines the previous VBM3D_* flags) */
-//#define VBM3D
-
-/* Motion compensated 3D patches */
-//#define MC_PATCHES
-
+#define VBM3D_SEARCH             		// Use VBM3D predictive search
+#define VBM3D_HAAR_TRANSFORM     		// Use VBM3D 3D transform
+//#define MC_PATCHES               		// Motion compensated 3D patches
 
 namespace VideoNLB
 {
