@@ -113,7 +113,7 @@ struct matWorkspace
 	std::vector<double> svd_dU;    // left sing. vecs of X ~ eigen vecs of C
 	std::vector<double> svd_dV;    // right sing. vecs of X
 	std::vector<double> svd_dS;    // sing. values of X ~ sqrt of eigen vecs of C
-	std::vector<double> svd_ddata; // 
+	std::vector<double> svd_ddata; //
 	std::vector<double> svd_dwork;
 
 	// store a fixed patch basis (eg. DCT)
@@ -272,27 +272,6 @@ unsigned processNlBayes(
 );
 
 /**
- * @brief Estimate the best similar patches to a reference one.
- *
- * @param i_im: contains the noisy video on which distances are processed;
- * @param o_group: will contain values of similar patches;
- * @param o_index: will contain index of similar patches;
- * @param p_ij: index of the reference patch;
- * @param p_params: see processStep1 for more explanation.
- *
- * @return number of similar patches kept.
- **/
-unsigned estimateSimilarPatchesStep1(
-	Video<float> const& i_im
-,	Video<float> const& i_fflow
-,	Video<float> const& i_bflow
-,	std::vector<float> &o_group
-,	std::vector<unsigned> &o_index
-,	const unsigned p_ij
-,	const nlbParams &p_params
-);
-
-/**
  * @brief Keep from all near patches the similar ones to the reference patch for the second step.
  *
  * @param i_imNoisy: contains the original noisy video;
@@ -305,7 +284,7 @@ unsigned estimateSimilarPatchesStep1(
  *
  * @return number of similar patches kept.
  **/
-unsigned estimateSimilarPatchesStep2(
+unsigned estimateSimilarPatches(
 	Video<float> const& i_imNoisy
 ,	Video<float> const& i_imBasic
 ,	Video<float> const& i_fflow
