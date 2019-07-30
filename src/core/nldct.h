@@ -26,7 +26,7 @@
 //#define VBM3D
 
 /* Motion compensated 3D patches */
-#define MC_PATCHES
+//#define MC_PATCHES
 
 
 namespace VideoNLB
@@ -294,7 +294,7 @@ unsigned estimateSimilarPatchesStep1(
 	Video<float> const& i_im
 ,	Video<float> const& i_fflow
 ,	Video<float> const& i_bflow
-,	std::vector<std::vector<float> > &o_group
+,	std::vector<float> &o_group
 ,	std::vector<unsigned> &o_index
 ,	const unsigned p_ij
 ,	const nlbParams &p_params
@@ -343,12 +343,13 @@ unsigned estimateSimilarPatchesStep2(
  * @return none.
  **/
 float computeBayesEstimateStep1(
-	std::vector<std::vector<float> > &io_group
+	std::vector<float> &io_group
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
+,	const VideoSize &p_imSize
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
-,	std::vector<std::vector<float> > &aggreWeights 
+,	std::vector<float> &aggreWeights
 );
 
 /**
@@ -379,7 +380,7 @@ float computeBayesEstimateStep2(
 ,	const VideoSize &p_imSize
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
-,	std::vector<float> &aggreWeights 
+,	std::vector<float> &aggreWeights
 );
 
 /**
@@ -400,8 +401,8 @@ int computeAggregationStep1(
 	Video<float> &io_im
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
-,	std::vector<std::vector<float> > const& i_group
-,	std::vector<std::vector<float> > const& aggreWeights
+,	std::vector<float> const& i_group
+,	std::vector<float> const& aggreWeights
 ,	std::vector<float> const& aggreWindow
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams& p_params

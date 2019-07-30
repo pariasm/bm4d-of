@@ -748,8 +748,8 @@ unsigned processNlBayes(
 		io_imBasic.resize(sz);
 
 		//! Matrices used for Bayes' estimate
-		vector<vector<float> > group(sz.channels, vector<float>(patch_num * patch_dim));
-		vector<vector<float> > aggreWeights(sz.channels, vector<float>(patch_num, 1.f));
+		vector<float> group(patch_num * patch_dim * sz.channels);
+		vector<float> aggreWeights(patch_num, 1.f);
 
 		int remaining_groups = n_groups;
 		for (unsigned pt = 0; pt < sz.frames; pt++)
@@ -784,7 +784,7 @@ unsigned processNlBayes(
 
 				//! Bayes' estimate
 				variance(ij) = computeBayesEstimateStep1(group, mat,
-						nInverseFailed, p_params, nSimP, aggreWeights);
+						nInverseFailed, sz, p_params, nSimP, aggreWeights);
 
 				//! Aggregation
 				remaining_groups -=
@@ -1449,7 +1449,7 @@ unsigned estimateSimilarPatchesStep1(
 	Video<float> const& im
 ,	Video<float> const& fflow
 ,	Video<float> const& bflow
-,	std::vector<std::vector<float> > &group
+,	std::vector<float> &group
 ,	std::vector<unsigned> &index
 ,	const unsigned pidx
 ,	const nlbParams &params
@@ -1636,12 +1636,12 @@ unsigned estimateSimilarPatchesStep1(
 	const unsigned wh  = im.sz.wh;
 	const unsigned whc = im.sz.whc;
 
-	for (unsigned c  = 0; c < im.sz.channels; c++)
-	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
-	for (unsigned hy = 0;        hy < sPx; hy++)
-	for (unsigned hx = 0;        hx < sPx; hx++)
+	for (unsigned c = 0, k = 0; c < im.sz.channels; c++)
+	for (unsigned ht = 0; ht < sPt; ht++)
+	for (unsigned hy = 0; hy < sPx; hy++)
+	for (unsigned hx = 0; hx < sPx; hx++)
 	for (unsigned n  = 0; n < nSimP; n++, k++)
-		group[c][k] = im(c * wh + index[n] + ht * whc + hy * w + hx);
+		group[k] = im(c * wh + index[n] + ht * whc + hy * w + hx);
 
 	/* 000  pixels from all patches
 	 * 001  pixels from all patches
@@ -2376,12 +2376,13 @@ unsigned estimateSimilarPatchesStep2(
  * See computeBayesEstimateStep1 for information about the arguments.
  **/
 float computeBayesEstimateStep1_vbm3d(
-	std::vector<std::vector<float> > &io_group
+	std::vector<float> &io_group
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
+,	const VideoSize &p_imSize
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
-,	std::vector<std::vector<float> > &aggreWeights
+,	std::vector<float> &aggreWeights
 ){
 	//! Parameters initialization
 	const float beta_sigma = p_params.beta * p_params.sigma;
@@ -2399,8 +2400,11 @@ float computeBayesEstimateStep1_vbm3d(
 	//! Compute variance to determine the aggregation weight
 	float non_zero_coeffs = 0;
 
-	for (unsigned c = 0; c < io_group.size(); c++)
+	for (unsigned c = 0; c < p_imSize.channels; c++)
 	{
+		std::vector<float> group_c(io_group.begin() + sPC*p_nSimP * c   ,
+		                           io_group.begin() + sPC*p_nSimP *(c+1));
+
 		/* NOTE: io_groupNoisy, if read as a column-major matrix, contains in each
 		 * row a patch. Thus, in column-major storage it corresponds to X^T, where
 		 * each column of X contains a centered data point.
@@ -2417,7 +2421,7 @@ float computeBayesEstimateStep1_vbm3d(
 
 		//! Project over basis: Z' = X'*U
 		productMatrix(i_mat.groupTranspose,
-		              io_group[c],
+		              group_c,
 		              i_mat.patch_basis,
 		              p_nSimP, sPC, sPC,
 		              false, false);
@@ -2503,19 +2507,21 @@ float computeBayesEstimateStep1_vbm3d(
 		}
 
 		//! hX' = Z'*U'
-		productMatrix(io_group[c],
+		productMatrix(group_c,
 		              i_mat.groupTranspose,
 		              i_mat.patch_basis_inv,
 		              p_nSimP, sPC, sPC,
 		              false, true);
+
+		//! Copy channel back into vector
+		std::copy(group_c.begin(), group_c.end(),
+		          io_group.begin() + sPC*p_nSimP*c);
 	}
 
 	// aggregation weights
 	const float variance = 1/sigma2/(float)non_zero_coeffs;
-//	const float variance = 1.;
-	for (unsigned c = 0; c < io_group.size(); c++)
 	for (unsigned n = 0; n < p_nSimP; n++)
-		aggreWeights[c][n] = variance;
+		aggreWeights[n] = variance;
 
 	// return percentage of captured variance
 	return variance;
@@ -2539,12 +2545,13 @@ float computeBayesEstimateStep1_vbm3d(
  * @return none.
  **/
 float computeBayesEstimateStep1(
-	std::vector<std::vector<float> > &io_group
+	std::vector<float> &io_group
 ,	matWorkspace &i_mat
 ,	unsigned &io_nInverseFailed
+,	const VideoSize &p_size
 ,	nlbParams const& p_params
 ,	const unsigned p_nSimP
-,	std::vector<std::vector<float> > &aggreWeights 
+,	std::vector<float> &aggreWeights
 ){
 	/* In some images might have a dark noiseless frame (for instance the image
 	 * might be the result of a transformation, and a black region correspond to
@@ -2560,16 +2567,15 @@ float computeBayesEstimateStep1(
 	 * */
 
 	const unsigned sPC  = p_params.sizePatch * p_params.sizePatch
-	                    * p_params.sizePatchTime;
+	                    * p_params.sizePatchTime * p_size.channels;
 
 	if (p_nSimP > 1)
 	{
-		for (unsigned c = 0; c < io_group.size(); c++)
 		for (unsigned j = 0; j < sPC; j++)
 		{
-			float v = io_group[c][j * p_nSimP];
+			float v = io_group[j * p_nSimP];
 			for (unsigned i = 1; i < p_nSimP; i++)
-				if (v != io_group[c][j * p_nSimP + i])
+				if (v != io_group[j * p_nSimP + i])
 					goto not_equal;
 		}
 
@@ -2581,7 +2587,7 @@ not_equal:
 	//! Not all patches are equal ~ denoise
 	return
 		computeBayesEstimateStep1_vbm3d(io_group, i_mat,
-			io_nInverseFailed, p_params, p_nSimP, aggreWeights);
+			io_nInverseFailed, p_size, p_params, p_nSimP, aggreWeights);
 }
 
 /**
@@ -2800,7 +2806,6 @@ float computeBayesEstimateStep2(
 
 	if (p_nSimP > 1)
 	{
-		for (unsigned c = 0; c < io_groupNoisy.size(); c++)
 		for (unsigned j = 0; j < sPC; j++)
 		{
 			float v = io_groupNoisy[j * p_nSimP];
@@ -2927,8 +2932,8 @@ int computeAggregationStep1(
 	Video<float> &io_im
 ,	Video<float> &io_weight
 ,	Video<char>  &io_mask
-,	std::vector<std::vector<float> > const& i_group
-,	std::vector<std::vector<float> > const& aggreWeights
+,	std::vector<float> const& i_group
+,	std::vector<float> const& aggreWeights
 ,	std::vector<float> const& aggreWindow
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams &p_params
@@ -2945,26 +2950,26 @@ int computeAggregationStep1(
 	const unsigned whc = io_im.sz.whc;
 	const unsigned sPC = sPx*sPx*sPt;
 
-	int masked = 0;
-
 	//! Aggregate estimates
+	int masked = 0;
 	for (unsigned n = 0; n < p_nSimP; n++)
 	{
 		const unsigned ind = i_index[n];
+		for (unsigned c = 0, k = 0; c < chnls; c++)
+		{
+			const unsigned ij = ind  + c * wh;
+			for (unsigned pt = 0, i = 0; pt < sPt; pt++)
+			for (unsigned py = 0       ; py < sPx; py++)
+			for (unsigned px = 0       ; px < sPx; px++, k++, i++)
+				io_im(ij + pt * whc + py * w + px) +=
+					aggreWeights[n] * aggreWindow[i] * i_group[k * p_nSimP + n];
+		}
+
 		const unsigned ind1 = (ind / whc) * wh + ind % wh;
 		for (unsigned pt = 0, i = 0; pt < sPt; pt++)
 		for (unsigned py = 0       ; py < sPx; py++)
 		for (unsigned px = 0       ; px < sPx; px++, i++)
-		{
-			for (unsigned c = 0; c < chnls; c++)
-			{
-				const unsigned ij = ind  + c * wh;
-				// XXX NOTE: we only use aggregWeights[0] to avoid color artifacts XXX
-				io_im(ij + pt * whc + py * w + px) +=
-					aggreWeights[0][n] * aggreWindow[i] * i_group[c][i * p_nSimP + n];
-			}
-			io_weight(ind1 + pt * wh + py * w + px) += aggreWeights[0][n] * aggreWindow[i];
-		}
+			io_weight(ind1 + pt * wh + py * w + px) += aggreWeights[n] * aggreWindow[i];
 
 		//! Use Paste Trick
 		unsigned px, py, pt;
@@ -3124,11 +3129,9 @@ int computeAggregationStep2(
 	const unsigned whc = io_im.sz.whc;
 	const unsigned sPC = sPx*sPx*sPt;
 
-	unsigned nAgg = p_nSimP;
-
 	//! Aggregate estimates
 	int masked = 0;
-	for (unsigned n = 0; n < nAgg; n++)
+	for (unsigned n = 0; n < p_nSimP; n++)
 	{
 		const unsigned ind = i_index[n];
 		for (unsigned c = 0, k = 0; c < chnls; c++)
