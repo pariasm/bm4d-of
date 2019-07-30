@@ -28,7 +28,7 @@ done
 $DIR/awgn $SIG $SEQ $OUT/"%03d.tif" $FFR $LFR
 
 # denoise {{{1
-$DIR/bm4dof.sh $OUT/"%03d.tif" $FFR $LFR $SIG $OUT $PRM
+$DIR/bm4dof.sh $OUT/"%03d.tif" $FFR $LFR $SIG $OUT "$PRM"
 
 # compute psnr {{{1
 $DIR/psnr $SEQ $OUT/deno_%03d.tif $FFR $LFR $OUT/measures-deno 1>/dev/null

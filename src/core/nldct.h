@@ -326,49 +326,6 @@ unsigned estimateSimilarPatchesStep2(
 );
 
 /**
- * @brief Detect if we are in an homogeneous area. In this case, compute the mean.
- *
- * @param io_group: contains for each channels values of similar patches. If an homogeneous area
- *                  is detected, will contain the average of all pixels in similar patches;
- * @param p_sP2: size of each patch (sP x sP);
- * @param p_nSimP: number of similar patches;
- * @param p_threshold: threshold below which an area is declared homogeneous;
- * @param p_imSize: size of the video.
- *
- * @return 1 if an homogeneous area is detected, 0 otherwise.
- **/
-int computeHomogeneousAreaStep1(
-	std::vector<std::vector<float> > &io_group
-,	const unsigned p_sP
-,	const unsigned p_nSimP
-,	const float p_threshold
-,	const VideoSize &p_imSize
-);
-
-/**
- * @brief Detect if we are in an homogeneous area. In this case, compute the mean.
- *
- * @param io_groupNoisy: inputs values of similar patches for the noisy video;
- *                         if the area is classified as homogeneous, outputs the
- *                         average of all pixels in all patches.
- * @param i_groupBasic: contains values of similar patches for the basic video.
- * @param p_sP2: size of each patch (sP x sP);
- * @param p_nSimP: number of similar patches;
- * @param p_threshold: threshold below which an area is declared homogeneous;
- * @param p_imSize: size of the video.
- *
- * @return 1 if an homogeneous area is detected, 0 otherwise.
- **/
-int computeHomogeneousAreaStep2(
-	std::vector<float> & io_groupNoisy
-,	std::vector<float> const &i_groupBasic
-,	const unsigned p_sP
-,	const unsigned p_nSimP
-,	const float p_threshold
-,	const VideoSize &p_imSize
-);
-
-/**
  * @brief Compute the Bayes estimation assuming a low rank covariance matrix.
  *
  * @param io_group: contains all similar patches. Will contain estimates for all similar patches;
@@ -476,62 +433,6 @@ int computeAggregationStep2(
 ,	Video<float> &variance
 ,	std::vector<unsigned> const& i_index
 ,	const nlbParams& p_params
-,	const unsigned p_nSimP
-);
-
-/**
- * @brief Aggregate estimates of all similar patches contained in the 3D
- * group. This version is for a test: in the original version, all patches
- * in the group are marked as processed, and cannot be origins of a patch
- * group. In this version we only mark as processed the patches of the 
- * group which are nearby frames to the group origin.
- *
- * @param io_im: update the image with estimate values;
- * @param io_weight: update corresponding weight, used later in the weighted aggregation;
- * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group: contains estimated values of all similar patches in the 3D group;
- * @param i_index: contains index of all similar patches contained in i_group;
- * @param p_imSize: size of io_im;
- * @param p_params: see processStep1 for more explanation.
- * @param p_nSimP: number of similar patches.
- *
- * @return none.
- **/
-void computeTemporalAggregationStep1(
-	Video<float> &io_im
-,	Video<float> &io_weight
-,	Video<char>  &io_mask
-,	std::vector<std::vector<float> > const& i_group
-,	std::vector<unsigned> const& i_index
-,	const nlbParams &p_params
-,	const unsigned p_nSimP
-);
-
-/**
- * @brief Aggregate estimates of all similar patches contained in the 3D
- * group. This version is for a test: in the original version, all patches
- * in the group are marked as processed, and cannot be origins of a patch
- * group. In this version we only mark as processed the patches of the 
- * group which are nearby frames to the group origin.
- *
- * @param io_im: update the image with estimate values;
- * @param io_weight: update corresponding weight, used later in the weighted aggregation;
- * @param io_mask: update values of mask: set to true the index of an used patch;
- * @param i_group: contains estimated values of all similar patches in the 3D group;
- * @param i_index: contains index of all similar patches contained in i_group;
- * @param p_imSize: size of io_im;
- * @param p_params: see processStep2 for more explanation;
- * @param p_nSimP: number of similar patches.
- *
- * @return none.
- **/
-void computeTemporalAggregationStep2(
-	Video<float> &io_im
-,	Video<float> &io_weight
-,	Video<char>  &io_mask
-,	std::vector<float> const& i_group
-,	std::vector<unsigned> const& i_index
-,	const nlbParams &p_params
 ,	const unsigned p_nSimP
 );
 

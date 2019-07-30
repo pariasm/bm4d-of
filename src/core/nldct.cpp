@@ -451,12 +451,10 @@ std::vector<float> runNlBayes(
 		shared(imNoisySub, imBasicSub, imFinalSub) \
 		firstprivate (prms2)
 #endif
-		for (int n = 0; n < (int) nParts; n++)
-		{
+		for (int n = 0; n < (int)nParts; n++)
 			groupsProcessedSub[n] = 
 				processNlBayes(imNoisySub[n], fflowSub[n], bflowSub[n],
 				               imBasicSub[n], imFinalSub[n], p_prms2, imCrops[n]);
-		}
 
 		//! Get the final result
 		VideoUtils::subBuildTight(imFinalSub, o_imFinal, p_prms2.boundary);
