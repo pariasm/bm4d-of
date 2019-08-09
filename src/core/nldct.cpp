@@ -919,28 +919,30 @@ unsigned estimateSimilarPatches(
 ,	const unsigned pidx
 ,	const nlbParams &params
 ){
+	bool mc_patches = true;
+
 	bool step1 = params.isFirstStep;
-	const VideoSize sz = imNoisy.sz;
 	const int sPx = params.sizePatch;
 	const int sPt = params.sizePatchTime;
+	const VideoSize sz = imNoisy.sz;
 	const int dist_chnls = step1 ? 1 : sz.channels;
 	unsigned nSimP = 1;
 
+	//! Coordinates of center of search box
+	unsigned px, py, pt, pc;
+	sz.coords(pidx, px, py, pt, pc);
+
 	if (params.nSimilarPatches > 1)
 	{
+		const float tau_match = params.tau * params.tau * sPx * sPx * sPt;
+		const bool use_flow = (fflow.sz.width > 0);
+
 		const unsigned nSimPFrame = params.nSimilarPatchesPred;
 		const float dsub = params.dsub * params.dsub * 255;
-		const float tau_match = params.tau * params.tau * sPx * sPx * sPt;
-
-		const bool use_flow = (fflow.sz.width > 0);
 
 		//! Determine search range
 		const int sWt_f = params.sizeSearchTimeRangeFwd;
 		const int sWt_b = params.sizeSearchTimeRangeBwd;
-
-		//! Coordinates of center of search box
-		unsigned px, py, pt, pc;
-		sz.coords(pidx, px, py, pt, pc);
 
 		//! Temporal search range
 		int ranget[2];
@@ -958,6 +960,9 @@ unsigned estimateSimilarPatches(
 		//! Redefine size of temporal search range
 		int sWt = ranget[1] - ranget[0] + 1;
 
+		using std::vector;
+		vector<vector<float> > distance;
+
 		//! Number of patches in search region
 		int nsrch = 0;
 
@@ -972,7 +977,37 @@ unsigned estimateSimilarPatches(
 		                               traj_cy(nSimPFrame, std::vector<int>(sWt,0) ),
 		                               traj_ct(nSimPFrame, std::vector<int>(sWt,0) );
 
-		std::vector<std::pair<float, unsigned>> distance;
+		// Pointer to video used for distance computation
+		const Video<float> *p_im = step1 ? &imNoisy : &imBasic;
+
+		//! Store reference patch
+		std::vector<float> refpatch(sPx*sPx*sPt*dist_chnls, 0.f);
+		{
+			//! Initial temporal slice
+			int k = 0;
+			for (int hy = 0; hy < sPx; hy++)
+			for (int hx = 0; hx < sPx; hx++)
+			for (int c  = 0; c < dist_chnls; ++c, k++)
+				refpatch[k] = (*p_im)(px + hx, py + hy, pt, c);
+
+			//! Remaninig temporal slices
+			float cx = px + sPx/2, cy = py + sPx/2;
+			int cx0 = round(cx), cy0 = round(cy);
+			for (int ht = 1; ht < sPt; ht++)
+			{
+				//! Integrate optical flow to new patch center
+				cx += (mc_patches ? fflow(cx0, cy0, pt + ht - 1, 0) : 0.f);
+				cy += (mc_patches ? fflow(cx0, cy0, pt + ht - 1, 1) : 0.f);
+				cx = std::max(float(sPx/2), std::min(float(sz.width  + sPx/2 - sPx), cx));
+				cy = std::max(float(sPx/2), std::min(float(sz.height + sPx/2 - sPx), cy));
+
+				cx0 = round(cx); cy0 = round(cy);
+				for (int hy = 0; hy < sPx; hy++)
+				for (int hx = 0; hx < sPx; hx++)
+				for (int c  = 0; c < dist_chnls; ++c, k++)
+					refpatch[k] = (*p_im)(cx0 - sPx/2 + hx, cy0 - sPx/2 + hy, pt + ht, c);
+			}
+		}
 
 		//! Search
 //		printf("p=%d %d %d rt=[%d, %d]\n", px, py, pt,ranget[0], ranget[1]);
@@ -997,8 +1032,8 @@ unsigned estimateSimilarPatches(
 					int ct = traj_ct[i][dt - dir];
 					float cxf = cx + (use_flow ? (dir > 0 ? fflow(cx,cy,ct,0) : bflow(cx,cy,ct,0)) : 0.f);
 					float cyf = cy + (use_flow ? (dir > 0 ? fflow(cx,cy,ct,1) : bflow(cx,cy,ct,1)) : 0.f);
-					cx0.push_back(std::max(0.f, std::min(sz.width  - 1.f, round(cxf))));
-					cy0.push_back(std::max(0.f, std::min(sz.height - 1.f, round(cyf))));
+					cx0.push_back(std::max(0.f, std::min(sz.width  - 1.f, roundf(cxf))));
+					cy0.push_back(std::max(0.f, std::min(sz.height - 1.f, roundf(cyf))));
 				}
 			}
 			else
@@ -1013,7 +1048,7 @@ unsigned estimateSimilarPatches(
 //			printf("qt=%d - dt=%d - dir=%d - sWx=%d\n", qt, dt, dir, sWx);
 
 			//! Search the square sub-regions
-			std::vector<std::pair<float, unsigned>> distance_t;
+			vector<vector<float> > distance_t;
 			std::unordered_set<int> search_region;
 			for (int i = 0; i < cx0.size(); i++)
 			{
@@ -1042,95 +1077,142 @@ unsigned estimateSimilarPatches(
 //				printf("c0=[%d, %d] rx=[%d, %d] - ry=[%d, %d]\n",
 //						cx0[i], cy0[i], rangex[0], rangex[1], rangey[0], rangey[1]);
 //
-				// Pointer to video used for distance computation
-				const Video<float> *p_im = step1 ? &imNoisy : &imBasic;
-
 				// add elements of the square search region to the union
 				for (int qy = rangey[0]; qy <= rangey[1]; qy++)
 				for (int qx = rangex[0]; qx <= rangex[1]; qx++)
 				if (search_region.insert(sz.index(qx, qy, qt, 0)).second)
 				{
-					//! Squared L2 distance
 					float dist = 0.f, dif;
-					for (int c = 0; c < dist_chnls; c++)
-					for (int ht = 0; ht < sPt; ht++)
+
+					//! Initial temporal slice
+					std::vector<float>::const_iterator p_refpatch = refpatch.begin();
 					for (int hy = 0; hy < sPx; hy++)
 					for (int hx = 0; hx < sPx; hx++)
-						dist += (dif = (*p_im)(px + hx, py + hy, pt + ht, c)
-						             - (*p_im)(qx + hx, qy + hy, qt + ht, c)) * dif;
+					for (int c = 0; c < dist_chnls; c++, ++p_refpatch)
+						dist += (dif = *p_refpatch - (*p_im)(qx + hx, qy + hy, qt, c)) * dif;
+
+					//! patch trajectory and patch distance
+					std::vector<float> patch_traj(1 + 3 * sPt);
+
+					// Initial point in trajectory
+					patch_traj[1] = qx; // coordinates are stored with an offset
+					patch_traj[2] = qy; // since patch_traj[0] is for the patch distance
+					patch_traj[3] = qt;
+
+					//! Remaninig temporal slices
+					float qqx = qx + sPx/2, qqy = qy + sPx/2;
+					int qqx0 = qx, qqy0 = qy;
+					for (int ht = 1; ht < sPt; ht++)
+					{
+						if (mc_patches)
+						{
+							//! Integrate optical flow to new patch center
+							qqx += fflow(qqx0 + sPx/2, qqy0 + sPx/2, qt + ht - 1, 0);
+							qqy += fflow(qqx0 + sPx/2, qqy0 + sPx/2, qt + ht - 1, 1);
+							qqx = std::max(float(sPx/2), std::min(float(sz.width  + sPx/2 - sPx), qqx));
+							qqy = std::max(float(sPx/2), std::min(float(sz.height + sPx/2 - sPx), qqy));
+							qqx0 = round(qqx) - sPx/2; qqy0 = round(qqy) - sPx/2;
+						}
+						for (int hy = 0; hy < sPx; hy++)
+						for (int hx = 0; hx < sPx; hx++)
+						for (int c = 0; c < dist_chnls; c++, ++p_refpatch)
+							dist += (dif = *p_refpatch - (*p_im)(qqx0 + hx, qqy0 + hy, qt + ht))
+							      * dif;
+
+						patch_traj[ht*3 + 1] = qqx0;
+						patch_traj[ht*3 + 2] = qqy0;
+						patch_traj[ht*3 + 3] = qt + ht;
+					}
 
 					//! Small bias towards the center of the region
 					dist -= (qy == py && qx == px)? dsub : 0;
 
 					//! Save distance and corresponding patch index
-					distance_t.push_back(std::make_pair(dist, sz.index(qx, qy, qt, 0)));
+					patch_traj[0] = dist;
+					distance_t.push_back(patch_traj);
 				}
 			}
 
 			//! Keep only the N2 best similar patches
 			std::partial_sort(distance_t.begin(), distance_t.begin() + nSimPFrame,
-			                  distance_t.end(), comparaisonFirst);
+			                  distance_t.end(), compareFirst);
 
 			for (int i = 0; i < nSimPFrame; i++)
 			{
 				//! Store best matches in distance vector
 				distance.push_back(distance_t[i]);
 
-				//! Store coordinates of best matches for the trajetories
-				unsigned cx, cy, ct, cc;
-				sz.coords(distance_t[i].second, cx, cy, ct, cc);
-				traj_cx[i][dt] = cx;
-				traj_cy[i][dt] = cy;
-				traj_ct[i][dt] = ct;
-//
-//				printf("\tc=[%d, %d, %d] ", cx, cy, ct);
-//				printf("-> dist = %f\n", distance_t[i].first);
+				// For the search region trajectories, store coordinates of first
+				// temporal slice of most similar patches
+				traj_cx[i][dt] = distance_t[i][1];
+				traj_cy[i][dt] = distance_t[i][2];
+				traj_ct[i][dt] = distance_t[i][3];
 			}
 		}
 
 		//! Keep only the N2 best similar patches
 		nSimP = std::min(params.nSimilarPatches, (unsigned)distance.size());
 		std::partial_sort(distance.begin(), distance.begin() + nSimP,
-		                  distance.end(), comparaisonFirst);
-
-//		for (int i = 0; i < nSimP; i++)
-//		{
-//				//! Store coordinates of best matches for the trajetories
-//				unsigned cx, cy, ct, cc;
-//				im.sz.coords(distance[i].second, cx, cy, ct, cc);
-//				printf("final c=[%d, %d, %d] ", cx, cy, ct);
-//				printf("-> dist = %f\n", distance[i].first);
-//		}
-//
-//		while (1);
+		                  distance.end(), compareFirst);
 
 		//! Remove patches with a distance larger than tau_match
 		{
 			int n = 1;
-			while (2*n <= nSimP && distance[n].first < tau_match) n *= 2;
+			while (2*n <= nSimP && distance[n][0] < tau_match) n *= 2;
 			nSimP = n;
 		}
 
-		//! Store indices of most similar patches
-		for (unsigned n = 0; n < nSimP; n++)
-			index[n] = distance[n].second;
+		//! Store trajectories of most similar patches
+		index.resize(nSimP*3*sPt);
+		for (int n = 0; n < nSimP; ++n)
+		for (int i = 0; i < sPt*3; ++i)
+			// shift 1 distance vector since distance[n][0] is the distance value
+			index[n*sPt*3 + i] = (unsigned)distance[n][i+1];
 	}
 	else // nSimilarPatches == 1
-		index[0] = pidx;
+	{
+		//! Initial temporal slice
+		float cx = px + sPx/2, cy = py + sPx/2;
+		int cx0 = round(cx), cy0 = round(cy);
+		int k = 0;
+		index[k++] = cx0;
+		index[k++] = cy0;
+		index[k++] = pt;
+		//! Remaninig temporal slices
+		for (int ht = 1; ht < sPt; ht++)
+		{
+			//! Integrate optical flow to new patch center
+			cx += (mc_patches ? fflow(cx0, cy0, pt + ht - 1, 0) : 0.f);
+			cy += (mc_patches ? fflow(cx0, cy0, pt + ht - 1, 1) : 0.f);
+			cx = std::max(float(sPx/2), std::min(float(sz.width  - sPx/2 + sPx), cx));
+			cy = std::max(float(sPx/2), std::min(float(sz.height - sPx/2 + sPx), cy));
 
-	//! Stack selected patches into the 3D group
+			cx0 = round(cx); cy0 = round(cy);
+			index[k++] = cx0 - sPx/2;
+			index[k++] = cy0 - sPx/2;
+			index[k++] = pt;
+		}
+	}
+
+	//! Stack similar patches into 3D groups
 	const unsigned w   = sz.width;
 	const unsigned wh  = sz.wh;
 	const unsigned whc = sz.whc;
-	for (unsigned c = 0, k = 0; c < sz.channels; c++)
-	for (unsigned ht = 0; ht < sPt; ht++)
-	for (unsigned hy = 0; hy < sPx; hy++)
-	for (unsigned hx = 0; hx < sPx; hx++)
-	for (unsigned n = 0 ; n < nSimP; n++, k++)
+
+	for (unsigned c  = 0; c < sz.channels; c++)
+	for (unsigned ht = 0, k = 0; ht < sPt; ht++)
+	for (unsigned hy = 0;        hy < sPx; hy++)
+	for (unsigned hx = 0;        hx < sPx; hx++)
+	for (unsigned n  = 0; n < nSimP; n++, k++)
 	{
-		groupNoisy[k] = imNoisy(c * wh + index[n] + ht * whc + hy * w + hx);
+		int offset = 3*sPt*n + 3*ht;
+		groupNoisy[k] = imNoisy(index[offset + 0] + hx,
+		                        index[offset + 1] + hy,
+		                        index[offset + 2], c);
 		if (!step1)
-			groupBasic[k] = imBasic(c * wh + index[n] + ht * whc + hy * w + hx);
+			groupBasic[k] = imBasic(index[offset + 0] + hx,
+			                        index[offset + 1] + hy,
+			                        index[offset + 2], c);
 	}
 
 	return nSimP;
@@ -1380,7 +1462,7 @@ unsigned estimateSimilarPatches(
 	return nSimP;
 }
  #endif //MC_PATCHES
-#else
+#else //VBM3D_SEARCH
  #ifdef MC_PATCHES
 /**
  * @brief Keep from all near patches the similar ones to the reference patch
@@ -1462,6 +1544,9 @@ unsigned estimateSimilarPatches(
 		for (int qt = pt+1; qt <= ranget[1]; ++qt) srch_ranget.push_back(qt);
 		for (int qt = pt-1; qt >= ranget[0]; --qt) srch_ranget.push_back(qt);
 
+		//! Trajectory of search center
+		std::vector<int> cx(sWt,0), cy(sWt,0), ct(sWt,0);
+
 		// Pointer to video used for distance computation
 		const Video<float> *p_im = step1 ? &imNoisy : &imBasic;
 
@@ -1494,9 +1579,6 @@ unsigned estimateSimilarPatches(
 			}
 		}
 
-		//! Trajectory of search center
-		std::vector<int> cx(sWt,0), cy(sWt,0), ct(sWt,0);
-
 		//! Search
 		for (int ii = 0; ii < sWt; ++ii)
 		{
@@ -1512,8 +1594,8 @@ unsigned estimateSimilarPatches(
 				int ct0 = ct[dt - dir];
 				float cx_f = cx0 + (use_flow ? (dir > 0 ? fflow(cx0,cy0,ct0,0) : bflow(cx0,cy0,ct0,0)) : 0.f);
 				float cy_f = cy0 + (use_flow ? (dir > 0 ? fflow(cx0,cy0,ct0,1) : bflow(cx0,cy0,ct0,1)) : 0.f);
-				cx[dt] = std::max(0.f, std::min(sz.width  - 1.f, round(cx_f)));
-				cy[dt] = std::max(0.f, std::min(sz.height - 1.f, round(cy_f)));
+				cx[dt] = std::max(0.f, std::min(sz.width  - 1.f, roundf(cx_f)));
+				cy[dt] = std::max(0.f, std::min(sz.height - 1.f, roundf(cy_f)));
 				ct[dt] = qt;
 			}
 			else
@@ -1560,12 +1642,12 @@ unsigned estimateSimilarPatches(
 					dist += (dif = *p_refpatch - (*p_im)(qx + hx, qy + hy, qt, c)) * dif;
 
 				//! patch trajectory and patch distance
-				std::vector<float> traj(1 + 3 * sPt);
+				std::vector<float> patch_traj(1 + 3 * sPt);
 
 				// Initial point in trajectory
-				traj[1] = qx; // coordinates are stored with an offset
-				traj[2] = qy; // since traj[0] is for the patch distance
-				traj[3] = qt;
+				patch_traj[1] = qx; // coordinates are stored with an offset
+				patch_traj[2] = qy; // since patch_traj[0] is for the patch distance
+				patch_traj[3] = qt;
 
 				//! Remaninig temporal slices
 				float cx = qx + sPx/2, cy = qy + sPx/2;
@@ -1593,14 +1675,14 @@ unsigned estimateSimilarPatches(
 						dist += (dif = *p_refpatch - (*p_im)(cx0 + hx, cy0 + hy, qt + ht)) * dif;
 					}
 
-					traj[ht*3 + 1] = cx0;
-					traj[ht*3 + 2] = cy0;
-					traj[ht*3 + 3] = qt + ht;
+					patch_traj[ht*3 + 1] = cx0;
+					patch_traj[ht*3 + 2] = cy0;
+					patch_traj[ht*3 + 3] = qt + ht;
 				}
 
 				//! Save distance and corresponding patch index
-				traj[0] = dist;
-				distance[nsrch++] = traj;
+				patch_traj[0] = dist;
+				distance[nsrch++] = patch_traj;
 			}
 		}
 
@@ -1769,8 +1851,8 @@ unsigned estimateSimilarPatches(
 				int ct0 = ct[dt - dir];
 				float cx_f = cx0 + (use_flow ? (dir > 0 ? fflow(cx0,cy0,ct0,0) : bflow(cx0,cy0,ct0,0)) : 0.f);
 				float cy_f = cy0 + (use_flow ? (dir > 0 ? fflow(cx0,cy0,ct0,1) : bflow(cx0,cy0,ct0,1)) : 0.f);
-				cx[dt] = std::max(0.f, std::min(sz.width  - 1.f, round(cx_f)));
-				cy[dt] = std::max(0.f, std::min(sz.height - 1.f, round(cy_f)));
+				cx[dt] = std::max(0.f, std::min(sz.width  - 1.f, roundf(cx_f)));
+				cy[dt] = std::max(0.f, std::min(sz.height - 1.f, roundf(cy_f)));
 				ct[dt] = qt;
 			}
 			else

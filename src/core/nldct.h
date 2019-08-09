@@ -17,7 +17,7 @@
 #include "../utils/utilities.h"
 
 
-//#define VBM3D_SEARCH             		// Use VBM3D predictive search
+#define VBM3D_SEARCH             		// Use VBM3D predictive search
 #define VBM3D_HAAR_TRANSFORM     		// Use VBM3D 3D transform
 #define MC_PATCHES               		// Motion compensated 3D patches
 
