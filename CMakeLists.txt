@@ -37,6 +37,9 @@ add_subdirectory(src/core)
 add_subdirectory(src)
 add_subdirectory(scripts)
 
+# copy multiscaler octave folder to bin #######################################
+file(COPY lib/ms-lanczos3 DESTINATION ${CMAKE_BINARY_DIR}/bin/)
+
 # configure cpack #############################################################
 
 set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
